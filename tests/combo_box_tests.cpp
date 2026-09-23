@@ -236,6 +236,41 @@ void TestSelectAndSetValueDoNotFire() {
     Expect(!combo->isShowing(), "show does nothing when the list is empty");
 }
 
+double TextBoxHeight(const jadefx::TextField& editor) {
+    const jadefx::ComputedStyle& style = editor.computedStyle();
+    return editor.getHeight() - style.padding.height() - style.border.height();
+}
+
+void TestEditorFillsComboHeight() {
+    auto combo = jadefx::make<jadefx::ComboBox>();
+    combo->setEditable(true);
+    combo->setValue("Lisbon");
+    Box box = Place(combo);
+    jadefx::TextField* editor = combo->getEditor();
+    Expect(editor != nullptr, "editable combo has an editor");
+    if (editor == nullptr) {
+        return;
+    }
+    Expect(Near(editor->getY(), 0.0), "the editor starts at the top of the combo");
+    Expect(Near(editor->getHeight(), combo->getHeight()), "the editor is as tall as the combo");
+    Expect(Near(TextBoxHeight(*editor), combo->getHeight()), "the text area fills the combo by default");
+    const jadefx::Font face(editor->computedStyle().fontFamily, editor->computedStyle().fontSize);
+    Expect(TextBoxHeight(*editor) + 0.5 >= face.lineHeight(), "the text area fits a line");
+
+    box.scene->setStylesheet(
+        "scene { font-size: 15px; }"
+        "textfield, combobox { padding: 6px 8px; border-width: 1px; background-color: white; }"
+        "textfield:focus { border-width: 2px; }");
+    box.scene->layout(420, 360, 0);
+    Expect(Near(combo->getHeight(), 32.0), "the combo keeps its preferred height");
+    Expect(Near(editor->getY(), 0.0), "a textfield rule does not push the editor down");
+    Expect(Near(editor->getHeight(), combo->getHeight()), "a textfield rule does not shrink the editor");
+    Expect(Near(TextBoxHeight(*editor), combo->getHeight()), "the text area still fills the combo");
+    Expect(editor->computedStyle().background.color.a == 0.f, "the editor stays transparent");
+    const jadefx::Font styled(editor->computedStyle().fontFamily, editor->computedStyle().fontSize);
+    Expect(TextBoxHeight(*editor) + 0.5 >= styled.lineHeight(), "styled text still fits a line");
+}
+
 void TestEditableEnter() {
     auto combo = jadefx::make<jadefx::ComboBox>();
     combo->setPromptText("Type");
@@ -448,6 +483,7 @@ int RunComboBoxTests() {
     TestClickTogglesWithoutAction();
     TestDownMovesSelection();
     TestSelectAndSetValueDoNotFire();
+    TestEditorFillsComboHeight();
     TestEditableEnter();
     TestVisibleRowsScroll();
     TestEscapeAndOutsideCommit();

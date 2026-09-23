@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -491,7 +492,10 @@ void TextField::renderContent(UiRenderer& renderer, float opacity) {
     const float width = static_cast<float>(getWidth());
     const float height = static_cast<float>(getHeight());
     const float radius[4] = {4.f, 4.f, 4.f, 4.f};
-    if (width > 0.f && height > 0.f) {
+    // A combo draws the box and the focus ring. A second stroke would cover them.
+    const Node* parent = getParent();
+    const bool comboEditor = parent != nullptr && std::strcmp(parent->getElementType(), "combobox") == 0;
+    if (!comboEditor && width > 0.f && height > 0.f) {
         const ComputedStyle& style = computedStyle();
         const bool cssBorder = style.borderStyle == BorderStyle::Solid &&
                                (style.border.top > 0 || style.border.right > 0 || style.border.bottom > 0 || style.border.left > 0);

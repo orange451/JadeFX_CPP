@@ -64,6 +64,11 @@ textfield, combobox {
     border-radius: 6px;
     padding: 6px 8px;
 }
+combobox textfield {
+    padding: 0 2px;
+    border-width: 0;
+    background-color: transparent;
+}
 textfield:focus, combobox:focus, combobox:focus-within {
     border-color: #1a73e8;
     border-width: 2px;

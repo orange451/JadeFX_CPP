@@ -286,6 +286,9 @@ void ComboBox::setEditable(bool editable) {
     editor_->setPromptText(prompt_);
     editor_->setBackground(Color::transparent());
     editor_->setPadding(Insets::axes(0, 2));
+    // This sheet is the editor's, so it follows ancestor rules. A shared textfield
+    // padding or border cannot shrink the line below the combo.
+    editor_->setStylesheet("textfield { padding: 0 2px; border-width: 0; background-color: transparent; }");
     editor_->setDisable(isDisable());
     editor_->setOnAction([this](ActionEvent&) { commitEditor(); });
     children().add(editor_);
@@ -684,9 +687,9 @@ void ComboBox::layoutEditor() {
         editor_->setDisable(isDisable());
     }
     const double left = contentLeft();
-    const double top = contentTop();
     const double right = std::min(left + contentWidth(), getWidth() - kArrowWidth);
-    editor_->performLayout(left, top, std::max(0.0, right - left), std::max(0.0, contentHeight()));
+    // The text box is the combo's full height. Width still stops at the arrow.
+    editor_->performLayout(left, 0.0, std::max(0.0, right - left), std::max(0.0, getHeight()));
 }
 
 int ComboBox::indexOf(const std::string& value) const {

@@ -53,7 +53,8 @@ public:
     void hide();
     bool isShowing() const;
 
-    // Non-null only while the combo is editable. The field is a child of the combo.
+    // Non-null only while the combo is editable. The field is a child of the combo
+    // and its text box fills the combo's height.
     TextField* getEditor() const { return editable_ ? editor_.get() : nullptr; }
 
 protected:
