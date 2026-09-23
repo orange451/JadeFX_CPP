@@ -59,7 +59,10 @@ public:
 
     // pointWidth/pointHeight are CSS pixels. framebufferWidth/Height are the drawable.
     // Returns false when OpenGL reported an error while drawing the frame.
+    // The color buffer is cleared unless setClearsColor(false) was called. An existing
+    // scene that already cleared can then show through a transparent stage.
     bool frame(int pointWidth, int pointHeight, int framebufferWidth, int framebufferHeight);
+    void setClearsColor(bool clear) { clearColor_ = clear; }
     bool graphicsOk() const { return graphicsOk_; }
 
     using ResizeHandler = std::function<void(int width, int height)>;
@@ -102,6 +105,7 @@ private:
     int pointHeight_ = 0;
     bool graphicsReady_ = false;
     bool graphicsOk_ = true;
+    bool clearColor_ = true;
     bool shown_ = false;
     int frames_ = 0;
     std::string pendingTitle_;

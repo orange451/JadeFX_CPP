@@ -186,7 +186,8 @@ void UiRenderer::shutdown() {
     }
 }
 
-void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixelsPerPoint, const Color& clear) {
+void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixelsPerPoint, const Color& clear,
+                       bool clearColor) {
     viewportW_ = framebufferWidth;
     viewportH_ = framebufferHeight;
     scale_ = pixelsPerPoint > 0.f ? pixelsPerPoint : 1.f;
@@ -197,8 +198,10 @@ void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixels
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_SCISSOR_TEST);
     clips_.clear();
-    glClearColor(clear.r, clear.g, clear.b, clear.a);
-    glClear(GL_COLOR_BUFFER_BIT);
+    if (clearColor) {
+        glClearColor(clear.r, clear.g, clear.b, clear.a);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
 }
 
 void UiRenderer::end() {

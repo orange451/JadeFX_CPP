@@ -81,7 +81,7 @@ target_include_directories(jadefx
     PUBLIC include
     PRIVATE src src/gl
 )
-target_compile_definitions(jadefx PRIVATE "JADEFX_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
+target_compile_definitions(jadefx PRIVATE "JADEFX_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
 
 # stb_truetype is one public-domain header. Fetch it the same way as GLFW and
 # GLFM, pinned to nothings/stb 2c980bb (the bytes this tree used to vendor).

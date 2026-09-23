@@ -16,7 +16,8 @@ public:
     bool initialize();
     void shutdown();
 
-    void begin(int framebufferWidth, int framebufferHeight, float pixelsPerPoint, const Color& clear);
+    // clearColor false leaves the framebuffer contents in place.
+    void begin(int framebufferWidth, int framebufferHeight, float pixelsPerPoint, const Color& clear, bool clearColor);
     // stops are along the gradient. One stop draws a solid color. stopAt is 0 at the start.
     void fillRounded(float x, float y, float width, float height, const float radius[4], const Color* stops,
                      const float* stopAt, int stopCount, float angleDeg);
