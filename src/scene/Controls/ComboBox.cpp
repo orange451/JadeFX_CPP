@@ -70,6 +70,7 @@ void DrawLine(UiRenderer& renderer, float x, float y, float width, float height,
 class ComboRow : public Controls {
 public:
     ComboRow(ComboBox* combo, int index, std::string text) : combo_(combo), index_(index), text_(std::move(text)) {
+        setDefaultCursor(Cursor::Pointer);
         setElementId(text_);
     }
 
@@ -207,6 +208,7 @@ private:
 };
 
 ComboBox::ComboBox() {
+    setDefaultCursor(Cursor::Pointer);
     setBackground(Color::white());
     setPadding(Insets::axes(4, 8));
     setPrefHeight(kPreferredHeight);

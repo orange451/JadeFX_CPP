@@ -44,6 +44,10 @@ public:
     void setSafeInsets(const Insets& insets) { safe_ = insets; }
 
     void noteMove(double x, double y);
+    // The pointer left the window. Hover ends and the cursor returns to the arrow.
+    void notePointerExit();
+    // Cursor for the pointer's last position. The arrow when the pointer is outside.
+    Cursor hoverCursor();
     void noteButton(int button, bool down, double x, double y);
     void noteScroll(double x, double y, double deltaX, double deltaY);
     // Returns true when the focused node consumed the event.

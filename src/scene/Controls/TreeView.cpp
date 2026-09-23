@@ -17,7 +17,10 @@ namespace jadefx {
 
 class TreeScrollBar : public Region {
 public:
-    explicit TreeScrollBar(TreeView& view) : view_(&view) { getClassList().add("scroll-bar"); }
+    explicit TreeScrollBar(TreeView& view) : view_(&view) {
+        setDefaultCursor(Cursor::Default);
+        getClassList().add("scroll-bar");
+    }
 
     const char* getElementType() const override { return "scroll-bar"; }
 
@@ -182,7 +185,10 @@ public:
 
 class TreeDisclosure : public Region {
 public:
-    TreeDisclosure() { getClassList().add("tree-disclosure-node"); }
+    TreeDisclosure() {
+        setDefaultCursor(Cursor::Pointer);
+        getClassList().add("tree-disclosure-node");
+    }
 
     const char* getElementType() const override { return "tree-disclosure-node"; }
 
@@ -242,6 +248,7 @@ private:
 class TreeCell : public Region {
 public:
     explicit TreeCell(TreeView& view) : view_(&view) {
+        setDefaultCursor(Cursor::Pointer);
         getClassList().add("tree-cell");
         bar_ = std::make_shared<SelectionBar>();
         bar_->setParent(this);

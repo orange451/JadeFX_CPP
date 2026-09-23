@@ -45,6 +45,59 @@ TransitionTiming TimingOf(const ComputedStyle& style, const char* property) {
     return {};
 }
 
+bool HasControlCursor(Cursor cursor) { return cursor != Cursor::Inherit && cursor != Cursor::Auto; }
+
+Cursor ConcreteCursor(Cursor cursor) {
+    if (cursor == Cursor::Inherit || cursor == Cursor::Auto) {
+        return Cursor::Default;
+    }
+    return cursor;
+}
+
+Cursor ResolveCursor(Cursor specified, Cursor inheritedCursor, Cursor controlCursor, bool disabled) {
+    if (specified == Cursor::Inherit) {
+        return inheritedCursor;
+    }
+    if (specified == Cursor::Auto) {
+        if (!disabled && HasControlCursor(controlCursor)) {
+            return controlCursor;
+        }
+        return Cursor::Default;
+    }
+    return specified;
+}
+
+bool LastCursor(const std::vector<Declaration>& declarations, Cursor& cursor) {
+    bool found = false;
+    for (const Declaration& declaration : declarations) {
+        if (declaration.property != "cursor") {
+            continue;
+        }
+        Cursor parsed = Cursor::Default;
+        if (parseCursor(declaration.value, parsed)) {
+            cursor = parsed;
+            found = true;
+        }
+    }
+    return found;
+}
+
+Cursor ResolvedNodeCursor(const std::vector<Declaration>& declarations, Cursor inherited, Cursor controlCursor,
+                          bool explicitCursor, Cursor cursor, bool disabled) {
+    const Cursor inheritedCursor = ConcreteCursor(inherited);
+    Cursor specified = Cursor::Inherit;
+    if (LastCursor(declarations, specified)) {
+        return ResolveCursor(specified, inheritedCursor, controlCursor, disabled);
+    }
+    if (explicitCursor) {
+        return ResolveCursor(cursor, inheritedCursor, controlCursor, disabled);
+    }
+    if (!disabled && HasControlCursor(controlCursor)) {
+        return controlCursor;
+    }
+    return inheritedCursor;
+}
+
 bool SameInsets(const Insets& a, const Insets& b) {
     return a.top == b.top && a.right == b.right && a.bottom == b.bottom && a.left == b.left;
 }
@@ -85,6 +138,13 @@ void Node::requestFocus() {
     }
     scene_->requestFocus(this);
 }
+
+void Node::setCursor(Cursor cursor) {
+    cursorExplicit_ = true;
+    cursor_ = cursor;
+}
+
+Cursor Node::getCursor() const { return cursorExplicit_ ? cursor_ : Cursor::Inherit; }
 
 void Node::setDisable(bool value) {
     if (disable_ == value) {
@@ -422,6 +482,7 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     const float inheritedFont = inherited.fontSize > 0.f ? inherited.fontSize : 16.f;
     applyDeclarations(style, matched, StylePass::Fonts, inheritedFont, inheritedFont);
     applyDeclarations(style, matched, StylePass::Rest, inheritedFont, style.fontSize);
+    style.cursor = ResolvedNodeCursor(matched, inherited.cursor, defaultCursor_, cursorExplicit_, cursor_, isDisabled());
 
     const ComputedStyle target = style;
     const TransitionTiming backgroundTiming = TimingOf(target, "background-color");
@@ -492,6 +553,7 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     pass.fontSize = computed_.fontSize;
     pass.fontFamily = computed_.fontFamily;
     pass.subpixel = computed_.subpixel;
+    pass.cursor = computed_.cursor;
     std::vector<Node*> kids;
     visitChildren([&](Node* child) { kids.push_back(child); });
     for (Node* child : kids) {
@@ -530,6 +592,24 @@ Node* Node::pick(double x, double y) {
         }
     }
     return this;
+}
+
+Node* Node::pickCursorTarget(double x, double y) {
+    if (!visible_ || mouseTransparent_ || !contains(x, y)) {
+        return nullptr;
+    }
+    std::vector<Node*> kids;
+    visitChildren([&](Node* child) { kids.push_back(child); });
+    for (std::size_t i = kids.size(); i > 0; --i) {
+        if (Node* hit = kids[i - 1]->pickCursorTarget(x, y)) {
+            return hit;
+        }
+    }
+    return this;
+}
+
+Cursor Node::cursorAt(double, double) const {
+    return ConcreteCursor(computed_.cursor);
 }
 
 Node* Node::getElementById(const std::string& id) {

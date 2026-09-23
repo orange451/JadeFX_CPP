@@ -127,6 +127,7 @@ TextField::TextField(std::string text) {
     setAlignment(Pos::CenterLeft);
     setPadding(Insets::axes(6, 8));
     setBackground(Color::white());
+    setDefaultCursor(Cursor::Text);
     setText(std::move(text));
 }
 

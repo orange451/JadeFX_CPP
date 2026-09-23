@@ -78,6 +78,7 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
     host.bind(&stage);
     stage.setHostHandlers([&](int width, int height) { host.setSize(width, height); }, [&]() { host.show(); },
                           [&](const std::string& next) { host.setTitle(next.c_str()); });
+    stage.setCursorHandler([&](Cursor cursor) { host.setCursor(cursor); });
     if (!stage.initializeGraphics(&GlfwHost::proc)) {
         host.destroy();
         return 1;

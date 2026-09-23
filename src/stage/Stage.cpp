@@ -11,7 +11,7 @@
 namespace jadefx {
 
 struct Stage::Event {
-    enum class Type { Move, Button, Scroll, Key, Text };
+    enum class Type { Move, Button, Scroll, Key, Text, Leave };
     Type type = Type::Move;
     double x = 0;
     double y = 0;
@@ -94,6 +94,8 @@ void Stage::setHostHandlers(ResizeHandler resize, ShowHandler show, TitleHandler
     }
 }
 
+void Stage::setCursorHandler(CursorHandler handler) { onCursor_ = std::move(handler); }
+
 bool Stage::initializeGraphics(void* (*proc)(const char*)) {
     if (!load_gl(proc)) {
         graphicsReady_ = false;
@@ -119,6 +121,12 @@ void Stage::pushMove(double x, double y) {
     event.type = Event::Type::Move;
     event.x = x;
     event.y = y;
+    events_.push_back(std::move(event));
+}
+
+void Stage::pushPointerExit() {
+    Event event;
+    event.type = Event::Type::Leave;
     events_.push_back(std::move(event));
 }
 
@@ -191,6 +199,9 @@ void Stage::processEvents() {
             case Event::Type::Move:
                 scene_->noteMove(event.x, event.y);
                 break;
+            case Event::Type::Leave:
+                scene_->notePointerExit();
+                break;
             case Event::Type::Button:
                 scene_->noteButton(event.button, event.down, event.x, event.y);
                 break;
@@ -234,6 +245,7 @@ bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int fra
     processEvents();
     scene_->setSafeInsets(safe_);
     scene_->layout(pointWidth, pointHeight);
+    syncCursor();
 
     const float scale = static_cast<float>(framebufferWidth) / static_cast<float>(pointWidth);
     renderer_->begin(framebufferWidth, framebufferHeight, scale, Color::rgb8(248, 248, 248));
@@ -256,6 +268,21 @@ bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int fra
         return false;
     }
     return true;
+}
+
+void Stage::syncCursor() {
+    if (!scene_) {
+        return;
+    }
+    const Cursor next = scene_->hoverCursor();
+    if (cursorApplied_ && next == cursor_) {
+        return;
+    }
+    cursor_ = next;
+    cursorApplied_ = true;
+    if (onCursor_) {
+        onCursor_(next);
+    }
 }
 
 }  // namespace jadefx

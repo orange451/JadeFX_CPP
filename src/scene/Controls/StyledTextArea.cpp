@@ -207,6 +207,7 @@ float AdvanceOf(char32_t codepoint, float pen, const Font& font, int tabSize,
 }  // namespace
 
 StyledTextArea::StyledTextArea() {
+    setDefaultCursor(Cursor::Text);
     selections_.push_back(Selection{});
     content_.setOnPlainTextChange([this](const PlainTextChange& change) { pendingPlain_.push_back(change); });
     content_.setOnRichTextChange([this](const DocumentChange& change) { pendingRich_.push_back(change); });
@@ -1739,6 +1740,20 @@ void StyledTextArea::layoutChildren() {
             onHover_(hoverIndex_);
         }
     }
+}
+
+Cursor StyledTextArea::cursorAt(double x, double y) const {
+    const Cursor base = Node::cursorAt(x, y);
+    if (base != Cursor::Text) {
+        return base;
+    }
+    const float localX = static_cast<float>(x - getAbsoluteX());
+    const float localY = static_cast<float>(y - getAbsoluteY());
+    if (verticalScroll_.part(localX, localY) != ScrollBar::Part::None ||
+        horizontalScroll_.part(localX, localY) != ScrollBar::Part::None) {
+        return Cursor::Default;
+    }
+    return base;
 }
 
 void StyledTextArea::handleMousePressed(const MouseEvent& event) {

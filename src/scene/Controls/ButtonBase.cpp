@@ -8,6 +8,7 @@ ButtonBase::ButtonBase(std::string text) : Labeled(std::move(text)) {
     setAlignment(Pos::Center);
     setPadding(Insets::axes(6, 14));
     setBackground(Color::white());
+    setDefaultCursor(Cursor::Pointer);
 }
 
 void ButtonBase::fire() {

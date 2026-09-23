@@ -1382,6 +1382,7 @@ void TestGrayscaleFrame() {
 
 int RunRichTextTests();
 int RunButtonTests();
+int RunCursorTests();
 int RunToggleTests();
 int RunRadioButtonTests();
 int RunTooltipTests();
@@ -1408,6 +1409,7 @@ int main() {
     TestTreeView();
     gFailures += RunRichTextTests();
     gFailures += RunButtonTests();
+    gFailures += RunCursorTests();
     gFailures += RunToggleTests();
     gFailures += RunRadioButtonTests();
     gFailures += RunTooltipTests();

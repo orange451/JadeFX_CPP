@@ -180,6 +180,7 @@ void HoverRow(MenuItem* item, Node* row);
 class MenuRow : public Region {
 public:
     explicit MenuRow(std::shared_ptr<MenuItem> item) : item_(std::move(item)) {
+        setDefaultCursor(Cursor::Pointer);
         setPrefHeight(kRowHeight);
         setPadding(Insets::axes(0, kRowPadX));
         getClassList().add("menu-item");

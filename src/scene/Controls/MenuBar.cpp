@@ -28,6 +28,7 @@ Font BarFont(const Node& node) {
 class MenuTitle : public Region {
 public:
     MenuTitle(MenuBar* bar, std::shared_ptr<Menu> menu) : bar_(bar), menu_(std::move(menu)) {
+        setDefaultCursor(Cursor::Pointer);
         getClassList().add("menu");
         label_ = std::make_shared<Label>(menu_ ? menu_->getText() : std::string());
         label_->setMouseTransparent(true);

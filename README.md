@@ -105,9 +105,13 @@ button->setOnMouseClicked([](const jadefx::MouseEvent&) {
 
 `setStylesheet` parses a CSS subset. Selectors can be a type (`scene`, `label`, `button`, `togglebutton`, `radiobutton`, `textfield`, `combobox`, `combo-row`, `tooltip`, `menubar`, `menu`, `menubutton`, `menu-item`, `separator`, `alert`, `vbox`, `stackpane`, `borderpane`, `pane`, `tabpane`, `tab`, `tab-label`, `tab-close-button`, `tab-header-area`, `treeview`, `tree-cell`, `tree-cell-label`, `tree-disclosure-node`, `selection-bar`), a universal `*`, a class (`.test-button`), an id (`#SignUp`), and the pseudos `:hover`, `:active`, `:focus`, `:focus-within`, `:disabled`, and `:select` (also written `:selected`). A space is a descendant combinator and `>` is a child combinator.
 
-Supported properties: `width`, `height`, `min-*`, `max-*`, `padding`, `spacing`, `alignment`, `color`, `font-size`, `font-family`, `background-color`, `background-image` (`linear-gradient`, including `to bottom` and extra color stops), `border-radius`, `border-width`, `border-color`, `border-style`, `box-shadow`, `opacity`, and `transition`. Lengths accept `px`, `em`, `%`, and `calc(100% - 48px)`. An unknown unit is ignored rather than treated as pixels.
+Supported properties: `width`, `height`, `min-*`, `max-*`, `padding`, `spacing`, `alignment`, `color`, `font-size`, `font-family`, `background-color`, `background-image` (`linear-gradient`, including `to bottom` and extra color stops), `border-radius`, `border-width`, `border-color`, `border-style`, `box-shadow`, `opacity`, `cursor`, and `transition`. Lengths accept `px`, `em`, `%`, and `calc(100% - 48px)`. An unknown unit is ignored rather than treated as pixels.
 
-`color`, `font-size`, and `font-family` inherit. `background-color` stays behind a gradient instead of replacing it. A transition on `background-color`, `background-image`, `color`, `border-color`, `border-width`, or `box-shadow` fades those values. A timing function such as `ease` is accepted and does not cancel the duration. Other properties take their new value on the next frame.
+`color`, `font-size`, `font-family`, and `cursor` inherit. `background-color` stays behind a gradient instead of replacing it. A transition on `background-color`, `background-image`, `color`, `border-color`, `border-width`, or `box-shadow` fades those values. A timing function such as `ease` is accepted and does not cancel the duration. Other properties take their new value on the next frame.
+
+`cursor` changes the mouse cursor while the pointer is over a node. Buttons, toggles, menus, tabs, combo rows, and tree rows use `pointer` (the hand). Text fields and text areas use `text` (the I-beam). A text area's scrollbar keeps the arrow. `auto` keeps that control default, and `default` is the arrow. A disabled control drops its hand or I-beam unless a rule sets another cursor. `setCursor` sets the same value from code; a stylesheet replaces it.
+
+Keywords: `auto`, `default`, `pointer` (`hand`), `text` (`vertical-text`), `crosshair` (`cell`), `move` (`all-scroll`), `not-allowed` (`no-drop`), `ew-resize`, `ns-resize`, `nwse-resize`, `nesw-resize` (and the single-edge names such as `e-resize`), `none`, `wait`, `help`, `progress`, `grab` (`open-hand`), `grabbing` (`closed-hand`), `zoom-in`, `zoom-out`, `context-menu`, `alias`, and `copy`. `grab` uses the hand. `wait`, `help`, `progress`, `zoom-in`, `zoom-out`, `alias`, `copy`, and `context-menu` use the arrow. The first recognized keyword in a comma-separated list wins, so `url(missing), pointer` is the hand.
 
 `setStyle("color: white;")` sets inline declarations on one node. Inline declarations win over the stylesheet.
 
@@ -125,7 +129,7 @@ stage.pushMove(mouseX, mouseY);
 stage.frame(windowWidth, windowHeight, framebufferWidth, framebufferHeight);
 ```
 
-`frame` lays out the scene, draws it, and leaves the GL state with blending enabled. Call `shutdownGraphics` before destroying the context.
+`frame` lays out the scene, draws it, and leaves the GL state with blending enabled. Call `shutdownGraphics` before destroying the context. `setCursorHandler` reports the cursor for the pointer after each frame. `cursorShape` maps that value onto a system cursor such as the hand or the I-beam. A window opened with `Application::launch` applies it on its own.
 
 ## iOS and Android
 

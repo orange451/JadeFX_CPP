@@ -1,8 +1,11 @@
 #pragma once
 
+#include "jadefx/style/Style.hpp"
+
 #include <functional>
 
 struct GLFWwindow;
+struct GLFWcursor;
 
 namespace jadefx {
 
@@ -24,6 +27,7 @@ public:
     static void* proc(const char* name);
     void bind(Stage* stage);
     Stage* boundStage() const { return stage_; }
+    void setCursor(Cursor cursor);
 
     // Cocoa and Win32 do not return from event polling while the user resizes the window.
     // The redraw runs from the callbacks those nested loops already invoke.
@@ -33,6 +37,7 @@ public:
 private:
     GLFWwindow* window_ = nullptr;
     Stage* stage_ = nullptr;
+    GLFWcursor* cursors_[static_cast<int>(CursorShape::Hidden) + 1] = {};
     std::function<void()> redraw_;
     bool redrawing_ = false;
 };

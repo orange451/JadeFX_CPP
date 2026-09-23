@@ -84,6 +84,11 @@ public:
 
     void setStyle(std::string css);
     const std::string& getStyle() const { return styleText_; }
+
+    // Cursor while the pointer is over this node. A stylesheet replaces it.
+    // Inherit follows the parent. Auto uses the control's own cursor.
+    void setCursor(Cursor cursor);
+    Cursor getCursor() const;
     void setStylesheet(std::string css);
     ObservableList<std::string>& getClassList() { return classList_; }
     const ObservableList<std::string>& getClassList() const { return classList_; }
@@ -128,6 +133,9 @@ public:
 
     bool contains(double x, double y) const;
     Node* pick(double x, double y);
+    // The cursor at a window point this node covers. A control may use a different
+    // cursor for a scrollbar than for its text.
+    virtual Cursor cursorAt(double x, double y) const;
 
     // Focus this node. Keys and text input are delivered here until another press.
     void requestFocus();
@@ -191,12 +199,16 @@ protected:
     void setFontInternal(const Font& font, bool explicitSize);
     void setTextFillInternal(const Color& color, bool explicitColor);
     void setSubpixelRenderingInternal(bool enabled);
+    // Buttons and text controls set this. setCursor and stylesheets replace it.
+    void setDefaultCursor(Cursor cursor) { defaultCursor_ = cursor; }
 
     friend class Scene;
 
 private:
     void applyStyles(const ComputedStyle& inherited, double timeSeconds);
     void syncHover(Node* hit);
+    // Like pick, but a disabled node still supplies its cursor.
+    Node* pickCursorTarget(double x, double y);
     void setPressedChain(Node* hit);
     void clearFocus();
     void markFocused(Node* hit);
@@ -247,6 +259,9 @@ private:
     bool fillExplicit_ = false;
     bool subpixel_ = true;
     bool subpixelExplicit_ = false;
+    Cursor cursor_ = Cursor::Inherit;
+    bool cursorExplicit_ = false;
+    Cursor defaultCursor_ = Cursor::Inherit;
 
     std::string id_;
     std::string styleText_;

@@ -156,6 +156,7 @@ public:
     void handleScroll(ScrollEvent& event) override;
     void handleKey(KeyEvent& event) override;
     void handleText(TextEvent& event) override;
+    Cursor cursorAt(double x, double y) const override;
 
 protected:
     double preferredContentWidth(double innerAvailable) const override;

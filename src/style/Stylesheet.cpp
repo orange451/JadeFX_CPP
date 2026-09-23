@@ -927,6 +927,94 @@ void Stylesheet::collectMatching(Node& node, std::vector<Declaration>& out) cons
 
 bool Stylesheet::empty() const { return !data_ || data_->rules.empty(); }
 
+namespace {
+
+struct CursorKeyword {
+    const char* name;
+    Cursor cursor;
+};
+
+const CursorKeyword kCursors[] = {
+    {"inherit", Cursor::Inherit},
+    {"auto", Cursor::Auto},
+    {"default", Cursor::Default},
+    {"pointer", Cursor::Pointer},
+    {"hand", Cursor::Pointer},
+    {"text", Cursor::Text},
+    {"vertical-text", Cursor::Text},
+    {"crosshair", Cursor::Crosshair},
+    {"cell", Cursor::Crosshair},
+    {"move", Cursor::Move},
+    {"all-scroll", Cursor::Move},
+    {"not-allowed", Cursor::NotAllowed},
+    {"no-drop", Cursor::NotAllowed},
+    {"ew-resize", Cursor::EwResize},
+    {"e-resize", Cursor::EwResize},
+    {"w-resize", Cursor::EwResize},
+    {"h-resize", Cursor::EwResize},
+    {"col-resize", Cursor::EwResize},
+    {"ns-resize", Cursor::NsResize},
+    {"n-resize", Cursor::NsResize},
+    {"s-resize", Cursor::NsResize},
+    {"v-resize", Cursor::NsResize},
+    {"row-resize", Cursor::NsResize},
+    {"nwse-resize", Cursor::NwseResize},
+    {"nw-resize", Cursor::NwseResize},
+    {"se-resize", Cursor::NwseResize},
+    {"nesw-resize", Cursor::NeswResize},
+    {"ne-resize", Cursor::NeswResize},
+    {"sw-resize", Cursor::NeswResize},
+    {"none", Cursor::None},
+    {"disappear", Cursor::None},
+    {"wait", Cursor::Wait},
+    {"progress", Cursor::Progress},
+    {"help", Cursor::Help},
+    {"grab", Cursor::Grab},
+    {"open-hand", Cursor::Grab},
+    {"grabbing", Cursor::Grabbing},
+    {"closed-hand", Cursor::Grabbing},
+    {"zoom-in", Cursor::ZoomIn},
+    {"zoom-out", Cursor::ZoomOut},
+    {"context-menu", Cursor::ContextMenu},
+    {"alias", Cursor::Alias},
+    {"copy", Cursor::Copy},
+};
+
+const Cursor* LookupCursor(const std::string& token) {
+    for (const CursorKeyword& keyword : kCursors) {
+        if (token == keyword.name) {
+            return &keyword.cursor;
+        }
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+bool parseCursor(std::string_view text, Cursor& cursor) {
+    // The first keyword the platform understands wins, so a url() falls through.
+    for (const std::string& part : SplitDepth(text, ',')) {
+        std::string token = lowerCopy(trimCopy(part));
+        if (token.empty() || token.rfind("url(", 0) == 0) {
+            continue;
+        }
+        for (char& ch : token) {
+            if (ch == '_') {
+                ch = '-';
+            }
+        }
+        const std::size_t space = token.find_first_of(" \t");
+        if (space != std::string::npos) {
+            token = token.substr(0, space);
+        }
+        if (const Cursor* found = LookupCursor(token)) {
+            cursor = *found;
+            return true;
+        }
+    }
+    return false;
+}
+
 std::vector<Declaration> parseInlineDeclarations(const std::string& css) { return ParseDeclarations(css); }
 
 void applyDeclarations(ComputedStyle& style, const std::vector<Declaration>& declarations, StylePass pass,

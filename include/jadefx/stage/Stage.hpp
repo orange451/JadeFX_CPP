@@ -44,6 +44,7 @@ public:
     void shutdownGraphics();
 
     void pushMove(double x, double y);
+    void pushPointerExit();
     void pushButton(int button, bool down, double x, double y);
     void pushScroll(double x, double y, double deltaX, double deltaY);
     void pushKey(int key, bool pressed);
@@ -64,7 +65,10 @@ public:
     using ResizeHandler = std::function<void(int width, int height)>;
     using ShowHandler = std::function<void()>;
     using TitleHandler = std::function<void(const std::string&)>;
+    using CursorHandler = std::function<void(Cursor)>;
     void setHostHandlers(ResizeHandler resize, ShowHandler show, TitleHandler title);
+    // Called when the cursor over the window changes. The GLFW host sets the system cursor.
+    void setCursorHandler(CursorHandler handler);
 
     // Forwarded to the current scene, and to a scene installed later with setScene.
     // The pump returns 1 after one turn, 0 when a frame is already running, and -1 to stop.
@@ -74,6 +78,7 @@ private:
     struct Event;
     void processEvents();
     void hookClipboard();
+    void syncCursor();
 
     std::shared_ptr<Scene> scene_;
     std::unique_ptr<UiRenderer> renderer_;
@@ -82,6 +87,9 @@ private:
     ResizeHandler onResize_;
     ShowHandler onShow_;
     TitleHandler onTitle_;
+    CursorHandler onCursor_;
+    Cursor cursor_ = Cursor::Default;
+    bool cursorApplied_ = false;
     std::function<void(int, bool)> onKey_;
     std::function<void(const std::string&)> onText_;
     ScrollHandler onScroll_;

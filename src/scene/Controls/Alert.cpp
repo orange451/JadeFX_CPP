@@ -221,7 +221,7 @@ void Alert::show(Scene& scene) {
     panel->setPadding(Insets::uniform(20));
     panel->setSpacing(8);
     panel->setBackground(Color::white());
-    panel->setStyle("border-radius: 8px; box-shadow: 8px 16px 32px 0px rgba(0, 0, 0, 0.3);");
+    panel->setStyle("border-radius: 8px; box-shadow: 8px 16px 24px 0px rgba(0, 0, 0, 0.1);");
 
     const std::string& title = impl_->shownTitle();
     if (!title.empty()) {

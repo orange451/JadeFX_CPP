@@ -5,12 +5,101 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
 namespace jadefx {
 
 enum class BorderStyle { None, Solid };
+
+// Mouse cursor. Inherit and Auto are specified values; a resolved style uses a shape.
+// hand is pointer. Resize edges share ew/ns/nwse/nesw. grab and grabbing are their own
+// values and draw as the hand. wait, help, progress, zoom, alias, copy, and context-menu
+// draw as the arrow, because the platform cursors do not include those glyphs.
+enum class Cursor {
+    Inherit,
+    Auto,
+    Default,
+    Pointer,
+    Text,
+    Crosshair,
+    Move,
+    NotAllowed,
+    EwResize,
+    NsResize,
+    NwseResize,
+    NeswResize,
+    None,
+    Wait,
+    Progress,
+    Help,
+    Grab,
+    Grabbing,
+    ZoomIn,
+    ZoomOut,
+    ContextMenu,
+    Alias,
+    Copy,
+};
+
+// A platform cursor. Several Cursor values share one shape.
+enum class CursorShape {
+    Arrow,
+    IBeam,
+    Crosshair,
+    Hand,
+    SizeWestEast,
+    SizeNorthSouth,
+    SizeNorthwestSoutheast,
+    SizeNortheastSouthwest,
+    SizeAll,
+    NotAllowed,
+    Hidden,
+};
+
+inline CursorShape cursorShape(Cursor cursor) {
+    switch (cursor) {
+        case Cursor::Text:
+            return CursorShape::IBeam;
+        case Cursor::Crosshair:
+            return CursorShape::Crosshair;
+        case Cursor::Pointer:
+        case Cursor::Grab:
+        case Cursor::Grabbing:
+            return CursorShape::Hand;
+        case Cursor::EwResize:
+            return CursorShape::SizeWestEast;
+        case Cursor::NsResize:
+            return CursorShape::SizeNorthSouth;
+        case Cursor::NwseResize:
+            return CursorShape::SizeNorthwestSoutheast;
+        case Cursor::NeswResize:
+            return CursorShape::SizeNortheastSouthwest;
+        case Cursor::Move:
+            return CursorShape::SizeAll;
+        case Cursor::NotAllowed:
+            return CursorShape::NotAllowed;
+        case Cursor::None:
+            return CursorShape::Hidden;
+        case Cursor::Inherit:
+        case Cursor::Auto:
+        case Cursor::Default:
+        case Cursor::Wait:
+        case Cursor::Progress:
+        case Cursor::Help:
+        case Cursor::ZoomIn:
+        case Cursor::ZoomOut:
+        case Cursor::ContextMenu:
+        case Cursor::Alias:
+        case Cursor::Copy:
+            return CursorShape::Arrow;
+    }
+    return CursorShape::Arrow;
+}
+
+// True when text is a cursor keyword. The first supported keyword in a comma list wins.
+bool parseCursor(std::string_view text, Cursor& cursor);
 
 enum class SizeKind { Unset, Pixels, Percent, Calc };
 
@@ -90,6 +179,8 @@ struct ComputedStyle {
     Pos alignment = Pos::Ancestor;
     bool alignmentFromCss = false;
     float opacity = 1.f;
+    // Resolved cursor for this node. Inherit and Auto do not appear after styling.
+    Cursor cursor = Cursor::Default;
     SizeSpec width;
     SizeSpec height;
     SizeSpec minWidth;

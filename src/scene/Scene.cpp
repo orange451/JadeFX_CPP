@@ -77,6 +77,7 @@ void Scene::layout(double width, double height, double timeSeconds) {
     inherited.color = Color::black();
     inherited.fontSize = 16.f;
     inherited.fontFamily = "Open Sans";
+    inherited.cursor = Cursor::Default;
     applyStyles(inherited, timeSeconds);
 
     x_ = 0;
@@ -104,6 +105,23 @@ void Scene::layout(double width, double height, double timeSeconds) {
     if (pointerValid_) {
         updateHoverPopup(pick(pointerX_, pointerY_));
     }
+}
+
+void Scene::notePointerExit() {
+    pointerValid_ = false;
+    syncHover(nullptr);
+    updateHoverPopup(nullptr);
+}
+
+Cursor Scene::hoverCursor() {
+    if (!pointerValid_) {
+        return Cursor::Default;
+    }
+    Node* hit = pickCursorTarget(pointerX_, pointerY_);
+    if (hit == nullptr) {
+        return Cursor::Default;
+    }
+    return hit->cursorAt(pointerX_, pointerY_);
 }
 
 void Scene::noteMove(double x, double y) {
@@ -312,6 +330,7 @@ void Scene::layoutPopup(PopupRecord& popup) {
     pass.fontSize = computed_.fontSize > 0.f ? computed_.fontSize : 16.f;
     pass.fontFamily = computed_.fontFamily.empty() ? "Open Sans" : computed_.fontFamily;
     pass.subpixel = computed_.subpixel;
+    pass.cursor = computed_.cursor;
     popup.node->applyStyles(pass, lastTime_);
     if (popup.fillScene) {
         popup.node->performLayout(0, 0, std::max(0.0, width_), std::max(0.0, height_));

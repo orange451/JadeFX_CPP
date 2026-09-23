@@ -105,6 +105,7 @@ public:
 class TabCloseButton : public Label {
 public:
     TabCloseButton() : Label("\u00d7") {
+        setDefaultCursor(Cursor::Pointer);
         getClassList().add("tab-close-button");
         setAlignment(Pos::Center);
         setMinSize(16, 16);
@@ -237,6 +238,7 @@ struct TabPane::Impl {
 };
 
 TabPane::TabHeader::TabHeader(TabPane& pane, std::shared_ptr<Tab> tab) : pane_(&pane), tab_(std::move(tab)) {
+    setDefaultCursor(Cursor::Pointer);
     getClassList().add("tab");
     setMinSize(0, 28);
     setPadding(Insets{6, 12, 6, 12});

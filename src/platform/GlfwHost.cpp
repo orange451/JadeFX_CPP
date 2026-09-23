@@ -120,6 +120,89 @@ void OnRefresh(GLFWwindow* window) {
     }
 }
 
+void OnCursorEnter(GLFWwindow* window, int entered) {
+    GlfwHost* host = HostOf(window);
+    Stage* stage = host != nullptr ? host->boundStage() : nullptr;
+    if (stage == nullptr) {
+        return;
+    }
+    if (entered == GLFW_FALSE) {
+        stage->pushPointerExit();
+        return;
+    }
+    double x = 0;
+    double y = 0;
+    glfwGetCursorPos(window, &x, &y);
+    stage->pushMove(x, y);
+}
+
+bool NativeCursor(CursorShape shape, int& native) {
+    switch (shape) {
+        case CursorShape::IBeam:
+            native = GLFW_IBEAM_CURSOR;
+            return true;
+        case CursorShape::Crosshair:
+            native = GLFW_CROSSHAIR_CURSOR;
+            return true;
+        case CursorShape::Hand:
+#if defined(GLFW_POINTING_HAND_CURSOR)
+            native = GLFW_POINTING_HAND_CURSOR;
+            return true;
+#elif defined(GLFW_HAND_CURSOR)
+            native = GLFW_HAND_CURSOR;
+            return true;
+#else
+            return false;
+#endif
+        case CursorShape::SizeWestEast:
+#ifdef GLFW_RESIZE_EW_CURSOR
+            native = GLFW_RESIZE_EW_CURSOR;
+            return true;
+#else
+            return false;
+#endif
+        case CursorShape::SizeNorthSouth:
+#ifdef GLFW_RESIZE_NS_CURSOR
+            native = GLFW_RESIZE_NS_CURSOR;
+            return true;
+#else
+            return false;
+#endif
+        case CursorShape::SizeNorthwestSoutheast:
+#ifdef GLFW_RESIZE_NWSE_CURSOR
+            native = GLFW_RESIZE_NWSE_CURSOR;
+            return true;
+#else
+            return false;
+#endif
+        case CursorShape::SizeNortheastSouthwest:
+#ifdef GLFW_RESIZE_NESW_CURSOR
+            native = GLFW_RESIZE_NESW_CURSOR;
+            return true;
+#else
+            return false;
+#endif
+        case CursorShape::SizeAll:
+#ifdef GLFW_RESIZE_ALL_CURSOR
+            native = GLFW_RESIZE_ALL_CURSOR;
+            return true;
+#else
+            return false;
+#endif
+        case CursorShape::NotAllowed:
+#ifdef GLFW_NOT_ALLOWED_CURSOR
+            native = GLFW_NOT_ALLOWED_CURSOR;
+            return true;
+#else
+            return false;
+#endif
+        case CursorShape::Arrow:
+        case CursorShape::Hidden:
+            return false;
+    }
+    return false;
+}
+
 }  // namespace
 
 bool GlfwHost::create(int width, int height, const char* title) {
@@ -147,7 +230,17 @@ void GlfwHost::destroy() {
     stage_ = nullptr;
     redrawing_ = false;
     if (window_ != nullptr) {
+        glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        glfwSetCursor(window_, nullptr);
         glfwSetWindowUserPointer(window_, nullptr);
+    }
+    for (GLFWcursor*& cursor : cursors_) {
+        if (cursor != nullptr) {
+            glfwDestroyCursor(cursor);
+            cursor = nullptr;
+        }
+    }
+    if (window_ != nullptr) {
         glfwDestroyWindow(window_);
         window_ = nullptr;
     }
@@ -217,6 +310,7 @@ void GlfwHost::bind(Stage* stage) {
     stage_ = stage;
     glfwSetWindowUserPointer(window_, this);
     glfwSetCursorPosCallback(window_, OnMove);
+    glfwSetCursorEnterCallback(window_, OnCursorEnter);
     glfwSetMouseButtonCallback(window_, OnButton);
     glfwSetScrollCallback(window_, OnScroll);
     glfwSetKeyCallback(window_, OnKey);
@@ -238,6 +332,28 @@ void GlfwHost::bind(Stage* stage) {
     glfwSetWindowSizeCallback(window_, OnContentChange);
     glfwSetFramebufferSizeCallback(window_, OnContentChange);
     glfwSetWindowRefreshCallback(window_, OnRefresh);
+}
+
+void GlfwHost::setCursor(Cursor cursor) {
+    if (window_ == nullptr) {
+        return;
+    }
+    const CursorShape shape = cursorShape(cursor);
+    if (shape == CursorShape::Hidden) {
+        glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+        return;
+    }
+    glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    const int index = static_cast<int>(shape);
+    int native = 0;
+    if (index >= 0 && index < static_cast<int>(sizeof cursors_ / sizeof cursors_[0]) && NativeCursor(shape, native)) {
+        if (cursors_[index] == nullptr) {
+            cursors_[index] = glfwCreateStandardCursor(native);
+        }
+        glfwSetCursor(window_, cursors_[index]);
+        return;
+    }
+    glfwSetCursor(window_, nullptr);
 }
 
 void GlfwHost::setRedraw(std::function<void()> redraw) { redraw_ = std::move(redraw); }

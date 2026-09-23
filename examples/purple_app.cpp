@@ -41,6 +41,7 @@ scene {
     color: #3c4043;
     padding: 16px 48px;
     alignment: center;
+    cursor: pointer;
     background-color: #fff;
     border-width: 4px;
     width: 100%;
@@ -66,6 +67,7 @@ scene {
     padding: 16px 48px;
     border-width: 4px;
     alignment: center;
+    cursor: pointer;
     background-color: rgba(255, 255, 255, 0.1);
     transition: background-color 0.1s;
 }

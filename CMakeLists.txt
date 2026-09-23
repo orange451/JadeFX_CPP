@@ -184,6 +184,7 @@ if(NOT JADEFX_GLFM)
         tests/layout_tests.cpp
         tests/rich_text_tests.cpp
         tests/button_tests.cpp
+        tests/cursor_tests.cpp
         tests/toggle_tests.cpp
         tests/radio_button_tests.cpp
         tests/tooltip_tests.cpp
