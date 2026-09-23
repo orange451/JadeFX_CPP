@@ -26,6 +26,7 @@ void TestControlDefaults() {
     auto button = jadefx::make<jadefx::Button>("Save");
     auto toggle = jadefx::make<jadefx::ToggleButton>("On");
     auto radio = jadefx::make<jadefx::RadioButton>("A");
+    auto check = jadefx::make<jadefx::CheckBox>("Yes");
     auto field = jadefx::make<jadefx::TextField>("hello");
     auto area = jadefx::make<jadefx::StyledTextArea>();
     auto code = jadefx::make<jadefx::CodeArea>();
@@ -34,6 +35,7 @@ void TestControlDefaults() {
     box->getChildren().add(button);
     box->getChildren().add(toggle);
     box->getChildren().add(radio);
+    box->getChildren().add(check);
     box->getChildren().add(field);
     box->getChildren().add(area);
     box->getChildren().add(code);
@@ -45,6 +47,7 @@ void TestControlDefaults() {
     Expect(button->computedStyle().cursor == jadefx::Cursor::Pointer, "a button uses the hand");
     Expect(toggle->computedStyle().cursor == jadefx::Cursor::Pointer, "a toggle uses the hand");
     Expect(radio->computedStyle().cursor == jadefx::Cursor::Pointer, "a radio button uses the hand");
+    Expect(check->computedStyle().cursor == jadefx::Cursor::Pointer, "a check box uses the hand");
     Expect(field->computedStyle().cursor == jadefx::Cursor::Text, "a text field uses the I-beam");
     Expect(area->computedStyle().cursor == jadefx::Cursor::Text, "a text area uses the I-beam");
     Expect(code->computedStyle().cursor == jadefx::Cursor::Text, "a code area uses the I-beam");

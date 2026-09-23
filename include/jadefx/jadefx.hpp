@@ -12,6 +12,7 @@
 #include "jadefx/scene/Controls/Button.hpp"
 #include "jadefx/scene/Controls/ButtonType.hpp"
 #include "jadefx/scene/Controls/ComboBox.hpp"
+#include "jadefx/scene/Controls/CheckBox.hpp"
 #include "jadefx/scene/Controls/RadioButton.hpp"
 #include "jadefx/scene/Controls/ToggleButton.hpp"
 #include "jadefx/scene/Controls/ToggleGroup.hpp"

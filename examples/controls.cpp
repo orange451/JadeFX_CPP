@@ -2,6 +2,7 @@
 
 #include "jadefx/scene/Controls/Alert.hpp"
 #include "jadefx/scene/Controls/ButtonType.hpp"
+#include "jadefx/scene/Controls/CheckBox.hpp"
 #include "jadefx/scene/Controls/ComboBox.hpp"
 #include "jadefx/scene/Controls/Menu.hpp"
 #include "jadefx/scene/Controls/MenuBar.hpp"
@@ -55,6 +56,9 @@ button:hover, menubutton:hover, togglebutton:hover {
 togglebutton:selected {
     background-color: #e8f0fe;
     border-color: #1a73e8;
+    color: #174ea6;
+}
+checkbox:selected, checkbox:indeterminate {
     color: #174ea6;
 }
 textfield, combobox {
@@ -176,6 +180,39 @@ public:
         bold->setOnAction(reportStyle);
         italic->setOnAction(reportStyle);
 
+        auto email = jadefx::make<jadefx::CheckBox>("Email");
+        auto push = jadefx::make<jadefx::CheckBox>("Push");
+        auto pages = jadefx::make<jadefx::CheckBox>("All pages");
+        email->setSelected(true);
+        pages->setAllowIndeterminate(true);
+        pages->setIndeterminate(true);
+        auto reportNotify = [email, push, pages, status](jadefx::ActionEvent&) {
+            std::string text;
+            if (email->isSelected()) {
+                text += "email";
+            }
+            if (push->isSelected()) {
+                if (!text.empty()) {
+                    text += ", ";
+                }
+                text += "push";
+            }
+            if (!text.empty()) {
+                text += "; ";
+            }
+            if (pages->isIndeterminate()) {
+                text += "pages mixed";
+            } else if (pages->isSelected()) {
+                text += "all pages";
+            } else {
+                text += "no pages";
+            }
+            status->setText(text);
+        };
+        email->setOnAction(reportNotify);
+        push->setOnAction(reportNotify);
+        pages->setOnAction(reportNotify);
+
         auto more = jadefx::make<jadefx::MenuButton>("More");
         auto pin = jadefx::make<jadefx::MenuItem>("Pin this note");
         pin->setOnAction([status](jadefx::ActionEvent&) { status->setText("Pinned"); });
@@ -242,6 +279,12 @@ public:
         styleRow->getChildren().add(bold);
         styleRow->getChildren().add(italic);
         styleRow->getChildren().add(more);
+        auto notifyRow = jadefx::make<jadefx::HBox>();
+        notifyRow->getClassList().add("row");
+        notifyRow->setSpacing(16);
+        notifyRow->getChildren().add(email);
+        notifyRow->getChildren().add(push);
+        notifyRow->getChildren().add(pages);
         auto dialogRow = jadefx::make<jadefx::HBox>();
         dialogRow->getClassList().add("row");
         dialogRow->setSpacing(10);
@@ -256,6 +299,7 @@ public:
         sheet->getChildren().add(cityRow);
         sheet->getChildren().add(sizeRow);
         sheet->getChildren().add(styleRow);
+        sheet->getChildren().add(notifyRow);
         sheet->getChildren().add(dialogRow);
         sheet->getChildren().add(caption);
         sheet->getChildren().add(status);
@@ -265,7 +309,7 @@ public:
         root->setCenter(sheet);
         root->setPadding(jadefx::Insets::uniform(16));
 
-        auto scene = jadefx::make<jadefx::Scene>(root, 640, 460);
+        auto scene = jadefx::make<jadefx::Scene>(root, 640, 520);
         scene->setStylesheet(kStylesheet);
         stage.setTitle("Controls");
         stage.setScene(scene);

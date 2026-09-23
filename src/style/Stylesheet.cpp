@@ -25,6 +25,8 @@ struct Compound {
     bool disabled = false;
     bool horizontal = false;
     bool vertical = false;
+    bool indeterminate = false;
+    bool determinate = false;
     bool universal = false;
 };
 
@@ -234,6 +236,12 @@ bool MatchCompound(const Compound& compound, Node& node) {
     if (compound.vertical && !node.pseudoState("vertical")) {
         return false;
     }
+    if (compound.indeterminate && !node.pseudoState("indeterminate")) {
+        return false;
+    }
+    if (compound.determinate && !node.pseudoState("determinate")) {
+        return false;
+    }
     return true;
 }
 
@@ -320,6 +328,10 @@ bool ParseCompound(std::string_view text, std::size_t& index, Compound& compound
                 compound.horizontal = true;
             } else if (pseudo == "vertical") {
                 compound.vertical = true;
+            } else if (pseudo == "indeterminate") {
+                compound.indeterminate = true;
+            } else if (pseudo == "determinate") {
+                compound.determinate = true;
             } else {
                 return false;
             }
