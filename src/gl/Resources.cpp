@@ -235,7 +235,7 @@ std::string ShaderFileDirectory() {
 #endif
 }
 
-GLuint LinkShaderProgram(const std::string& vertexSource, const std::string& fragmentSource, const char* name) {
+GLuint jadefx_LinkShaderProgram(const std::string& vertexSource, const std::string& fragmentSource, const char* name) {
     if (vertexSource.empty() || fragmentSource.empty()) {
         return 0;
     }

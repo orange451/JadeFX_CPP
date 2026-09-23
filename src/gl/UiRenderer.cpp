@@ -68,12 +68,12 @@ bool UiRenderer::initialize() {
         return false;
     }
 
-    boxProgram_ = LinkShaderProgram(boxVertex, boxFragment, "Box");
-    textProgram_ = LinkShaderProgram(textVertex, textFragment, "Text");
+    boxProgram_ = jadefx_LinkShaderProgram(boxVertex, boxFragment, "Box");
+    textProgram_ = jadefx_LinkShaderProgram(textVertex, textFragment, "Text");
     subpixel_ = textProgram_ != 0;
     if (!subpixel_) {
         std::fprintf(stderr, "LCD subpixel text is unavailable. Using grayscale coverage.\n");
-        textProgram_ = LinkShaderProgram(textVertex, textGray, "Text");
+        textProgram_ = jadefx_LinkShaderProgram(textVertex, textGray, "Text");
     }
     if (boxProgram_ == 0 || textProgram_ == 0) {
         shutdown();

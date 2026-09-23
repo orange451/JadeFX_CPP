@@ -97,7 +97,7 @@ void Stage::setHostHandlers(ResizeHandler resize, ShowHandler show, TitleHandler
 void Stage::setCursorHandler(CursorHandler handler) { onCursor_ = std::move(handler); }
 
 bool Stage::initializeGraphics(void* (*proc)(const char*)) {
-    if (!load_gl(proc)) {
+    if (!jadefx_load_gl(proc)) {
         graphicsReady_ = false;
         graphicsOk_ = false;
         return false;

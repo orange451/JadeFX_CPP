@@ -168,98 +168,99 @@ constexpr GLenum GL_DEPTH_TEST = 0x0B71;
 constexpr GLenum GL_CULL_FACE = 0x0B44;
 constexpr GLenum GL_SCISSOR_TEST = 0x0C11;
 
-extern const GLubyte* (*glad_glGetString)(GLenum name);
-extern GLenum (*glad_glGetError)();
-extern void (*glad_glClear)(GLbitfield mask);
-extern void (*glad_glClearColor)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
-extern void (*glad_glViewport)(GLint x, GLint y, GLsizei width, GLsizei height);
-extern GLuint (*glad_glCreateShader)(GLenum type);
-extern void (*glad_glShaderSource)(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
-extern void (*glad_glCompileShader)(GLuint shader);
-extern void (*glad_glGetShaderiv)(GLuint shader, GLenum pname, GLint* params);
-extern void (*glad_glGetShaderInfoLog)(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
-extern void (*glad_glDeleteShader)(GLuint shader);
-extern GLuint (*glad_glCreateProgram)();
-extern void (*glad_glAttachShader)(GLuint program, GLuint shader);
-extern void (*glad_glLinkProgram)(GLuint program);
-extern void (*glad_glDeleteProgram)(GLuint program);
-extern void (*glad_glGetProgramiv)(GLuint program, GLenum pname, GLint* params);
-extern void (*glad_glGetProgramInfoLog)(GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
-extern void (*glad_glUseProgram)(GLuint program);
-extern void (*glad_glGenVertexArrays)(GLsizei n, GLuint* arrays);
-extern void (*glad_glDeleteVertexArrays)(GLsizei n, const GLuint* arrays);
-extern void (*glad_glBindVertexArray)(GLuint array);
-extern void (*glad_glGenBuffers)(GLsizei n, GLuint* buffers);
-extern void (*glad_glDeleteBuffers)(GLsizei n, const GLuint* buffers);
-extern void (*glad_glBindBuffer)(GLenum target, GLuint buffer);
-extern void (*glad_glBufferData)(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
-extern void (*glad_glEnableVertexAttribArray)(GLuint index);
-extern void (*glad_glVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
-extern void (*glad_glDrawArrays)(GLenum mode, GLint first, GLsizei count);
-extern void (*glad_glGenTextures)(GLsizei n, GLuint* textures);
-extern void (*glad_glDeleteTextures)(GLsizei n, const GLuint* textures);
-extern void (*glad_glBindTexture)(GLenum target, GLuint texture);
-extern void (*glad_glTexParameteri)(GLenum target, GLenum pname, GLint param);
-extern void (*glad_glTexImage2D)(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void* data);
-extern void (*glad_glTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void* pixels);
-extern void (*glad_glPixelStorei)(GLenum pname, GLint param);
-extern GLint (*glad_glGetUniformLocation)(GLuint program, const GLchar* name);
-extern void (*glad_glUniform1f)(GLint location, GLfloat v0);
-extern void (*glad_glUniform1i)(GLint location, GLint v0);
-extern void (*glad_glUniform2f)(GLint location, GLfloat v0, GLfloat v1);
-extern void (*glad_glUniform4f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-extern void (*glad_glEnable)(GLenum cap);
-extern void (*glad_glDisable)(GLenum cap);
-extern void (*glad_glBlendFunc)(GLenum sfactor, GLenum dfactor);
-extern void (*glad_glReadPixels)(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels);
-extern void (*glad_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height);
+// Prefixed so a host's own GL loader can link beside this static library.
+extern const GLubyte* (*jadefx_glGetString)(GLenum name);
+extern GLenum (*jadefx_glGetError)();
+extern void (*jadefx_glClear)(GLbitfield mask);
+extern void (*jadefx_glClearColor)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
+extern void (*jadefx_glViewport)(GLint x, GLint y, GLsizei width, GLsizei height);
+extern GLuint (*jadefx_glCreateShader)(GLenum type);
+extern void (*jadefx_glShaderSource)(GLuint shader, GLsizei count, const GLchar* const* string, const GLint* length);
+extern void (*jadefx_glCompileShader)(GLuint shader);
+extern void (*jadefx_glGetShaderiv)(GLuint shader, GLenum pname, GLint* params);
+extern void (*jadefx_glGetShaderInfoLog)(GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+extern void (*jadefx_glDeleteShader)(GLuint shader);
+extern GLuint (*jadefx_glCreateProgram)();
+extern void (*jadefx_glAttachShader)(GLuint program, GLuint shader);
+extern void (*jadefx_glLinkProgram)(GLuint program);
+extern void (*jadefx_glDeleteProgram)(GLuint program);
+extern void (*jadefx_glGetProgramiv)(GLuint program, GLenum pname, GLint* params);
+extern void (*jadefx_glGetProgramInfoLog)(GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog);
+extern void (*jadefx_glUseProgram)(GLuint program);
+extern void (*jadefx_glGenVertexArrays)(GLsizei n, GLuint* arrays);
+extern void (*jadefx_glDeleteVertexArrays)(GLsizei n, const GLuint* arrays);
+extern void (*jadefx_glBindVertexArray)(GLuint array);
+extern void (*jadefx_glGenBuffers)(GLsizei n, GLuint* buffers);
+extern void (*jadefx_glDeleteBuffers)(GLsizei n, const GLuint* buffers);
+extern void (*jadefx_glBindBuffer)(GLenum target, GLuint buffer);
+extern void (*jadefx_glBufferData)(GLenum target, GLsizeiptr size, const void* data, GLenum usage);
+extern void (*jadefx_glEnableVertexAttribArray)(GLuint index);
+extern void (*jadefx_glVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
+extern void (*jadefx_glDrawArrays)(GLenum mode, GLint first, GLsizei count);
+extern void (*jadefx_glGenTextures)(GLsizei n, GLuint* textures);
+extern void (*jadefx_glDeleteTextures)(GLsizei n, const GLuint* textures);
+extern void (*jadefx_glBindTexture)(GLenum target, GLuint texture);
+extern void (*jadefx_glTexParameteri)(GLenum target, GLenum pname, GLint param);
+extern void (*jadefx_glTexImage2D)(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const void* data);
+extern void (*jadefx_glTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const void* pixels);
+extern void (*jadefx_glPixelStorei)(GLenum pname, GLint param);
+extern GLint (*jadefx_glGetUniformLocation)(GLuint program, const GLchar* name);
+extern void (*jadefx_glUniform1f)(GLint location, GLfloat v0);
+extern void (*jadefx_glUniform1i)(GLint location, GLint v0);
+extern void (*jadefx_glUniform2f)(GLint location, GLfloat v0, GLfloat v1);
+extern void (*jadefx_glUniform4f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+extern void (*jadefx_glEnable)(GLenum cap);
+extern void (*jadefx_glDisable)(GLenum cap);
+extern void (*jadefx_glBlendFunc)(GLenum sfactor, GLenum dfactor);
+extern void (*jadefx_glReadPixels)(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels);
+extern void (*jadefx_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height);
 
-#define glGetString glad_glGetString
-#define glGetError glad_glGetError
-#define glClear glad_glClear
-#define glClearColor glad_glClearColor
-#define glViewport glad_glViewport
-#define glCreateShader glad_glCreateShader
-#define glShaderSource glad_glShaderSource
-#define glCompileShader glad_glCompileShader
-#define glGetShaderiv glad_glGetShaderiv
-#define glGetShaderInfoLog glad_glGetShaderInfoLog
-#define glDeleteShader glad_glDeleteShader
-#define glCreateProgram glad_glCreateProgram
-#define glAttachShader glad_glAttachShader
-#define glLinkProgram glad_glLinkProgram
-#define glDeleteProgram glad_glDeleteProgram
-#define glGetProgramiv glad_glGetProgramiv
-#define glGetProgramInfoLog glad_glGetProgramInfoLog
-#define glUseProgram glad_glUseProgram
-#define glGenVertexArrays glad_glGenVertexArrays
-#define glDeleteVertexArrays glad_glDeleteVertexArrays
-#define glBindVertexArray glad_glBindVertexArray
-#define glGenBuffers glad_glGenBuffers
-#define glDeleteBuffers glad_glDeleteBuffers
-#define glBindBuffer glad_glBindBuffer
-#define glBufferData glad_glBufferData
-#define glEnableVertexAttribArray glad_glEnableVertexAttribArray
-#define glVertexAttribPointer glad_glVertexAttribPointer
-#define glDrawArrays glad_glDrawArrays
-#define glGenTextures glad_glGenTextures
-#define glDeleteTextures glad_glDeleteTextures
-#define glBindTexture glad_glBindTexture
-#define glTexParameteri glad_glTexParameteri
-#define glTexImage2D glad_glTexImage2D
-#define glTexSubImage2D glad_glTexSubImage2D
-#define glPixelStorei glad_glPixelStorei
-#define glGetUniformLocation glad_glGetUniformLocation
-#define glUniform1f glad_glUniform1f
-#define glUniform1i glad_glUniform1i
-#define glUniform2f glad_glUniform2f
-#define glUniform4f glad_glUniform4f
-#define glEnable glad_glEnable
-#define glDisable glad_glDisable
-#define glBlendFunc glad_glBlendFunc
-#define glReadPixels glad_glReadPixels
-#define glScissor glad_glScissor
+#define glGetString jadefx_glGetString
+#define glGetError jadefx_glGetError
+#define glClear jadefx_glClear
+#define glClearColor jadefx_glClearColor
+#define glViewport jadefx_glViewport
+#define glCreateShader jadefx_glCreateShader
+#define glShaderSource jadefx_glShaderSource
+#define glCompileShader jadefx_glCompileShader
+#define glGetShaderiv jadefx_glGetShaderiv
+#define glGetShaderInfoLog jadefx_glGetShaderInfoLog
+#define glDeleteShader jadefx_glDeleteShader
+#define glCreateProgram jadefx_glCreateProgram
+#define glAttachShader jadefx_glAttachShader
+#define glLinkProgram jadefx_glLinkProgram
+#define glDeleteProgram jadefx_glDeleteProgram
+#define glGetProgramiv jadefx_glGetProgramiv
+#define glGetProgramInfoLog jadefx_glGetProgramInfoLog
+#define glUseProgram jadefx_glUseProgram
+#define glGenVertexArrays jadefx_glGenVertexArrays
+#define glDeleteVertexArrays jadefx_glDeleteVertexArrays
+#define glBindVertexArray jadefx_glBindVertexArray
+#define glGenBuffers jadefx_glGenBuffers
+#define glDeleteBuffers jadefx_glDeleteBuffers
+#define glBindBuffer jadefx_glBindBuffer
+#define glBufferData jadefx_glBufferData
+#define glEnableVertexAttribArray jadefx_glEnableVertexAttribArray
+#define glVertexAttribPointer jadefx_glVertexAttribPointer
+#define glDrawArrays jadefx_glDrawArrays
+#define glGenTextures jadefx_glGenTextures
+#define glDeleteTextures jadefx_glDeleteTextures
+#define glBindTexture jadefx_glBindTexture
+#define glTexParameteri jadefx_glTexParameteri
+#define glTexImage2D jadefx_glTexImage2D
+#define glTexSubImage2D jadefx_glTexSubImage2D
+#define glPixelStorei jadefx_glPixelStorei
+#define glGetUniformLocation jadefx_glGetUniformLocation
+#define glUniform1f jadefx_glUniform1f
+#define glUniform1i jadefx_glUniform1i
+#define glUniform2f jadefx_glUniform2f
+#define glUniform4f jadefx_glUniform4f
+#define glEnable jadefx_glEnable
+#define glDisable jadefx_glDisable
+#define glBlendFunc jadefx_glBlendFunc
+#define glReadPixels jadefx_glReadPixels
+#define glScissor jadefx_glScissor
 
 using GlGetProcAddress = void* (*)(const char* name);
 
-bool load_gl(GlGetProcAddress get_proc);
+bool jadefx_load_gl(GlGetProcAddress get_proc);

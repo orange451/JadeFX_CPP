@@ -11,4 +11,4 @@ std::string LoadShaderSource(const char* filename);
 // Directory the running program expects those files in.
 std::string ShaderFileDirectory();
 
-GLuint LinkShaderProgram(const std::string& vertexSource, const std::string& fragmentSource, const char* name);
+GLuint jadefx_LinkShaderProgram(const std::string& vertexSource, const std::string& fragmentSource, const char* name);
