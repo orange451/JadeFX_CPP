@@ -1,0 +1,278 @@
+#include "jadefx/jadefx.hpp"
+
+#include "jadefx/scene/Controls/Alert.hpp"
+#include "jadefx/scene/Controls/ButtonType.hpp"
+#include "jadefx/scene/Controls/ComboBox.hpp"
+#include "jadefx/scene/Controls/Menu.hpp"
+#include "jadefx/scene/Controls/MenuBar.hpp"
+#include "jadefx/scene/Controls/MenuButton.hpp"
+#include "jadefx/scene/Controls/MenuItem.hpp"
+#include "jadefx/scene/Controls/RadioButton.hpp"
+#include "jadefx/scene/Controls/TextField.hpp"
+#include "jadefx/scene/Controls/ToggleButton.hpp"
+#include "jadefx/scene/Controls/ToggleGroup.hpp"
+#include "jadefx/scene/Controls/Tooltip.hpp"
+
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace {
+
+constexpr const char* kStylesheet = R"CSS(
+scene {
+    background-color: #e8eaed;
+    font-family: "Open Sans";
+    font-size: 15px;
+    color: #202124;
+}
+.sheet {
+    background-color: white;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: #dadce0;
+    padding: 20px;
+    spacing: 14px;
+}
+.row {
+    spacing: 10px;
+    alignment: center-left;
+}
+.hint {
+    color: #5f6368;
+    font-size: 13px;
+}
+button, menubutton, togglebutton {
+    background-color: white;
+    border-width: 1px;
+    border-color: #dadce0;
+    border-radius: 6px;
+    padding: 6px 14px;
+}
+button:hover, menubutton:hover, togglebutton:hover {
+    background-color: #f8f9fa;
+}
+togglebutton:selected {
+    background-color: #e8f0fe;
+    border-color: #1a73e8;
+    color: #174ea6;
+}
+textfield, combobox {
+    background-color: white;
+    border-width: 1px;
+    border-color: #dadce0;
+    border-radius: 6px;
+    padding: 6px 8px;
+}
+textfield:focus, combobox:focus, combobox:focus-within {
+    border-color: #1a73e8;
+    border-width: 2px;
+}
+menubar {
+    background-color: white;
+    border-width: 0 0 1px 0;
+    border-color: #dadce0;
+    padding: 0 8px;
+}
+menu:hover, menu-item:hover, combo-row:hover {
+    background-color: #e8f0fe;
+}
+)CSS";
+
+class ControlsApp : public jadefx::Application {
+public:
+    void start(jadefx::Stage& stage, int, char**) override {
+        // The window outlives start(), and these objects are not owned by the scene graph.
+        sizes_ = std::make_shared<jadefx::ToggleGroup>();
+        alerts_ = std::make_shared<std::vector<std::shared_ptr<jadefx::Alert>>>();
+        auto status = jadefx::make<jadefx::Label>("Hover the caption. Menus, fields, and dialogs report here.");
+        status->getClassList().add("hint");
+
+        auto file = jadefx::make<jadefx::Menu>("File");
+        auto create = jadefx::make<jadefx::MenuItem>("New note");
+        create->setAccelerator(jadefx::Key::N, jadefx::Key::ModControl);
+        create->setOnAction([status](jadefx::ActionEvent&) { status->setText("New note"); });
+        auto quit = jadefx::make<jadefx::MenuItem>("Quit");
+        quit->setAccelerator(jadefx::Key::Q, jadefx::Key::ModControl);
+        quit->setOnAction([status](jadefx::ActionEvent&) { status->setText("Quit stays in the sample"); });
+        file->getItems().add(create);
+        file->getItems().add(jadefx::make<jadefx::SeparatorMenuItem>());
+        file->getItems().add(quit);
+
+        auto edit = jadefx::make<jadefx::Menu>("Edit");
+        auto cut = jadefx::make<jadefx::MenuItem>("Cut");
+        cut->setDisable(true);
+        auto caseMenu = jadefx::make<jadefx::Menu>("Change case");
+        caseMenu->getItems().add(jadefx::make<jadefx::MenuItem>("Uppercase"));
+        caseMenu->getItems().add(jadefx::make<jadefx::MenuItem>("Lowercase"));
+        caseMenu->getItems()[0]->setOnAction([status](jadefx::ActionEvent&) { status->setText("Uppercase"); });
+        caseMenu->getItems()[1]->setOnAction([status](jadefx::ActionEvent&) { status->setText("Lowercase"); });
+        edit->getItems().add(cut);
+        edit->getItems().add(caseMenu);
+
+        auto bar = jadefx::make<jadefx::MenuBar>();
+        bar->getMenus().add(file);
+        bar->getMenus().add(edit);
+
+        auto name = jadefx::make<jadefx::TextField>();
+        name->setPromptText("Your name");
+        name->setPrefColumnCount(18);
+        name->setOnAction([name, status](jadefx::ActionEvent&) {
+            status->setText(name->getText().empty() ? "The field is empty" : "Hello, " + name->getText());
+        });
+        auto greet = jadefx::make<jadefx::Button>("Greet");
+        greet->setOnAction([name](jadefx::ActionEvent&) { name->fire(); });
+
+        auto city = jadefx::make<jadefx::ComboBox>();
+        city->setPromptText("City");
+        city->getItems().add("Lisbon");
+        city->getItems().add("Kyoto");
+        city->getItems().add("Montreal");
+        city->getItems().add("Nairobi");
+        city->setOnAction([city, status](jadefx::ActionEvent&) { status->setText("City: " + city->getValue()); });
+
+        auto custom = jadefx::make<jadefx::ComboBox>();
+        custom->setEditable(true);
+        custom->setPromptText("Type or choose");
+        custom->getItems().add("Morning");
+        custom->getItems().add("Afternoon");
+        custom->getItems().add("Evening");
+        custom->setOnAction([custom, status](jadefx::ActionEvent&) { status->setText("When: " + custom->getValue()); });
+
+        auto small = jadefx::make<jadefx::RadioButton>("Small");
+        auto medium = jadefx::make<jadefx::RadioButton>("Medium");
+        auto large = jadefx::make<jadefx::RadioButton>("Large");
+        small->setToggleGroup(sizes_.get());
+        medium->setToggleGroup(sizes_.get());
+        large->setToggleGroup(sizes_.get());
+        medium->setSelected(true);
+        auto onSize = [status](const std::string& label) {
+            return [status, label](jadefx::ActionEvent&) { status->setText("Size: " + label); };
+        };
+        small->setOnAction(onSize("Small"));
+        medium->setOnAction(onSize("Medium"));
+        large->setOnAction(onSize("Large"));
+
+        auto bold = jadefx::make<jadefx::ToggleButton>("Bold");
+        auto italic = jadefx::make<jadefx::ToggleButton>("Italic");
+        auto reportStyle = [bold, italic, status](jadefx::ActionEvent&) {
+            std::string text = "Style:";
+            if (bold->isSelected()) {
+                text += " bold";
+            }
+            if (italic->isSelected()) {
+                text += " italic";
+            }
+            if (!bold->isSelected() && !italic->isSelected()) {
+                text += " none";
+            }
+            status->setText(text);
+        };
+        bold->setOnAction(reportStyle);
+        italic->setOnAction(reportStyle);
+
+        auto more = jadefx::make<jadefx::MenuButton>("More");
+        auto pin = jadefx::make<jadefx::MenuItem>("Pin this note");
+        pin->setOnAction([status](jadefx::ActionEvent&) { status->setText("Pinned"); });
+        more->getItems().add(pin);
+        more->getItems().add(jadefx::make<jadefx::SeparatorMenuItem>());
+        auto archive = jadefx::make<jadefx::MenuItem>("Archive");
+        archive->setDisable(true);
+        more->getItems().add(archive);
+
+        auto info = jadefx::make<jadefx::Button>("Information");
+        auto warn = jadefx::make<jadefx::Button>("Warning");
+        auto confirm = jadefx::make<jadefx::Button>("Confirm");
+        auto keep = alerts_;
+        auto present = [status, keep](const std::shared_ptr<jadefx::Alert>& alert) {
+            keep->push_back(alert);
+            if (status->getScene() != nullptr) {
+                alert->show(*status->getScene());
+            }
+        };
+        info->setOnAction([present](jadefx::ActionEvent&) {
+            auto alert = std::make_shared<jadefx::Alert>(jadefx::AlertType::Information, "The note was saved.");
+            alert->setTitle("Saved");
+            present(alert);
+        });
+        warn->setOnAction([present](jadefx::ActionEvent&) {
+            auto alert = std::make_shared<jadefx::Alert>(jadefx::AlertType::Warning, "This draft has not been sent.");
+            alert->setHeaderText("Unsent changes");
+            present(alert);
+        });
+        confirm->setOnAction([status, present](jadefx::ActionEvent&) {
+            auto alert = std::make_shared<jadefx::Alert>(jadefx::AlertType::Confirmation, "Delete this note?");
+            alert->setOnClosed([status](const jadefx::ButtonType* type) {
+                if (type != nullptr && *type == jadefx::ButtonType::Ok()) {
+                    status->setText("Note deleted");
+                } else {
+                    status->setText("Delete canceled");
+                }
+            });
+            present(alert);
+        });
+
+        auto caption = jadefx::make<jadefx::Label>("A caption with a tooltip");
+        jadefx::Tooltip::install(caption.get(), jadefx::make<jadefx::Tooltip>("Shown after the pointer rests here"));
+
+        auto nameRow = jadefx::make<jadefx::HBox>();
+        nameRow->getClassList().add("row");
+        nameRow->setSpacing(10);
+        nameRow->getChildren().add(name);
+        nameRow->getChildren().add(greet);
+        auto cityRow = jadefx::make<jadefx::HBox>();
+        cityRow->getClassList().add("row");
+        cityRow->setSpacing(10);
+        cityRow->getChildren().add(city);
+        cityRow->getChildren().add(custom);
+        auto sizeRow = jadefx::make<jadefx::HBox>();
+        sizeRow->getClassList().add("row");
+        sizeRow->setSpacing(16);
+        sizeRow->getChildren().add(small);
+        sizeRow->getChildren().add(medium);
+        sizeRow->getChildren().add(large);
+        auto styleRow = jadefx::make<jadefx::HBox>();
+        styleRow->getClassList().add("row");
+        styleRow->setSpacing(10);
+        styleRow->getChildren().add(bold);
+        styleRow->getChildren().add(italic);
+        styleRow->getChildren().add(more);
+        auto dialogRow = jadefx::make<jadefx::HBox>();
+        dialogRow->getClassList().add("row");
+        dialogRow->setSpacing(10);
+        dialogRow->getChildren().add(info);
+        dialogRow->getChildren().add(warn);
+        dialogRow->getChildren().add(confirm);
+
+        auto sheet = jadefx::make<jadefx::VBox>();
+        sheet->getClassList().add("sheet");
+        sheet->setSpacing(14);
+        sheet->getChildren().add(nameRow);
+        sheet->getChildren().add(cityRow);
+        sheet->getChildren().add(sizeRow);
+        sheet->getChildren().add(styleRow);
+        sheet->getChildren().add(dialogRow);
+        sheet->getChildren().add(caption);
+        sheet->getChildren().add(status);
+
+        auto root = jadefx::make<jadefx::BorderPane>();
+        root->setTop(bar);
+        root->setCenter(sheet);
+        root->setPadding(jadefx::Insets::uniform(16));
+
+        auto scene = jadefx::make<jadefx::Scene>(root, 640, 460);
+        scene->setStylesheet(kStylesheet);
+        stage.setTitle("Controls");
+        stage.setScene(scene);
+    }
+
+private:
+    std::shared_ptr<jadefx::ToggleGroup> sizes_;
+    std::shared_ptr<std::vector<std::shared_ptr<jadefx::Alert>>> alerts_;
+};
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    return jadefx::Application::launch(std::make_unique<ControlsApp>(), argc, argv);
+}

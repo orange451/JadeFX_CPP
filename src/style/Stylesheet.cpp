@@ -22,6 +22,7 @@ struct Compound {
     bool focus = false;
     bool focusWithin = false;
     bool selected = false;
+    bool disabled = false;
     bool universal = false;
 };
 
@@ -222,6 +223,9 @@ bool MatchCompound(const Compound& compound, Node& node) {
     if (compound.selected && !node.isSelected()) {
         return false;
     }
+    if (compound.disabled && !node.isDisabled()) {
+        return false;
+    }
     return true;
 }
 
@@ -302,6 +306,8 @@ bool ParseCompound(std::string_view text, std::size_t& index, Compound& compound
                 compound.focusWithin = true;
             } else if (pseudo == "select" || pseudo == "selected") {
                 compound.selected = true;
+            } else if (pseudo == "disabled") {
+                compound.disabled = true;
             } else {
                 return false;
             }

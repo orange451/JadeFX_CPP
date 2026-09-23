@@ -66,6 +66,10 @@ public:
     using TitleHandler = std::function<void(const std::string&)>;
     void setHostHandlers(ResizeHandler resize, ShowHandler show, TitleHandler title);
 
+    // Forwarded to the current scene, and to a scene installed later with setScene.
+    // The pump returns 1 after one turn, 0 when a frame is already running, and -1 to stop.
+    void setEventPump(std::function<int()> pump);
+
 private:
     struct Event;
     void processEvents();
@@ -84,6 +88,7 @@ private:
     std::function<void(int, int)> afterUi_;
     std::function<void(const std::string&)> clipboardSet_;
     std::function<std::string()> clipboardGet_;
+    std::function<int()> eventPump_;
     std::string clipboard_;
     int pointWidth_ = 0;
     int pointHeight_ = 0;

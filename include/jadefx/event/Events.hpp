@@ -43,9 +43,25 @@ constexpr int A = 65;
 constexpr int B = 66;
 constexpr int C = 67;
 constexpr int D = 68;
+constexpr int E = 69;
+constexpr int F = 70;
+constexpr int G = 71;
+constexpr int H = 72;
 constexpr int I = 73;
+constexpr int J = 74;
+constexpr int K = 75;
+constexpr int L = 76;
+constexpr int M = 77;
+constexpr int N = 78;
+constexpr int O = 79;
+constexpr int P = 80;
+constexpr int Q = 81;
+constexpr int R = 82;
+constexpr int S = 83;
+constexpr int T = 84;
 constexpr int U = 85;
 constexpr int V = 86;
+constexpr int W = 87;
 constexpr int X = 88;
 constexpr int Y = 89;
 constexpr int Z = 90;
@@ -104,7 +120,16 @@ struct TextEvent {
     void consume() { consumed = true; }
 };
 
+// Fired by a button, menu item, text field (Enter), or combo box.
+struct ActionEvent {
+    Node* source = nullptr;
+    bool consumed = false;
+
+    void consume() { consumed = true; }
+};
+
 using MouseHandler = std::function<void(const MouseEvent&)>;
 using ScrollHandler = std::function<void(const ScrollEvent&)>;
+using ActionHandler = std::function<void(ActionEvent&)>;
 
 }  // namespace jadefx

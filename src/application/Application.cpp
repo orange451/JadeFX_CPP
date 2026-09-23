@@ -83,16 +83,13 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
         return 1;
     }
 
-    app->preStart(stage, argc, argv);
-    app->start(stage, argc, argv);
-    stage.show();
-
     int smokeFrames = 0;
     if (const char* smoke = std::getenv("JADEFX_SMOKE_FRAMES")) {
         smokeFrames = std::atoi(smoke);
     }
     int rendered = 0;
     bool drawing = false;
+    int pumping = 0;
     auto drawFrame = [&]() -> bool {
         if (drawing) {
             return true;
@@ -116,6 +113,24 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
     };
     // Dragging the border blocks poll() inside the OS until the gesture ends.
     host.setRedraw([&] { (void)drawFrame(); });
+    stage.setEventPump([&]() -> int {
+        if (drawing || pumping > 0) {
+            return 0;
+        }
+        ++pumping;
+        host.poll();
+        const bool closed = host.shouldClose();
+        const bool ok = !closed && drawFrame();
+        --pumping;
+        if (closed || !ok) {
+            return -1;
+        }
+        return 1;
+    });
+
+    app->preStart(stage, argc, argv);
+    app->start(stage, argc, argv);
+    stage.show();
 
     while (!host.shouldClose()) {
         host.poll();

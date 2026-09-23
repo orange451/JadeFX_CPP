@@ -9,13 +9,25 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 namespace jadefx {
 
+class Node;
 class Scene;
 class UiRenderer;
+
+// Shown beside a node after the pointer rests on it. Scene owns the timing.
+// content is the popup. Delays and showDuration are seconds. 0 shows or hides immediately.
+// A positive showDuration dismisses the popup even if the pointer stays.
+struct HoverPopup {
+    std::shared_ptr<Node> content;
+    double showDelay = 1;
+    double hideDelay = 0.2;
+    double showDuration = 5;
+};
 
 // One element in the scene graph. Own nodes with std::shared_ptr (see make<T>()).
 // The parent list holds a shared_ptr, and the child keeps a raw parent pointer.
@@ -86,11 +98,33 @@ public:
 
     bool isHovered() const { return hovered_; }
     bool isPressed() const { return pressed_; }
+    // Keyboard arming uses the same flag as a mouse press, so :active matches.
+    void setPressed(bool pressed) { pressed_ = pressed; }
     bool isFocused() const { return focused_; }
     // True when this node or a descendant is focused. Matches the :focus-within pseudo.
     bool isFocusWithin();
     void setSelected(bool selected) { selected_ = selected; }
     bool isSelected() const { return selected_; }
+
+    // disable is this node's own flag. disabled is that flag, or an ancestor's.
+    // A disabled node is not picked, focused, or sent input. TabPane keeps its own
+    // flag so a disabled pane can still show an interactive page.
+    void setDisable(bool value);
+    bool isDisable() const { return disable_; }
+    bool isDisabled() const;
+
+    // True when node is this or a descendant.
+    bool isAncestorOf(const Node* node) const;
+
+    // True while this node's destructor has started. Scene sets it before its
+    // members are destroyed so controls can skip hooks and popups on the way out.
+    bool isTearingDown() const { return tearingDown_; }
+
+    // Replaces any hover popup. An empty content clears it. Scene shows content
+    // after showDelay and hides it on press, after hideDelay, or at showDuration.
+    void setHoverPopup(HoverPopup popup);
+    void clearHoverPopup();
+    const HoverPopup* getHoverPopup() const;
 
     bool contains(double x, double y) const;
     Node* pick(double x, double y);
@@ -138,6 +172,8 @@ protected:
     virtual void renderChildren(UiRenderer& renderer, float opacity);
     virtual void visitChildren(const std::function<void(Node*)>& visitor);
     virtual Scene* asScene() { return nullptr; }
+    // previous is the scene this node just left, or null when it is joining one.
+    virtual void sceneChanged(Scene*) {}
 
     double contentLeft() const;
     double contentTop() const;
@@ -250,6 +286,9 @@ private:
     bool pressed_ = false;
     bool focused_ = false;
     bool selected_ = false;
+    bool disable_ = false;
+    bool tearingDown_ = false;
+    std::optional<HoverPopup> hoverPopup_;
 
     MouseHandler onPressed_;
     MouseHandler onReleased_;

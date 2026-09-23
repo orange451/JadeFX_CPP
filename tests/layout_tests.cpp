@@ -1333,19 +1333,19 @@ void TestTreeView() {
 
     tree->scrollTo(0);
     scene->layout(240, 80, 0);
-    jadefx::Node* bar = nullptr;
+    jadefx::Node* scrollBar = nullptr;
     for (jadefx::Node* node : scene->getElementsByClassName("scroll-bar")) {
         if (node != nullptr && node->isVisible() && node->getHeight() > 1) {
-            bar = node;
+            scrollBar = node;
         }
     }
-    Expect(bar != nullptr && Near(bar->getWidth(), 10, 1.5), "the scrollbar uses the shared thumb width");
-    if (bar != nullptr) {
-        const double x = bar->getAbsoluteX() + bar->getWidth() * 0.5;
-        const double thumbY = bar->getAbsoluteY() + 10;
+    Expect(scrollBar != nullptr && Near(scrollBar->getWidth(), 10, 1.5), "the scrollbar uses the shared thumb width");
+    if (scrollBar != nullptr) {
+        const double x = scrollBar->getAbsoluteX() + scrollBar->getWidth() * 0.5;
+        const double thumbY = scrollBar->getAbsoluteY() + 10;
         scene->noteButton(0, true, x, thumbY);
-        scene->noteMove(x, bar->getAbsoluteY() + 30);
-        scene->noteButton(0, false, x, bar->getAbsoluteY() + 30);
+        scene->noteMove(x, scrollBar->getAbsoluteY() + 30);
+        scene->noteButton(0, false, x, scrollBar->getAbsoluteY() + 30);
         scene->layout(240, 80, 0);
         jadefx::Node* sales = CellNamed(*scene, "Sales");
         Expect(sales != nullptr && Near(sales->getY(), 0), "dragging the thumb scrolls with the pointer");
@@ -1353,16 +1353,16 @@ void TestTreeView() {
 
         tree->scrollTo(0);
         scene->layout(240, 80, 0);
-        bar = nullptr;
+        scrollBar = nullptr;
         for (jadefx::Node* node : scene->getElementsByClassName("scroll-bar")) {
             if (node != nullptr && node->isVisible()) {
-                bar = node;
+                scrollBar = node;
             }
         }
-        if (bar != nullptr) {
-            const double trackX = bar->getAbsoluteX() + bar->getWidth() * 0.5;
-            scene->noteButton(0, true, trackX, bar->getAbsoluteY() + bar->getHeight() - 4);
-            scene->noteButton(0, false, trackX, bar->getAbsoluteY() + bar->getHeight() - 4);
+        if (scrollBar != nullptr) {
+            const double trackX = scrollBar->getAbsoluteX() + scrollBar->getWidth() * 0.5;
+            scene->noteButton(0, true, trackX, scrollBar->getAbsoluteY() + scrollBar->getHeight() - 4);
+            scene->noteButton(0, false, trackX, scrollBar->getAbsoluteY() + scrollBar->getHeight() - 4);
         }
         scene->layout(240, 80, 0);
         jadefx::Node* dana = CellNamed(*scene, "Dana");
@@ -1381,6 +1381,14 @@ void TestGrayscaleFrame() {
 }  // namespace
 
 int RunRichTextTests();
+int RunButtonTests();
+int RunToggleTests();
+int RunRadioButtonTests();
+int RunTooltipTests();
+int RunAlertTests();
+int RunTextFieldTests();
+int RunMenuTests();
+int RunComboBoxTests();
 
 int main() {
     TestColors();
@@ -1399,6 +1407,14 @@ int main() {
     TestTabPane();
     TestTreeView();
     gFailures += RunRichTextTests();
+    gFailures += RunButtonTests();
+    gFailures += RunToggleTests();
+    gFailures += RunRadioButtonTests();
+    gFailures += RunTooltipTests();
+    gFailures += RunAlertTests();
+    gFailures += RunTextFieldTests();
+    gFailures += RunMenuTests();
+    gFailures += RunComboBoxTests();
     if (gFailures == 0) {
         std::printf("layout tests passed\n");
         return 0;

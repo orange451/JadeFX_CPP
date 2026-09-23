@@ -28,6 +28,19 @@ set(JADEFX_SOURCES
     src/scene/layout/BorderPane.cpp
     src/scene/Controls/Labeled.cpp
     src/scene/Controls/Label.cpp
+    src/scene/Controls/ButtonBase.cpp
+    src/scene/Controls/Button.cpp
+    src/scene/Controls/ToggleGroup.cpp
+    src/scene/Controls/ToggleButton.cpp
+    src/scene/Controls/RadioButton.cpp
+    src/scene/Controls/Tooltip.cpp
+    src/scene/Controls/Alert.cpp
+    src/scene/Controls/TextField.cpp
+    src/scene/Controls/MenuItem.cpp
+    src/scene/Controls/Menu.cpp
+    src/scene/Controls/MenuButton.cpp
+    src/scene/Controls/MenuBar.cpp
+    src/scene/Controls/ComboBox.cpp
     src/scene/Controls/Tab.cpp
     src/scene/Controls/TabPane.cpp
     src/scene/text/StyledDocument.cpp
@@ -166,9 +179,21 @@ if(NOT JADEFX_GLFM)
     add_executable(jadefx-tabs MACOSX_BUNDLE examples/tab_pane.cpp)
     add_executable(jadefx-tree MACOSX_BUNDLE examples/tree_view.cpp)
     add_executable(jadefx-rich MACOSX_BUNDLE examples/rich_text.cpp)
-    add_executable(jadefx-tests tests/layout_tests.cpp tests/rich_text_tests.cpp)
+    add_executable(jadefx-controls MACOSX_BUNDLE examples/controls.cpp)
+    add_executable(jadefx-tests
+        tests/layout_tests.cpp
+        tests/rich_text_tests.cpp
+        tests/button_tests.cpp
+        tests/toggle_tests.cpp
+        tests/radio_button_tests.cpp
+        tests/tooltip_tests.cpp
+        tests/alert_tests.cpp
+        tests/text_field_tests.cpp
+        tests/menu_tests.cpp
+        tests/combo_box_tests.cpp
+    )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
-    foreach(target jadefx-purple jadefx-hello jadefx-border jadefx-tabs jadefx-tree jadefx-rich jadefx-tests)
+    foreach(target jadefx-purple jadefx-hello jadefx-border jadefx-tabs jadefx-tree jadefx-rich jadefx-controls jadefx-tests)
         target_link_libraries(${target} PRIVATE jadefx)
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /utf-8)
@@ -182,6 +207,7 @@ if(NOT JADEFX_GLFM)
     jadefx_attach_resources(jadefx-tabs)
     jadefx_attach_resources(jadefx-rich)
     jadefx_attach_resources(jadefx-tree)
+    jadefx_attach_resources(jadefx-controls)
     if(APPLE)
         set_target_properties(jadefx-purple PROPERTIES
             OUTPUT_NAME "JadeFX"
@@ -227,6 +253,14 @@ if(NOT JADEFX_GLFM)
             OUTPUT_NAME "JadeFX Tree"
             MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Tree"
             MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.tree"
+            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
+        )
+        set_target_properties(jadefx-controls PROPERTIES
+            OUTPUT_NAME "JadeFX Controls"
+            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Controls"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.controls"
             MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"

@@ -49,6 +49,9 @@ void Stage::setScene(std::shared_ptr<Scene> scene) {
         return;
     }
     scene_ = std::move(scene);
+    if (eventPump_) {
+        scene_->setEventPump(eventPump_);
+    }
     hookClipboard();
     if (scene_->requestedWidth() > 1.0 && scene_->requestedHeight() > 1.0 && onResize_) {
         onResize_(static_cast<int>(scene_->requestedWidth()), static_cast<int>(scene_->requestedHeight()));
@@ -72,6 +75,13 @@ void Stage::show() {
     shown_ = true;
     if (onShow_) {
         onShow_();
+    }
+}
+
+void Stage::setEventPump(std::function<int()> pump) {
+    eventPump_ = std::move(pump);
+    if (scene_ && eventPump_) {
+        scene_->setEventPump(eventPump_);
     }
 }
 

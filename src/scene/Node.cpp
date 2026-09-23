@@ -80,9 +80,56 @@ Node::~Node() {
 }
 
 void Node::requestFocus() {
-    if (scene_ != nullptr) {
-        scene_->requestFocus(this);
+    if (scene_ == nullptr || isDisabled()) {
+        return;
     }
+    scene_->requestFocus(this);
+}
+
+void Node::setDisable(bool value) {
+    if (disable_ == value) {
+        return;
+    }
+    disable_ = value;
+    if (!value) {
+        return;
+    }
+    pressed_ = false;
+    if (scene_ != nullptr) {
+        scene_->releaseFocus(this);
+    }
+}
+
+bool Node::isDisabled() const {
+    for (const Node* node = this; node != nullptr; node = node->parent_) {
+        if (node->disable_) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Node::isAncestorOf(const Node* node) const {
+    for (const Node* cursor = node; cursor != nullptr; cursor = cursor->parent_) {
+        if (cursor == this) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Node::setHoverPopup(HoverPopup popup) {
+    if (!popup.content) {
+        hoverPopup_.reset();
+        return;
+    }
+    hoverPopup_ = std::move(popup);
+}
+
+void Node::clearHoverPopup() { hoverPopup_.reset(); }
+
+const HoverPopup* Node::getHoverPopup() const {
+    return hoverPopup_ ? &*hoverPopup_ : nullptr;
 }
 
 void Node::setParent(Node* parent) {
@@ -95,8 +142,19 @@ void Node::setParent(Node* parent) {
     } else {
         scene_ = nullptr;
     }
-    if (previousScene != nullptr && previousScene != scene_) {
+    const bool sceneMoved = previousScene != scene_;
+    // A scene that is already tearing down is still in its destructor. Do not
+    // touch its focus or popup lists. scene_ is cleared so a later destructor
+    // does not call into the freed scene.
+    const bool previousAlive = previousScene != nullptr && !previousScene->isTearingDown();
+    if (sceneMoved && previousAlive) {
         previousScene->releaseFocus(this);
+        previousScene->hidePopupsOwnedBy(this);
+    }
+    if (sceneMoved) {
+        // sceneChanged may see a scene that is tearing down. It must not use
+        // that scene's lists; isTearingDown() is still readable.
+        sceneChanged(previousScene);
     }
 
     std::vector<Node*> kids;
@@ -461,7 +519,7 @@ bool Node::contains(double x, double y) const {
 }
 
 Node* Node::pick(double x, double y) {
-    if (!visible_ || mouseTransparent_ || !contains(x, y)) {
+    if (!visible_ || mouseTransparent_ || isDisabled() || !contains(x, y)) {
         return nullptr;
     }
     std::vector<Node*> kids;
