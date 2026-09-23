@@ -25,6 +25,8 @@
 #include "jadefx/scene/Controls/MenuButton.hpp"
 #include "jadefx/scene/Controls/MenuItem.hpp"
 #include "jadefx/scene/Controls/StyleClassedTextArea.hpp"
+#include "jadefx/scene/Controls/Slider.hpp"
+#include "jadefx/scene/Controls/Spinner.hpp"
 #include "jadefx/scene/Controls/SplitPane.hpp"
 #include "jadefx/scene/Controls/StyledTextArea.hpp"
 #include "jadefx/scene/Controls/Tab.hpp"

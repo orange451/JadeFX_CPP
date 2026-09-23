@@ -1391,6 +1391,8 @@ int RunAlertTests();
 int RunTextFieldTests();
 int RunMenuTests();
 int RunComboBoxTests();
+int RunSliderTests();
+int RunSpinnerTests();
 int RunSplitPaneTests();
 
 int main() {
@@ -1420,6 +1422,8 @@ int main() {
     gFailures += RunTextFieldTests();
     gFailures += RunMenuTests();
     gFailures += RunComboBoxTests();
+    gFailures += RunSliderTests();
+    gFailures += RunSpinnerTests();
     gFailures += RunSplitPaneTests();
     if (gFailures == 0) {
         std::printf("layout tests passed\n");

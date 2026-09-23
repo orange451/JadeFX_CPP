@@ -50,6 +50,8 @@ set(JADEFX_SOURCES
     src/scene/Controls/InlineCssTextArea.cpp
     src/scene/Controls/CodeArea.cpp
     src/scene/Controls/ScrollBar.cpp
+    src/scene/Controls/Slider.cpp
+    src/scene/Controls/Spinner.cpp
     src/scene/Controls/SplitPane.cpp
     src/scene/Controls/TreeItem.cpp
     src/scene/Controls/TreeView.cpp
@@ -224,6 +226,8 @@ if(NOT JADEFX_GLFM)
         tests/text_field_tests.cpp
         tests/menu_tests.cpp
         tests/combo_box_tests.cpp
+        tests/slider_tests.cpp
+        tests/spinner_tests.cpp
         tests/split_pane_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")

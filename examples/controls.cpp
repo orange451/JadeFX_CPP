@@ -9,11 +9,14 @@
 #include "jadefx/scene/Controls/MenuButton.hpp"
 #include "jadefx/scene/Controls/MenuItem.hpp"
 #include "jadefx/scene/Controls/RadioButton.hpp"
+#include "jadefx/scene/Controls/Slider.hpp"
+#include "jadefx/scene/Controls/Spinner.hpp"
 #include "jadefx/scene/Controls/TextField.hpp"
 #include "jadefx/scene/Controls/ToggleButton.hpp"
 #include "jadefx/scene/Controls/ToggleGroup.hpp"
 #include "jadefx/scene/Controls/Tooltip.hpp"
 
+#include <cmath>
 #include <memory>
 #include <string>
 #include <vector>
@@ -61,21 +64,24 @@ togglebutton:selected {
 checkbox:selected, checkbox:indeterminate {
     color: #174ea6;
 }
-textfield, combobox {
+textfield, combobox, spinner {
     background-color: white;
     border-width: 1px;
     border-color: #dadce0;
     border-radius: 6px;
     padding: 6px 8px;
 }
-combobox textfield {
+combobox textfield, spinner textfield {
     padding: 0 2px;
     border-width: 0;
     background-color: transparent;
 }
-textfield:focus, combobox:focus, combobox:focus-within {
+textfield:focus, combobox:focus, combobox:focus-within, spinner:focus, spinner:focus-within {
     border-color: #1a73e8;
     border-width: 2px;
+}
+increment-arrow-button:hover, decrement-arrow-button:hover {
+    background-color: #f1f3f4;
 }
 menubar {
     background-color: white;
@@ -213,6 +219,26 @@ public:
         push->setOnAction(reportNotify);
         pages->setOnAction(reportNotify);
 
+        auto volume = jadefx::make<jadefx::Slider>(0, 100, 40);
+        volume->setPrefWidth(220);
+        volume->setShowTickMarks(true);
+        volume->setShowTickLabels(true);
+        volume->setMajorTickUnit(25);
+        volume->setBlockIncrement(5);
+        volume->setOnValueChanged([status, volume] {
+            const int shown = static_cast<int>(std::lround(volume->getValue()));
+            std::string text = "Volume " + std::to_string(shown);
+            if (volume->isValueChanging()) {
+                text += " (adjusting)";
+            }
+            status->setText(text);
+        });
+        auto copies = std::make_shared<jadefx::IntegerSpinnerValueFactory>(1, 12, 1);
+        auto count = jadefx::make<jadefx::Spinner>(copies);
+        count->setEditable(true);
+        count->getEditor()->setPrefColumnCount(3);
+        count->setOnValueChanged([status, copies] { status->setText("Copies: " + std::to_string(copies->getValue())); });
+
         auto more = jadefx::make<jadefx::MenuButton>("More");
         auto pin = jadefx::make<jadefx::MenuItem>("Pin this note");
         pin->setOnAction([status](jadefx::ActionEvent&) { status->setText("Pinned"); });
@@ -254,6 +280,8 @@ public:
             present(alert);
         });
 
+
+
         auto caption = jadefx::make<jadefx::Label>("A caption with a tooltip");
         jadefx::Tooltip::install(caption.get(), jadefx::make<jadefx::Tooltip>("Shown after the pointer rests here"));
 
@@ -292,6 +320,14 @@ public:
         dialogRow->getChildren().add(warn);
         dialogRow->getChildren().add(confirm);
 
+        auto adjustRow = jadefx::make<jadefx::HBox>();
+        adjustRow->getClassList().add("row");
+        adjustRow->setSpacing(10);
+        adjustRow->getChildren().add(jadefx::make<jadefx::Label>("Volume"));
+        adjustRow->getChildren().add(volume);
+        adjustRow->getChildren().add(jadefx::make<jadefx::Label>("Copies"));
+        adjustRow->getChildren().add(count);
+
         auto sheet = jadefx::make<jadefx::VBox>();
         sheet->getClassList().add("sheet");
         sheet->setSpacing(14);
@@ -301,6 +337,7 @@ public:
         sheet->getChildren().add(styleRow);
         sheet->getChildren().add(notifyRow);
         sheet->getChildren().add(dialogRow);
+        sheet->getChildren().add(adjustRow);
         sheet->getChildren().add(caption);
         sheet->getChildren().add(status);
 
@@ -309,7 +346,7 @@ public:
         root->setCenter(sheet);
         root->setPadding(jadefx::Insets::uniform(16));
 
-        auto scene = jadefx::make<jadefx::Scene>(root, 640, 520);
+        auto scene = jadefx::make<jadefx::Scene>(root, 720, 680);
         scene->setStylesheet(kStylesheet);
         stage.setTitle("Controls");
         stage.setScene(scene);
