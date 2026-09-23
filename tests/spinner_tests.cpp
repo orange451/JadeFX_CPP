@@ -1,5 +1,5 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/Spinner.hpp"
+#include "jadefx/scene/controls/Spinner.hpp"
 
 #include <cmath>
 #include <cstdio>

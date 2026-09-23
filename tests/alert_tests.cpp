@@ -1,5 +1,5 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/Alert.hpp"
+#include "jadefx/scene/controls/Alert.hpp"
 
 #include <cstdio>
 #include <string>

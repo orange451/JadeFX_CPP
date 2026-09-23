@@ -1,6 +1,6 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/ToggleButton.hpp"
-#include "jadefx/scene/Controls/ToggleGroup.hpp"
+#include "jadefx/scene/controls/ToggleButton.hpp"
+#include "jadefx/scene/controls/ToggleGroup.hpp"
 
 #include <cstdio>
 

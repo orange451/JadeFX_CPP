@@ -1,5 +1,5 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/Slider.hpp"
+#include "jadefx/scene/controls/Slider.hpp"
 
 #include <cmath>
 #include <cstdio>

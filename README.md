@@ -76,12 +76,12 @@ Layout is in window points, with the origin at the top left. On a Retina display
 | `Stage`, `Scene` | `jadefx/stage/Stage.hpp`, `jadefx/scene/Scene.hpp` |
 | `Parent` | `jadefx/scene/Parent.hpp` |
 | `Region`, `Pane`, `StackPane`, `VBox`, `HBox`, `BorderPane` | one header each in `jadefx/scene/layout/` |
-| `Label`, `Button`, `ToggleButton`, `RadioButton`, `CheckBox`, `ProgressBar`, `TextField`, `ComboBox`, `Slider`, `Spinner`, `Tooltip` | `jadefx/scene/Controls/` |
-| `MenuItem`, `Menu`, `MenuButton`, `MenuBar`, `Alert` | `jadefx/scene/Controls/` |
-| `StyledTextArea`, `CodeArea` | `jadefx/scene/Controls/StyledTextArea.hpp`, `jadefx/scene/Controls/CodeArea.hpp` |
-| `Tab`, `TabPane` | `jadefx/scene/Controls/Tab.hpp`, `jadefx/scene/Controls/TabPane.hpp` |
-| `SplitPane` | `jadefx/scene/Controls/SplitPane.hpp` |
-| `TreeItem`, `TreeView` | `jadefx/scene/Controls/TreeItem.hpp`, `jadefx/scene/Controls/TreeView.hpp` |
+| `Label`, `Button`, `ToggleButton`, `RadioButton`, `CheckBox`, `ProgressBar`, `TextField`, `ComboBox`, `Slider`, `Spinner`, `Tooltip` | `jadefx/scene/controls/` |
+| `MenuItem`, `Menu`, `MenuButton`, `MenuBar`, `Alert` | `jadefx/scene/controls/` |
+| `StyledTextArea`, `CodeArea` | `jadefx/scene/controls/StyledTextArea.hpp`, `jadefx/scene/controls/CodeArea.hpp` |
+| `Tab`, `TabPane` | `jadefx/scene/controls/Tab.hpp`, `jadefx/scene/controls/TabPane.hpp` |
+| `SplitPane` | `jadefx/scene/controls/SplitPane.hpp` |
+| `TreeItem`, `TreeView` | `jadefx/scene/controls/TreeItem.hpp`, `jadefx/scene/controls/TreeView.hpp` |
 | `Font`, `Color`, `Pos`, `Side`, `Insets` | `jadefx/scene/text/Font.hpp`, `jadefx/paint/Color.hpp`, `jadefx/geometry/Geometry.hpp` |
 
 `VBox` and `HBox` stack children with `setSpacing`. `StackPane` layers them and aligns each child. `BorderPane` places `setTop`, `setBottom`, `setLeft`, `setRight`, and `setCenter`. `Label` measures its text with the bundled Open Sans face. `"Google Sans"` is accepted as a family name and uses that same face.

@@ -1,5 +1,5 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/CheckBox.hpp"
+#include "jadefx/scene/controls/CheckBox.hpp"
 
 #include <cstdio>
 #include <string>

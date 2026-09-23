@@ -1,5 +1,5 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/Tooltip.hpp"
+#include "jadefx/scene/controls/Tooltip.hpp"
 
 #include <cstdio>
 #include <string>

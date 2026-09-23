@@ -25,37 +25,37 @@ set(JADEFX_SOURCES
     src/scene/layout/VBox.cpp
     src/scene/layout/HBox.cpp
     src/scene/layout/BorderPane.cpp
-    src/scene/Controls/Labeled.cpp
-    src/scene/Controls/Label.cpp
-    src/scene/Controls/ButtonBase.cpp
-    src/scene/Controls/Button.cpp
-    src/scene/Controls/ToggleGroup.cpp
-    src/scene/Controls/ToggleButton.cpp
-    src/scene/Controls/RadioButton.cpp
-    src/scene/Controls/CheckBox.cpp
-    src/scene/Controls/ProgressBar.cpp
-    src/scene/Controls/Tooltip.cpp
-    src/scene/Controls/Alert.cpp
-    src/scene/Controls/TextField.cpp
-    src/scene/Controls/MenuItem.cpp
-    src/scene/Controls/Menu.cpp
-    src/scene/Controls/MenuButton.cpp
-    src/scene/Controls/MenuBar.cpp
-    src/scene/Controls/ComboBox.cpp
-    src/scene/Controls/Tab.cpp
-    src/scene/Controls/TabPane.cpp
+    src/scene/controls/Labeled.cpp
+    src/scene/controls/Label.cpp
+    src/scene/controls/ButtonBase.cpp
+    src/scene/controls/Button.cpp
+    src/scene/controls/ToggleGroup.cpp
+    src/scene/controls/ToggleButton.cpp
+    src/scene/controls/RadioButton.cpp
+    src/scene/controls/CheckBox.cpp
+    src/scene/controls/ProgressBar.cpp
+    src/scene/controls/Tooltip.cpp
+    src/scene/controls/Alert.cpp
+    src/scene/controls/TextField.cpp
+    src/scene/controls/MenuItem.cpp
+    src/scene/controls/Menu.cpp
+    src/scene/controls/MenuButton.cpp
+    src/scene/controls/MenuBar.cpp
+    src/scene/controls/ComboBox.cpp
+    src/scene/controls/Tab.cpp
+    src/scene/controls/TabPane.cpp
     src/scene/text/Font.cpp
     src/scene/text/StyledDocument.cpp
-    src/scene/Controls/StyledTextArea.cpp
-    src/scene/Controls/StyleClassedTextArea.cpp
-    src/scene/Controls/InlineCssTextArea.cpp
-    src/scene/Controls/CodeArea.cpp
-    src/scene/Controls/ScrollBar.cpp
-    src/scene/Controls/Slider.cpp
-    src/scene/Controls/Spinner.cpp
-    src/scene/Controls/SplitPane.cpp
-    src/scene/Controls/TreeItem.cpp
-    src/scene/Controls/TreeView.cpp
+    src/scene/controls/StyledTextArea.cpp
+    src/scene/controls/StyleClassedTextArea.cpp
+    src/scene/controls/InlineCssTextArea.cpp
+    src/scene/controls/CodeArea.cpp
+    src/scene/controls/ScrollBar.cpp
+    src/scene/controls/Slider.cpp
+    src/scene/controls/Spinner.cpp
+    src/scene/controls/SplitPane.cpp
+    src/scene/controls/TreeItem.cpp
+    src/scene/controls/TreeView.cpp
     src/scene/Scene.cpp
     src/stage/Stage.cpp
     src/application/Application.cpp

@@ -1,5 +1,5 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/ComboBox.hpp"
+#include "jadefx/scene/controls/ComboBox.hpp"
 
 #include <cmath>
 #include <cstdio>

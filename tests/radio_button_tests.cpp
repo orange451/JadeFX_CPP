@@ -1,6 +1,6 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/RadioButton.hpp"
-#include "jadefx/scene/Controls/ToggleGroup.hpp"
+#include "jadefx/scene/controls/RadioButton.hpp"
+#include "jadefx/scene/controls/ToggleGroup.hpp"
 
 #include <cstdio>
 

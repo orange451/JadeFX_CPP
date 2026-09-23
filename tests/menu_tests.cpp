@@ -1,6 +1,6 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/MenuBar.hpp"
-#include "jadefx/scene/Controls/MenuButton.hpp"
+#include "jadefx/scene/controls/MenuBar.hpp"
+#include "jadefx/scene/controls/MenuButton.hpp"
 
 #include <cstdio>
 #include <string>

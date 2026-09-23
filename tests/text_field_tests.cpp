@@ -1,5 +1,5 @@
 #include "jadefx/jadefx.hpp"
-#include "jadefx/scene/Controls/TextField.hpp"
+#include "jadefx/scene/controls/TextField.hpp"
 
 #include <cmath>
 #include <cstdio>
