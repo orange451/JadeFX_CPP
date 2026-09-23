@@ -4,7 +4,7 @@
 #include "gl.hpp"
 #include "internal/Subpixel.hpp"
 #include "platform/ErrorDialog.hpp"
-#include "scene/FontInternal.hpp"
+#include "scene/text/FontInternal.hpp"
 #include "jadefx/scene/text/Font.hpp"
 
 #include <algorithm>

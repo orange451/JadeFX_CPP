@@ -17,7 +17,6 @@ endif()
 set(JADEFX_SOURCES
     src/paint/Color.cpp
     src/style/Stylesheet.cpp
-    src/scene/Font.cpp
     src/scene/Node.cpp
     src/scene/layout/Region.cpp
     src/scene/layout/Pane.cpp
@@ -44,6 +43,7 @@ set(JADEFX_SOURCES
     src/scene/Controls/ComboBox.cpp
     src/scene/Controls/Tab.cpp
     src/scene/Controls/TabPane.cpp
+    src/scene/text/Font.cpp
     src/scene/text/StyledDocument.cpp
     src/scene/Controls/StyledTextArea.cpp
     src/scene/Controls/StyleClassedTextArea.cpp
@@ -169,10 +169,10 @@ endif()
 
 if(MSVC)
     target_compile_options(jadefx PRIVATE /W4 /utf-8)
-    set_source_files_properties(src/scene/Font.cpp PROPERTIES COMPILE_OPTIONS "/wd4505")
+    set_source_files_properties(src/scene/text/Font.cpp PROPERTIES COMPILE_OPTIONS "/wd4505")
 else()
     target_compile_options(jadefx PRIVATE -Wall -Wextra)
-    set_source_files_properties(src/scene/Font.cpp PROPERTIES COMPILE_OPTIONS "-Wno-unused-function;-Wno-sign-compare")
+    set_source_files_properties(src/scene/text/Font.cpp PROPERTIES COMPILE_OPTIONS "-Wno-unused-function;-Wno-sign-compare")
 endif()
 
 function(jadefx_attach_resources target)
