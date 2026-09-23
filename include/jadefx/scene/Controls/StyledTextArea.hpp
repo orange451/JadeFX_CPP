@@ -37,7 +37,7 @@ struct TextBounds {
 //
 // The area shows a caret while it is focused, scrolls with the wheel, and edits from the
 // keyboard: arrows, word jumps, home and end, page up and down, enter, tab, undo, and clipboard.
-// Alt-click adds a caret. Cmd/Ctrl+B toggles bold and Cmd/Ctrl+U toggles underline.
+// Alt-click adds a caret.
 // Italic is stored but drawn with the regular face, because the bundled font has no italic.
 class StyledTextArea : public Controls {
 public:
@@ -164,6 +164,11 @@ protected:
     void layoutChildren() override;
     void renderContent(UiRenderer& renderer, float opacity) override;
     virtual TextStyle resolveStyle(const TextStyle& style) const;
+    TextStyle styleForInsertion(int offset) const;
+    void setTypingStyle(TextStyle style);
+    void transact(bool coalesce, const std::function<void()>& body);
+    // Styled paste keeps colors and weight when this returns true.
+    virtual bool pasteKeepsStyle() const { return true; }
 
 private:
     struct Selection {
@@ -226,9 +231,7 @@ private:
     enum class Drag { None, Text, Word, Paragraph, VerticalBar, HorizontalBar };
 
     Font areaFont() const;
-    TextStyle styleForInsertion(int offset) const;
     ParagraphStyle paragraphStyleForInsertion(int offset) const;
-    void transact(bool coalesce, const std::function<void()>& body);
     void commit(UndoEntry entry);
     DocumentChange editReplace(int start, int end, const StyledDocument& replacement);
     void flushPending();
@@ -238,7 +241,6 @@ private:
     void deleteRanges(bool forward, bool word);
     void breakParagraphs();
     void indentLines(bool outdent);
-    void toggleStyle(bool underline);
     void retargetFolds(int startParagraph, int endParagraph, int delta);
     bool isHidden(int paragraph) const;
     bool isFoldHeader(int paragraph) const;

@@ -134,6 +134,105 @@ void TestWrapFoldAndClipboard(jadefx::Scene& scene, jadefx::StyledTextArea& area
     Expect(area.getText() == "QabQ", "each caret receives the typed character");
 }
 
+jadefx::TextStyle StyleAt(const jadefx::StyledTextArea& area, int start, int end) {
+    return area.getStyleSpans(start, end).spans().front().style;
+}
+
+void TestCharacterStyleShortcuts() {
+    auto notes = jadefx::make<jadefx::InlineCssTextArea>();
+    notes->setPrefSize(240, 160);
+    auto scene = jadefx::make<jadefx::Scene>(notes, 240, 160);
+    scene->layout(240, 160, 0);
+    notes->requestFocus();
+
+    notes->setText("abcdef");
+    notes->setStyle(0, 3, "color: #111111;");
+    notes->setStyle(3, 6, "color: #222222;");
+    notes->forgetHistory();
+    notes->selectAll();
+    Key(*scene, jadefx::Key::B, jadefx::Key::ModControl);
+    Expect(StyleAt(*notes, 0, 3).bold && StyleAt(*notes, 3, 6).bold, "bold covers every span in the selection");
+    Expect(StyleAt(*notes, 0, 3).inlineCss.find("#111111") != std::string::npos, "bold keeps the first color");
+    Expect(StyleAt(*notes, 3, 6).inlineCss.find("#222222") != std::string::npos, "bold keeps the second color");
+    notes->undo();
+    Expect(!StyleAt(*notes, 0, 3).bold && !StyleAt(*notes, 3, 6).bold, "one undo removes bold from every span");
+
+    notes->setText("hello notes");
+    notes->setStyle(0, 5, "color: #8250df;");
+    notes->setStyle(6, 11, "color: #0a7d33; text-decoration: line-through;");
+    notes->forgetHistory();
+    notes->selectRange(0, 5);
+    Key(*scene, jadefx::Key::B, jadefx::Key::ModControl);
+    const jadefx::TextStyle bold = StyleAt(*notes, 0, 5);
+    Expect(bold.bold && bold.hasFill, "notes bold keeps the color");
+    Expect(bold.inlineCss.find("font-weight") != std::string::npos, "notes bold is stored as CSS");
+    Expect(!StyleAt(*notes, 6, 11).bold, "bold stops at the selection");
+    notes->undo();
+    Expect(!StyleAt(*notes, 0, 5).bold, "undo removes the bold");
+    Expect(StyleAt(*notes, 0, 5).inlineCss.find("font-weight") == std::string::npos, "undo restores the CSS");
+
+    notes->selectRange(6, 11);
+    Key(*scene, jadefx::Key::U, jadefx::Key::ModControl);
+    const jadefx::TextStyle lined = StyleAt(*notes, 6, 11);
+    Expect(lined.underline && lined.strikethrough && lined.hasFill, "underline keeps the other decorations");
+    Expect(lined.inlineCss.find("underline") != std::string::npos, "underline is stored as CSS");
+    Key(*scene, jadefx::Key::U, jadefx::Key::ModControl);
+    const jadefx::TextStyle restored = StyleAt(*notes, 6, 11);
+    Expect(!restored.underline && restored.strikethrough, "underline toggles off and line-through stays");
+
+    notes->moveTo(notes->length());
+    Key(*scene, jadefx::Key::B, jadefx::Key::ModControl);
+    scene->noteKey(jadefx::Key::Unknown, false, false, 0);
+    scene->noteText("!");
+    Expect(notes->getText() == "hello notes!", "a caret style applies to the next character");
+    const jadefx::TextStyle typed = StyleAt(*notes, notes->length() - 1, notes->length());
+    Expect(typed.bold && typed.hasFill && typed.strikethrough, "the typed character keeps the caret CSS");
+
+    notes->setText("frozen");
+    notes->forgetHistory();
+    notes->selectAll();
+    notes->setEditable(false);
+    Key(*scene, jadefx::Key::B, jadefx::Key::ModControl);
+    Expect(!StyleAt(*notes, 0, 6).bold, "a read-only notes area ignores bold");
+    notes->setEditable(true);
+
+    auto plain = jadefx::make<jadefx::StyledTextArea>();
+    plain->setPrefSize(240, 160);
+    auto plainScene = jadefx::make<jadefx::Scene>(plain, 240, 160);
+    plainScene->layout(240, 160, 0);
+    plain->setText("hello");
+    plain->selectAll();
+    plain->requestFocus();
+    Key(*plainScene, jadefx::Key::B, jadefx::Key::ModControl);
+    Key(*plainScene, jadefx::Key::U, jadefx::Key::ModControl);
+    Expect(!StyleAt(*plain, 0, 5).bold && !StyleAt(*plain, 0, 5).underline, "the base editor has no style shortcuts");
+
+    auto code = jadefx::make<jadefx::CodeArea>();
+    code->setPrefSize(240, 160);
+    auto codeScene = jadefx::make<jadefx::Scene>(code, 240, 160);
+    codeScene->layout(240, 160, 0);
+    code->setText("hello");
+    code->selectAll();
+    code->requestFocus();
+    Key(*codeScene, jadefx::Key::B, jadefx::Key::ModControl);
+    Key(*codeScene, jadefx::Key::U, jadefx::Key::ModControl);
+    Expect(!StyleAt(*code, 0, 5).bold && !StyleAt(*code, 0, 5).underline, "a code area ignores bold and underline");
+
+    auto source = jadefx::make<jadefx::StyledTextArea>();
+    source->setText("red");
+    jadefx::TextStyle color;
+    color.hasFill = true;
+    color.fill = jadefx::Color::parse("#ff0000");
+    color.bold = true;
+    source->setStyle(0, 3, color);
+    source->selectAll();
+    source->copy();
+    code->setText("");
+    code->paste();
+    Expect(code->getText() == "red", "a code area pastes the characters");
+    Expect(!StyleAt(*code, 0, 3).hasFill && !StyleAt(*code, 0, 3).bold, "a code area drops pasted styles");
+}
+
 }  // namespace
 
 int RunRichTextTests() {
@@ -146,5 +245,6 @@ int RunRichTextTests() {
     area->requestFocus();
     TestStylesAndUndo(*scene, *area);
     TestWrapFoldAndClipboard(*scene, *area);
+    TestCharacterStyleShortcuts();
     return gFailures;
 }

@@ -525,6 +525,8 @@ Font StyledTextArea::areaFont() const {
 
 TextStyle StyledTextArea::resolveStyle(const TextStyle& style) const { return style; }
 
+void StyledTextArea::setTypingStyle(TextStyle style) { typingStyle_ = std::move(style); }
+
 TextStyle StyledTextArea::styleForInsertion(int offset) const {
     if (typingStyle_) {
         return *typingStyle_;
@@ -981,62 +983,6 @@ void StyledTextArea::indentLines(bool outdent) {
     });
 }
 
-void StyledTextArea::toggleStyle(bool underline) {
-    if (!editable_) {
-        return;
-    }
-    bool enable = false;
-    for (const Selection& selection : selections_) {
-        if (selection.start() == selection.end()) {
-            const TextStyle current = resolveStyle(styleForInsertion(selection.caret));
-            if (underline ? !current.underline : !current.bold) {
-                enable = true;
-            }
-            continue;
-        }
-        const StyleSpans spans = content_.styleSpans(selection.start(), selection.end());
-        for (const StyleSpan& span : spans.spans()) {
-            const TextStyle resolved = resolveStyle(span.style);
-            if (underline ? !resolved.underline : !resolved.bold) {
-                enable = true;
-            }
-        }
-    }
-    const bool anyRange = std::any_of(selections_.begin(), selections_.end(),
-                                      [](const Selection& selection) { return selection.start() != selection.end(); });
-    if (!anyRange) {
-        TextStyle style = styleForInsertion(primary().caret);
-        if (underline) {
-            style.underline = enable;
-        } else {
-            style.bold = enable;
-        }
-        typingStyle_ = style;
-        return;
-    }
-    std::vector<Selection> ordered = selections_;
-    std::sort(ordered.begin(), ordered.end(), [](const Selection& a, const Selection& b) { return a.start() > b.start(); });
-    transact(false, [&] {
-        for (const Selection& selection : ordered) {
-            if (selection.start() == selection.end()) {
-                continue;
-            }
-            const StyleSpans spans = content_.styleSpans(selection.start(), selection.end());
-            StyleSpansBuilder builder;
-            for (const StyleSpan& span : spans.spans()) {
-                TextStyle style = span.style;
-                if (underline) {
-                    style.underline = enable;
-                } else {
-                    style.bold = enable;
-                }
-                builder.add(style, span.length);
-            }
-            setStyleSpans(selection.start(), builder.create(), true);
-        }
-    });
-}
-
 void StyledTextArea::undo() {
     if (undo_.empty()) {
         return;
@@ -1145,7 +1091,7 @@ void StyledTextArea::paste() {
     if (plain.empty()) {
         return;
     }
-    const bool styled = Clipboard().styled && plain == Clipboard().plain;
+    const bool styled = pasteKeepsStyle() && Clipboard().styled && plain == Clipboard().plain;
     std::vector<Selection> ordered = selections_;
     std::sort(ordered.begin(), ordered.end(), [](const Selection& a, const Selection& b) { return a.start() > b.start(); });
     transact(false, [&] {
@@ -2019,16 +1965,6 @@ void StyledTextArea::handleKey(KeyEvent& event) {
     }
     if (event.shortcut() && (event.key == Key::Y || (event.key == Key::Z && event.shift))) {
         redo();
-        event.consume();
-        return;
-    }
-    if (event.shortcut() && event.key == Key::B) {
-        toggleStyle(false);
-        event.consume();
-        return;
-    }
-    if (event.shortcut() && event.key == Key::U) {
-        toggleStyle(true);
         event.consume();
         return;
     }
