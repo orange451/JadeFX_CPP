@@ -146,6 +146,23 @@ void Node::setCursor(Cursor cursor) {
 
 Cursor Node::getCursor() const { return cursorExplicit_ ? cursor_ : Cursor::Inherit; }
 
+void Node::setPseudoState(const std::string& name, bool enabled) {
+    const auto found = std::find(pseudoStates_.begin(), pseudoStates_.end(), name);
+    if (enabled) {
+        if (found == pseudoStates_.end()) {
+            pseudoStates_.push_back(name);
+        }
+        return;
+    }
+    if (found != pseudoStates_.end()) {
+        pseudoStates_.erase(found);
+    }
+}
+
+bool Node::pseudoState(const std::string& name) const {
+    return std::find(pseudoStates_.begin(), pseudoStates_.end(), name) != pseudoStates_.end();
+}
+
 void Node::setDisable(bool value) {
     if (disable_ == value) {
         return;
@@ -548,6 +565,7 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     }
 
     computed_ = style;
+    styleDidApply();
     ComputedStyle pass;
     pass.color = computed_.color;
     pass.fontSize = computed_.fontSize;

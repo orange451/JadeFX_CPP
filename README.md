@@ -26,11 +26,12 @@ build\Release\jadefx-purple.exe
 build\Release\jadefx-border.exe
 build\Release\jadefx-tabs.exe
 build\Release\jadefx-tree.exe
+build\Release\jadefx-split.exe
 ```
 
 A system GLFW is used when CMake can find it. Otherwise CMake downloads GLFW 3.5.1. Linux needs the X11 and Wayland development packages to build that copy.
 
-There is also a smaller window, a BorderPane sample (`make border`), a TabPane sample (`make tabs`), and a TreeView sample (`make tree`):
+There is also a smaller window, a BorderPane sample (`make border`), a TabPane sample (`make tabs`), a TreeView sample (`make tree`), and a SplitPane sample (`make split`):
 
 ```sh
 ./build/JadeFX\ Hello.app/Contents/MacOS/JadeFX\ Hello   # macOS
@@ -41,6 +42,8 @@ There is also a smaller window, a BorderPane sample (`make border`), a TabPane s
 ./build/jadefx-tabs                                      # Linux
 ./build/JadeFX\ Tree.app/Contents/MacOS/JadeFX\ Tree     # macOS
 ./build/jadefx-tree                                      # Linux
+./build/JadeFX\ Split.app/Contents/MacOS/JadeFX\ Split   # macOS
+./build/jadefx-split                                     # Linux
 ```
 
 ## A window
@@ -77,6 +80,7 @@ Layout is in window points, with the origin at the top left. On a Retina display
 | `MenuItem`, `Menu`, `MenuButton`, `MenuBar`, `Alert` | `jadefx/scene/Controls/` |
 | `StyledTextArea`, `CodeArea` | `jadefx/scene/Controls/StyledTextArea.hpp`, `jadefx/scene/Controls/CodeArea.hpp` |
 | `Tab`, `TabPane` | `jadefx/scene/Controls/Tab.hpp`, `jadefx/scene/Controls/TabPane.hpp` |
+| `SplitPane` | `jadefx/scene/Controls/SplitPane.hpp` |
 | `TreeItem`, `TreeView` | `jadefx/scene/Controls/TreeItem.hpp`, `jadefx/scene/Controls/TreeView.hpp` |
 | `Font`, `Color`, `Pos`, `Side`, `Insets` | `jadefx/scene/text/Font.hpp`, `jadefx/paint/Color.hpp`, `jadefx/geometry/Geometry.hpp` |
 
@@ -87,6 +91,8 @@ Layout is in window points, with the origin at the top left. On a Retina display
 `CodeArea`, `StyledTextArea`, `StyleClassedTextArea`, and `InlineCssTextArea` are a virtualized rich text editor in the shape of [RichTextFX](https://github.com/FXMisc/RichTextFX). Text is a list of paragraphs, a newline counts as one code point, and only the visible paragraphs are drawn. `make rich` opens a code page (line numbers, syntax colors, a fold) and a notes page (color, size, bold, underline). Cmd/Ctrl with Z, Y, A, C, X, V, B, and U are undo, redo, select all, copy, cut, paste, bold, and underline. Alt-click adds a caret.
 
 `make controls` opens a window of the form controls. `Button` fires `setOnAction` on a click inside the button, or on Enter or Space while it is focused. `ToggleButton` stays selected; `RadioButton` does not turn off, and a `ToggleGroup` keeps only one of its toggles selected. `TextField` is a single line: arrows and Home/End move the caret, Shift extends the selection, and Enter fires the action. `ComboBox` lists strings; `setEditable(true)` adds a text field. `Tooltip::install` shows text after the pointer rests on a node. `MenuBar` and `MenuButton` open `MenuItem` rows, including submenus and Ctrl/Command accelerators. `Alert` is a modal dialog. `show` leaves it up until a button is chosen; `showAndWait` pumps the window when a frame is not already running. `setDisable` blocks input, and `:disabled` matches that state.
+
+`SplitPane` places two or more nodes in a row, or in a column, with a divider between each pair. Each item fills the space on its side of the divider. `getItems()` is that list. `setOrientation` switches between horizontal and vertical. `setDividerPosition` and `setDividerPositions` take fractions from 0 to 1. The pane keeps each divider inside the neighboring items' minimum and maximum sizes, so the fraction read back can differ from the fraction that was set. Dragging a divider updates the fraction. `setResizableWithParent(node, false)` keeps that item's size when the pane is resized. The divider type is `split-pane-divider`. `:horizontal` and `:vertical` follow the orientation. The grip is `horizontal-grabber` or `vertical-grabber`. Divider thickness is its left padding plus its right padding.
 
 `TabPane` shows one `Tab` page at a time. A tab is not a node: `setText` is the header title and `setContent` is the page. The selected page fills the area beside the header strip. `setSide` puts that strip on the top, bottom, left, or right, and left and right titles stay horizontal. `setTabClosingPolicy` draws close buttons on the selected tab (the default), on every closable tab, or not at all. A close click calls `onCloseRequest`; `consume()` keeps the tab, and `onClosed` runs after it leaves the pane. `select` or a header click changes the page. Headers shrink to fit the strip, and a long title ends in an ellipsis. The header type is `tab`, so `tab:selected` and `tab:hover` style it. The title node is `tab-label`, and the close mark is `tab-close-button`.
 
@@ -103,9 +109,9 @@ button->setOnMouseClicked([](const jadefx::MouseEvent&) {
 
 ## Stylesheets
 
-`setStylesheet` parses a CSS subset. Selectors can be a type (`scene`, `label`, `button`, `togglebutton`, `radiobutton`, `textfield`, `combobox`, `combo-row`, `tooltip`, `menubar`, `menu`, `menubutton`, `menu-item`, `separator`, `alert`, `vbox`, `stackpane`, `borderpane`, `pane`, `tabpane`, `tab`, `tab-label`, `tab-close-button`, `tab-header-area`, `treeview`, `tree-cell`, `tree-cell-label`, `tree-disclosure-node`, `selection-bar`), a universal `*`, a class (`.test-button`), an id (`#SignUp`), and the pseudos `:hover`, `:active`, `:focus`, `:focus-within`, `:disabled`, and `:select` (also written `:selected`). A space is a descendant combinator and `>` is a child combinator.
+`setStylesheet` parses a CSS subset. Selectors can be a type (`scene`, `label`, `button`, `togglebutton`, `radiobutton`, `textfield`, `combobox`, `combo-row`, `tooltip`, `menubar`, `menu`, `menubutton`, `menu-item`, `separator`, `alert`, `vbox`, `stackpane`, `borderpane`, `pane`, `tabpane`, `tab`, `tab-label`, `tab-close-button`, `tab-header-area`, `treeview`, `tree-cell`, `tree-cell-label`, `tree-disclosure-node`, `selection-bar`, `split-pane`, `split-pane-divider`, `horizontal-grabber`, `vertical-grabber`), a universal `*`, a class (`.test-button`), an id (`#SignUp`), and the pseudos `:hover`, `:active`, `:focus`, `:focus-within`, `:disabled`, `:horizontal`, `:vertical`, and `:select` (also written `:selected`). A space is a descendant combinator and `>` is a child combinator.
 
-Supported properties: `width`, `height`, `min-*`, `max-*`, `padding`, `spacing`, `alignment`, `color`, `font-size`, `font-family`, `background-color`, `background-image` (`linear-gradient`, including `to bottom` and extra color stops), `border-radius`, `border-width`, `border-color`, `border-style`, `box-shadow`, `opacity`, `cursor`, and `transition`. Lengths accept `px`, `em`, `%`, and `calc(100% - 48px)`. An unknown unit is ignored rather than treated as pixels.
+Supported properties: `width`, `height`, `min-*`, `max-*`, `padding`, `spacing`, `alignment`, `orientation` (`horizontal` or `vertical`, also written `-fx-orientation`), `color`, `font-size`, `font-family`, `background-color`, `background-image` (`linear-gradient`, including `to bottom` and extra color stops), `border-radius`, `border-width`, `border-color`, `border-style`, `box-shadow`, `opacity`, `cursor`, and `transition`. Lengths accept `px`, `em`, `%`, and `calc(100% - 48px)`. An unknown unit is ignored rather than treated as pixels.
 
 `color`, `font-size`, `font-family`, and `cursor` inherit. `background-color` stays behind a gradient instead of replacing it. A transition on `background-color`, `background-image`, `color`, `border-color`, `border-width`, or `box-shadow` fades those values. A timing function such as `ease` is accepted and does not cancel the duration. Other properties take their new value on the next frame.
 

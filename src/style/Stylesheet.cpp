@@ -23,6 +23,8 @@ struct Compound {
     bool focusWithin = false;
     bool selected = false;
     bool disabled = false;
+    bool horizontal = false;
+    bool vertical = false;
     bool universal = false;
 };
 
@@ -226,6 +228,12 @@ bool MatchCompound(const Compound& compound, Node& node) {
     if (compound.disabled && !node.isDisabled()) {
         return false;
     }
+    if (compound.horizontal && !node.pseudoState("horizontal")) {
+        return false;
+    }
+    if (compound.vertical && !node.pseudoState("vertical")) {
+        return false;
+    }
     return true;
 }
 
@@ -308,6 +316,10 @@ bool ParseCompound(std::string_view text, std::size_t& index, Compound& compound
                 compound.selected = true;
             } else if (pseudo == "disabled") {
                 compound.disabled = true;
+            } else if (pseudo == "horizontal") {
+                compound.horizontal = true;
+            } else if (pseudo == "vertical") {
+                compound.vertical = true;
             } else {
                 return false;
             }
@@ -1150,6 +1162,12 @@ void applyDeclarations(ComputedStyle& style, const std::vector<Declaration>& dec
         } else if (property == "alignment") {
             style.alignment = ParseAlignment(value);
             style.alignmentFromCss = true;
+        } else if (property == "orientation" || property == "-fx-orientation") {
+            const std::string kind = lowerCopy(trimCopy(value));
+            if (kind == "horizontal" || kind == "vertical") {
+                style.orientationFromCss = true;
+                style.orientation = kind == "vertical" ? Orientation::Vertical : Orientation::Horizontal;
+            }
         } else if (property == "opacity") {
             double opacity = 1;
             std::size_t consumed = 0;

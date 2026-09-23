@@ -187,6 +187,9 @@ struct ComputedStyle {
     SizeSpec minHeight;
     SizeSpec maxWidth;
     SizeSpec maxHeight;
+    // Set when a rule gives orientation or -fx-orientation.
+    bool orientationFromCss = false;
+    Orientation orientation = Orientation::Horizontal;
     // Property name, or "all", to duration and delay.
     std::unordered_map<std::string, TransitionTiming> transitions;
 };

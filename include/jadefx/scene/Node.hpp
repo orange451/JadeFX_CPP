@@ -111,6 +111,10 @@ public:
     void setSelected(bool selected) { selected_ = selected; }
     bool isSelected() const { return selected_; }
 
+    // Extra pseudos such as :horizontal and :vertical. Hover, focus, and disabled stay separate.
+    void setPseudoState(const std::string& name, bool enabled);
+    bool pseudoState(const std::string& name) const;
+
     // disable is this node's own flag. disabled is that flag, or an ancestor's.
     // A disabled node is not picked, focused, or sent input. TabPane keeps its own
     // flag so a disabled pane can still show an interactive page.
@@ -182,6 +186,8 @@ protected:
     virtual Scene* asScene() { return nullptr; }
     // previous is the scene this node just left, or null when it is joining one.
     virtual void sceneChanged(Scene*) {}
+    // This node's style is resolved. Children are styled after this returns.
+    virtual void styleDidApply() {}
 
     double contentLeft() const;
     double contentTop() const;
@@ -203,6 +209,7 @@ protected:
     void setDefaultCursor(Cursor cursor) { defaultCursor_ = cursor; }
 
     friend class Scene;
+    friend class SplitPane;
 
 private:
     void applyStyles(const ComputedStyle& inherited, double timeSeconds);
@@ -302,6 +309,9 @@ private:
     bool focused_ = false;
     bool selected_ = false;
     bool disable_ = false;
+    std::vector<std::string> pseudoStates_;
+    // Unset means a SplitPane may resize this item with the pane.
+    std::optional<bool> resizableWithParent_;
     bool tearingDown_ = false;
     std::optional<HoverPopup> hoverPopup_;
 

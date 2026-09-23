@@ -7,6 +7,7 @@
 # border — a BorderPane with top, left, center, right, and bottom
 # tabs   — a TabPane with three closable pages
 # tree   — a material TreeView with disclosure arrows and a selection bar
+# split  — a SplitPane with draggable dividers
 # rich     — a code editor and a styled text area
 # controls — text field, combo box, radios, toggles, menus, tooltips, and alerts
 SAMPLE ?= tabs
@@ -48,6 +49,13 @@ APP_BIN := $(BUILD_DIR)/JadeFX Tree.app/Contents/MacOS/JadeFX Tree
 else
 APP_BIN := $(BUILD_DIR)/jadefx-tree
 endif
+else ifeq ($(SAMPLE),split)
+CMAKE_TARGET := jadefx-split
+ifeq ($(shell uname),Darwin)
+APP_BIN := $(BUILD_DIR)/JadeFX Split.app/Contents/MacOS/JadeFX Split
+else
+APP_BIN := $(BUILD_DIR)/jadefx-split
+endif
 else ifeq ($(SAMPLE),rich)
 CMAKE_TARGET := jadefx-rich
 ifeq ($(shell uname),Darwin)
@@ -63,10 +71,10 @@ else
 APP_BIN := $(BUILD_DIR)/jadefx-controls
 endif
 else
-$(error Unknown sample "$(SAMPLE)". Use purple, hello, border, tabs, tree, rich, or controls.)
+$(error Unknown sample "$(SAMPLE)". Use purple, hello, border, tabs, tree, split, rich, or controls.)
 endif
 
-.PHONY: all run test clean purple hello border tabs tree rich controls
+.PHONY: all run test clean purple hello border tabs tree split rich controls
 
 all:
 	cmake -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Release
@@ -81,7 +89,7 @@ run:
 	cmake --build $(BUILD_DIR) --target $(CMAKE_TARGET) --parallel
 	"$(APP_BIN)"
 
-purple hello border tabs tree rich controls:
+purple hello border tabs tree split rich controls:
 	$(MAKE) run SAMPLE=$@
 
 clean:

@@ -49,6 +49,7 @@ set(JADEFX_SOURCES
     src/scene/Controls/InlineCssTextArea.cpp
     src/scene/Controls/CodeArea.cpp
     src/scene/Controls/ScrollBar.cpp
+    src/scene/Controls/SplitPane.cpp
     src/scene/Controls/TreeItem.cpp
     src/scene/Controls/TreeView.cpp
     src/scene/Scene.cpp
@@ -178,6 +179,7 @@ if(NOT JADEFX_GLFM)
     add_executable(jadefx-border MACOSX_BUNDLE examples/border_pane.cpp)
     add_executable(jadefx-tabs MACOSX_BUNDLE examples/tab_pane.cpp)
     add_executable(jadefx-tree MACOSX_BUNDLE examples/tree_view.cpp)
+    add_executable(jadefx-split MACOSX_BUNDLE examples/split_pane.cpp)
     add_executable(jadefx-rich MACOSX_BUNDLE examples/rich_text.cpp)
     add_executable(jadefx-controls MACOSX_BUNDLE examples/controls.cpp)
     add_executable(jadefx-tests
@@ -192,9 +194,10 @@ if(NOT JADEFX_GLFM)
         tests/text_field_tests.cpp
         tests/menu_tests.cpp
         tests/combo_box_tests.cpp
+        tests/split_pane_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
-    foreach(target jadefx-purple jadefx-hello jadefx-border jadefx-tabs jadefx-tree jadefx-rich jadefx-controls jadefx-tests)
+    foreach(target jadefx-purple jadefx-hello jadefx-border jadefx-tabs jadefx-tree jadefx-split jadefx-rich jadefx-controls jadefx-tests)
         target_link_libraries(${target} PRIVATE jadefx)
         if(MSVC)
             target_compile_options(${target} PRIVATE /W4 /utf-8)
@@ -208,6 +211,7 @@ if(NOT JADEFX_GLFM)
     jadefx_attach_resources(jadefx-tabs)
     jadefx_attach_resources(jadefx-rich)
     jadefx_attach_resources(jadefx-tree)
+    jadefx_attach_resources(jadefx-split)
     jadefx_attach_resources(jadefx-controls)
     if(APPLE)
         set_target_properties(jadefx-purple PROPERTIES
@@ -254,6 +258,14 @@ if(NOT JADEFX_GLFM)
             OUTPUT_NAME "JadeFX Tree"
             MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Tree"
             MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.tree"
+            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
+        )
+        set_target_properties(jadefx-split PROPERTIES
+            OUTPUT_NAME "JadeFX Split"
+            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Split"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.split"
             MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
             MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
             MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
