@@ -608,7 +608,6 @@ struct TreeView::Impl {
 
 TreeView::TreeView() : impl_(std::make_unique<Impl>()) {
     getClassList().add("tree-view");
-    getClassList().add("jfx-tree-view");
     setBackground(Color::white());
     impl_->track = std::make_shared<TreeScrollBar>(*this);
     impl_->track->setParent(this);

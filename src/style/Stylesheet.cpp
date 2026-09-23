@@ -1162,7 +1162,7 @@ void applyDeclarations(ComputedStyle& style, const std::vector<Declaration>& dec
         } else if (property == "alignment") {
             style.alignment = ParseAlignment(value);
             style.alignmentFromCss = true;
-        } else if (property == "orientation" || property == "-fx-orientation") {
+        } else if (property == "orientation") {
             const std::string kind = lowerCopy(trimCopy(value));
             if (kind == "horizontal" || kind == "vertical") {
                 style.orientationFromCss = true;

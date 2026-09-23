@@ -31,7 +31,7 @@ inline bool EqualsCss(std::string_view text, std::string_view expected) {
     return true;
 }
 
-// A small subset of CSS and JavaFX -fx- text properties.
+// A small subset of CSS text properties.
 inline TextStyle ParseTextCss(std::string_view css) {
     TextStyle style;
     style.inlineCss = std::string(css);
@@ -46,33 +46,29 @@ inline TextStyle ParseTextCss(std::string_view css) {
         }
         const std::string_view name = TrimCss(piece.substr(0, colon));
         const std::string_view value = TrimCss(piece.substr(colon + 1));
-        if (EqualsCss(name, "color") || EqualsCss(name, "-fx-fill")) {
+        if (EqualsCss(name, "color")) {
             bool ok = false;
             const Color color = Color::parse(value, &ok);
             if (ok) {
                 style.fill = color;
                 style.hasFill = true;
             }
-        } else if (EqualsCss(name, "background-color") || EqualsCss(name, "-fx-background-color")) {
+        } else if (EqualsCss(name, "background-color")) {
             bool ok = false;
             const Color color = Color::parse(value, &ok);
             if (ok) {
                 style.background = color;
                 style.hasBackground = true;
             }
-        } else if (EqualsCss(name, "font-weight") || EqualsCss(name, "-fx-font-weight")) {
+        } else if (EqualsCss(name, "font-weight")) {
             style.bold = EqualsCss(value, "bold") || value == "700" || value == "800" || value == "900";
-        } else if (EqualsCss(name, "font-style") || EqualsCss(name, "-fx-font-style")) {
+        } else if (EqualsCss(name, "font-style")) {
             style.italic = EqualsCss(value, "italic") || EqualsCss(value, "oblique");
-        } else if (EqualsCss(name, "font-size") || EqualsCss(name, "-fx-font-size")) {
+        } else if (EqualsCss(name, "font-size")) {
             style.fontSize = static_cast<float>(std::atof(std::string(value).c_str()));
         } else if (EqualsCss(name, "text-decoration")) {
             style.underline = value.find("underline") != std::string_view::npos;
             style.strikethrough = value.find("line-through") != std::string_view::npos;
-        } else if (EqualsCss(name, "-fx-underline")) {
-            style.underline = EqualsCss(value, "true");
-        } else if (EqualsCss(name, "-fx-strikethrough")) {
-            style.strikethrough = EqualsCss(value, "true");
         }
     }
     return style;
