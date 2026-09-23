@@ -75,9 +75,28 @@ endif()
 add_library(jadefx STATIC ${JADEFX_SOURCES})
 target_include_directories(jadefx
     PUBLIC include
-    PRIVATE src src/gl third_party
+    PRIVATE src src/gl
 )
 target_compile_definitions(jadefx PRIVATE "JADEFX_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
+
+# stb_truetype is one public-domain header. Fetch it the same way as GLFW and
+# GLFM, pinned to nothings/stb 2c980bb (the bytes this tree used to vendor).
+include(FetchContent)
+FetchContent_Declare(
+    stb_truetype
+    URL https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_truetype.h
+    URL_HASH SHA256=ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab
+    DOWNLOAD_NO_EXTRACT TRUE
+)
+FetchContent_GetProperties(stb_truetype)
+if(NOT stb_truetype_POPULATED)
+    # The header has no CMakeLists, so populate it directly.
+    if(POLICY CMP0169)
+        cmake_policy(SET CMP0169 OLD)
+    endif()
+    FetchContent_Populate(stb_truetype)
+endif()
+target_include_directories(jadefx PRIVATE "${stb_truetype_SOURCE_DIR}")
 
 if(JADEFX_GLFM)
     target_compile_definitions(jadefx PUBLIC JADEFX_GLFM JADEFX_GLES)
@@ -163,9 +182,9 @@ function(jadefx_attach_resources target)
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources/shaders"
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources/fonts"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/shaders" "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources/shaders"
+                "${CMAKE_SOURCE_DIR}/res/shaders" "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources/shaders"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/fonts" "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources/fonts"
+                "${CMAKE_SOURCE_DIR}/res/fonts" "$<TARGET_BUNDLE_CONTENT_DIR:${target}>/Resources/fonts"
             COMMAND codesign --force --sign - "$<TARGET_BUNDLE_DIR:${target}>"
             VERBATIM
         )
@@ -174,9 +193,9 @@ function(jadefx_attach_resources target)
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/shaders"
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/fonts"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/shaders" "$<TARGET_FILE_DIR:${target}>/shaders"
+                "${CMAKE_SOURCE_DIR}/res/shaders" "$<TARGET_FILE_DIR:${target}>/shaders"
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                "${CMAKE_SOURCE_DIR}/fonts" "$<TARGET_FILE_DIR:${target}>/fonts"
+                "${CMAKE_SOURCE_DIR}/res/fonts" "$<TARGET_FILE_DIR:${target}>/fonts"
             VERBATIM
         )
     endif()
@@ -310,6 +329,6 @@ else()
     target_link_libraries(jadefx-purple PRIVATE jadefx)
     target_compile_definitions(jadefx-purple PRIVATE JADEFX_GLFM)
     if(EMSCRIPTEN)
-        target_link_options(jadefx-purple PRIVATE "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/shaders@shaders")
+        target_link_options(jadefx-purple PRIVATE "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/res/shaders@shaders")
     endif()
 endif()

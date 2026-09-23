@@ -196,8 +196,9 @@ std::string LoadShaderSource(const char* filename) {
         candidates[count++] = exeDir / ".." / "shaders" / filename;
     }
     candidates[count++] = fs::path("shaders") / filename;
+    candidates[count++] = fs::path("res") / "shaders" / filename;
 #if defined(JADEFX_SOURCE_DIR)
-    candidates[count++] = fs::path(JADEFX_SOURCE_DIR) / "shaders" / filename;
+    candidates[count++] = fs::path(JADEFX_SOURCE_DIR) / "res" / "shaders" / filename;
 #endif
 
     for (std::size_t i = 0; i < count; ++i) {

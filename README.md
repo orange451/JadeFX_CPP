@@ -29,7 +29,7 @@ build\Release\jadefx-tree.exe
 build\Release\jadefx-split.exe
 ```
 
-A system GLFW is used when CMake can find it. Otherwise CMake downloads GLFW 3.5.1. Linux needs the X11 and Wayland development packages to build that copy.
+A system GLFW is used when CMake can find it. Otherwise CMake downloads GLFW 3.5.1. Linux needs the X11 and Wayland development packages to build that copy. CMake also downloads the stb_truetype header used to read fonts.
 
 There is also a smaller window, a BorderPane sample (`make border`), a TabPane sample (`make tabs`), a TreeView sample (`make tree`), and a SplitPane sample (`make split`):
 
@@ -146,8 +146,8 @@ cmake -S . -B build-ios -G Xcode -DCMAKE_SYSTEM_NAME=iOS
 cmake -S . -B build-android -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a
 ```
 
-`android/AndroidManifest.xml` is a NativeActivity manifest whose library name is `jadefx-purple`. Open Sans is embedded in the binary. Shader files are loaded from `shaders/` (on Android, `assets/shaders`). If one is missing, the app shows an error and quits. `MobileApplication::showStatusBar`, `setOrientation`, and `setMultitouchEnabled` are applied through GLFM. On the desktop they are stored and otherwise ignored, and the window uses a 375×667 phone size.
+`android/AndroidManifest.xml` is a NativeActivity manifest whose library name is `jadefx-purple`. Open Sans is embedded in the binary. Shader files live in `res/shaders` and are loaded from `shaders/` next to the program (on macOS, `Contents/Resources/shaders`; on Android, `assets/shaders`). If one is missing, the app shows an error and quits. `MobileApplication::showStatusBar`, `setOrientation`, and `setMultitouchEnabled` are applied through GLFM. On the desktop they are stored and otherwise ignored, and the window uses a 375×667 phone size.
 
 ## Layout of the source
 
-`include/jadefx` is the public API. `src/scene` is the scene graph and does not call OpenGL. `src/gl` is the loader, the rounded-rectangle shader, and the font atlas. `src/platform` is the GLFW host and the GLFM host.
+`include/jadefx` is the public API. `res` holds the shader files and the Open Sans face. `src/scene` is the scene graph and does not call OpenGL. `src/gl` is the loader, the rounded-rectangle shader, and the font atlas. `src/platform` is the GLFW host and the GLFM host.
