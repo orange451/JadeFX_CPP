@@ -26,7 +26,7 @@ public:
     void outerShadow(float x, float y, float width, float height, const float radius[4], float offsetX, float offsetY,
                      float blur, float spread, const Color& color);
     void innerShadow(float x, float y, float width, float height, const float radius[4], float offsetX, float offsetY,
-                     float blur, const Color& color);
+                     float blur, float spread, const Color& color);
     // subpixel uses stripe coverage when the context can blend it. Otherwise the glyph is grayscale.
     void text(float x, float y, const std::string& utf8, const std::string& family, float fontSize, const Color& color,
               bool subpixel);
@@ -42,7 +42,8 @@ private:
 
     void drawBox(float x, float y, float width, float height, float boxX, float boxY, float boxW, float boxH,
                  const float radius[4], const Color* stops, const float* stopAt, int stopCount, float mode,
-                 const float sides[4], float blur, float angleDeg);
+                 const float sides[4], float blur, float angleDeg, const float* clip = nullptr,
+                 const float* clipRadii = nullptr);
     const Glyph* glyphFor(int codepoint, int pixelSize, int phase, const struct FontFace* face, bool wantSubpixel);
 
     unsigned boxProgram_ = 0;
@@ -64,6 +65,8 @@ private:
     int boxRadii_ = -1;
     int boxParams_ = -1;
     int boxBorder_ = -1;
+    int boxClip_ = -1;
+    int boxClipRadii_ = -1;
     int boxStopCount_ = -1;
     int boxStops_[8] = {};
     int boxStopAt_[8] = {};

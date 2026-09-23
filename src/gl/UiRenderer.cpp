@@ -75,6 +75,8 @@ bool UiRenderer::initialize() {
     boxRadii_ = Location(boxProgram_, "uRadii");
     boxParams_ = Location(boxProgram_, "uParams");
     boxBorder_ = Location(boxProgram_, "uBorder");
+    boxClip_ = Location(boxProgram_, "uClip");
+    boxClipRadii_ = Location(boxProgram_, "uClipRadii");
     boxStopCount_ = Location(boxProgram_, "uStopCount");
     for (int i = 0; i < 8; ++i) {
         const std::string stop = "uStops[" + std::to_string(i) + "]";
@@ -239,7 +241,7 @@ void UiRenderer::popClip() {
 
 void UiRenderer::drawBox(float x, float y, float width, float height, float boxX, float boxY, float boxW, float boxH,
                          const float radius[4], const Color* stops, const float* stopAt, int stopCount, float mode,
-                         const float sides[4], float blur, float angleDeg) {
+                         const float sides[4], float blur, float angleDeg, const float* clip, const float* clipRadii) {
     if (!ready_ || width <= 0.f || height <= 0.f || viewportW_ <= 0 || viewportH_ <= 0 || stops == nullptr ||
         stopCount <= 0) {
         return;
@@ -258,6 +260,16 @@ void UiRenderer::drawBox(float x, float y, float width, float height, float boxX
     const float bottom = sides != nullptr ? sides[2] : 0.f;
     const float left = sides != nullptr ? sides[3] : 0.f;
     glUniform4f(boxBorder_, top * s, right * s, bottom * s, left * s);
+    if (clip != nullptr) {
+        glUniform4f(boxClip_, clip[0] * s, clip[1] * s, clip[2] * s, clip[3] * s);
+    } else {
+        glUniform4f(boxClip_, 0.f, 0.f, 0.f, 0.f);
+    }
+    if (clipRadii != nullptr) {
+        glUniform4f(boxClipRadii_, clipRadii[0] * s, clipRadii[1] * s, clipRadii[2] * s, clipRadii[3] * s);
+    } else {
+        glUniform4f(boxClipRadii_, 0.f, 0.f, 0.f, 0.f);
+    }
     glUniform1f(boxStopCount_, static_cast<float>(count));
     for (int i = 0; i < 8; ++i) {
         const Color color = i < count ? stops[i] : stops[count - 1];
@@ -304,6 +316,7 @@ void UiRenderer::outerShadow(float x, float y, float width, float height, const 
     if (color.a <= 0.f) {
         return;
     }
+    const float blurRadius = std::max(blur, 0.f);
     const float boxX = x + offsetX - spread;
     const float boxY = y + offsetY - spread;
     const float boxW = width + spread * 2.f;
@@ -311,22 +324,35 @@ void UiRenderer::outerShadow(float x, float y, float width, float height, const 
     if (boxW <= 0.5f || boxH <= 0.5f) {
         return;
     }
-    const float pad = std::max(blur, 1.f);
-    float radii[4] = {std::max(0.f, radius[0] + spread), std::max(0.f, radius[1] + spread),
-                      std::max(0.f, radius[2] + spread), std::max(0.f, radius[3] + spread)};
+    // The kernel reaches 3 sigma, which is 1.5 blur radii, past the edge.
+    const float pad = std::max(1.5f * blurRadius, 1.f);
+    // Java raises each corner of the blurred shape to the standard deviation.
+    const float cornerFloor = std::max(blurRadius, 0.5f) * 0.5f;
+    float radii[4];
+    for (int i = 0; i < 4; ++i) {
+        radii[i] = std::max(radius[i] + spread, cornerFloor);
+    }
+    const float clip[4] = {pad - offsetX + spread, pad - offsetY + spread, width, height};
     const float at = 0.f;
     drawBox(boxX - pad, boxY - pad, boxW + pad * 2.f, boxH + pad * 2.f, pad, pad, boxW, boxH, radii, &color, &at, 1,
-            2.f, nullptr, std::max(blur, 0.5f), 0.f);
+            2.f, nullptr, blurRadius, 0.f, clip, radius);
 }
 
 void UiRenderer::innerShadow(float x, float y, float width, float height, const float radius[4], float offsetX,
-                             float offsetY, float blur, const Color& color) {
-    if (color.a <= 0.f) {
+                             float offsetY, float blur, float spread, const Color& color) {
+    if (color.a <= 0.f || width <= 0.f || height <= 0.f) {
         return;
     }
+    const float blurRadius = std::max(blur, 0.f);
+    const float cornerFloor = std::max(blurRadius, 0.5f) * 0.5f;
+    float radii[4];
+    for (int i = 0; i < 4; ++i) {
+        radii[i] = std::max(radius[i] - spread, cornerFloor);
+    }
+    const float clip[4] = {0.f, 0.f, width, height};
     const float at = 0.f;
-    drawBox(x, y, width, height, offsetX, offsetY, width, height, radius, &color, &at, 1, 3.f, nullptr,
-            std::max(blur, 0.5f), 0.f);
+    drawBox(x, y, width, height, spread + offsetX, spread + offsetY, width - spread * 2.f, height - spread * 2.f,
+            radii, &color, &at, 1, 3.f, nullptr, blurRadius, 0.f, clip, radius);
 }
 
 const UiRenderer::Glyph* UiRenderer::glyphFor(int codepoint, int pixelSize, int phase, const FontFace* face,

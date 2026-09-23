@@ -811,7 +811,7 @@ void Node::drawChrome(UiRenderer& renderer, float opacity) {
         Color color = shadow.color;
         color.a *= opacity;
         renderer.innerShadow(x, y, w, h, radius, static_cast<float>(shadow.offsetX), static_cast<float>(shadow.offsetY),
-                             static_cast<float>(shadow.blur), color);
+                             static_cast<float>(shadow.blur), static_cast<float>(shadow.spread), color);
     }
 }
 
