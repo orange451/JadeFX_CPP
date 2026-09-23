@@ -8,6 +8,7 @@
 #include "jadefx/scene/Controls/MenuBar.hpp"
 #include "jadefx/scene/Controls/MenuButton.hpp"
 #include "jadefx/scene/Controls/MenuItem.hpp"
+#include "jadefx/scene/Controls/ProgressBar.hpp"
 #include "jadefx/scene/Controls/RadioButton.hpp"
 #include "jadefx/scene/Controls/Slider.hpp"
 #include "jadefx/scene/Controls/Spinner.hpp"
@@ -281,6 +282,20 @@ public:
         });
 
 
+        auto saving = jadefx::make<jadefx::ProgressBar>(0.25);
+        saving->setPrefWidth(280);
+        auto step = jadefx::make<jadefx::Button>("Step");
+        step->setOnAction([saving, status](jadefx::ActionEvent&) {
+            double next = saving->getProgress() + 0.25;
+            if (next > 1) {
+                next = 0;
+            }
+            saving->setProgress(next);
+            const int percent = static_cast<int>(next * 100 + 0.5);
+            status->setText("Saved " + std::to_string(percent) + "%");
+        });
+        auto working = jadefx::make<jadefx::ProgressBar>();
+        working->setPrefWidth(280);
 
         auto caption = jadefx::make<jadefx::Label>("A caption with a tooltip");
         jadefx::Tooltip::install(caption.get(), jadefx::make<jadefx::Tooltip>("Shown after the pointer rests here"));
@@ -319,6 +334,17 @@ public:
         dialogRow->getChildren().add(info);
         dialogRow->getChildren().add(warn);
         dialogRow->getChildren().add(confirm);
+        auto saveRow = jadefx::make<jadefx::HBox>();
+        saveRow->getClassList().add("row");
+        saveRow->setSpacing(10);
+        saveRow->getChildren().add(jadefx::make<jadefx::Label>("Saving"));
+        saveRow->getChildren().add(saving);
+        saveRow->getChildren().add(step);
+        auto workRow = jadefx::make<jadefx::HBox>();
+        workRow->getClassList().add("row");
+        workRow->setSpacing(10);
+        workRow->getChildren().add(jadefx::make<jadefx::Label>("Working"));
+        workRow->getChildren().add(working);
 
         auto adjustRow = jadefx::make<jadefx::HBox>();
         adjustRow->getClassList().add("row");
@@ -337,6 +363,8 @@ public:
         sheet->getChildren().add(styleRow);
         sheet->getChildren().add(notifyRow);
         sheet->getChildren().add(dialogRow);
+        sheet->getChildren().add(saveRow);
+        sheet->getChildren().add(workRow);
         sheet->getChildren().add(adjustRow);
         sheet->getChildren().add(caption);
         sheet->getChildren().add(status);
@@ -346,7 +374,7 @@ public:
         root->setCenter(sheet);
         root->setPadding(jadefx::Insets::uniform(16));
 
-        auto scene = jadefx::make<jadefx::Scene>(root, 720, 680);
+        auto scene = jadefx::make<jadefx::Scene>(root, 720, 780);
         scene->setStylesheet(kStylesheet);
         stage.setTitle("Controls");
         stage.setScene(scene);

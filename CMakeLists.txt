@@ -33,6 +33,7 @@ set(JADEFX_SOURCES
     src/scene/Controls/ToggleButton.cpp
     src/scene/Controls/RadioButton.cpp
     src/scene/Controls/CheckBox.cpp
+    src/scene/Controls/ProgressBar.cpp
     src/scene/Controls/Tooltip.cpp
     src/scene/Controls/Alert.cpp
     src/scene/Controls/TextField.cpp
@@ -221,6 +222,7 @@ if(NOT JADEFX_GLFM)
         tests/toggle_tests.cpp
         tests/radio_button_tests.cpp
         tests/check_box_tests.cpp
+        tests/progress_bar_tests.cpp
         tests/tooltip_tests.cpp
         tests/alert_tests.cpp
         tests/text_field_tests.cpp

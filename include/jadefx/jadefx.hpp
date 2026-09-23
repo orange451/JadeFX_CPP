@@ -24,6 +24,7 @@
 #include "jadefx/scene/Controls/MenuBar.hpp"
 #include "jadefx/scene/Controls/MenuButton.hpp"
 #include "jadefx/scene/Controls/MenuItem.hpp"
+#include "jadefx/scene/Controls/ProgressBar.hpp"
 #include "jadefx/scene/Controls/StyleClassedTextArea.hpp"
 #include "jadefx/scene/Controls/Slider.hpp"
 #include "jadefx/scene/Controls/Spinner.hpp"

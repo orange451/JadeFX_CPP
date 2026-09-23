@@ -1386,6 +1386,7 @@ int RunCursorTests();
 int RunToggleTests();
 int RunRadioButtonTests();
 int RunCheckBoxTests();
+int RunProgressBarTests();
 int RunTooltipTests();
 int RunAlertTests();
 int RunTextFieldTests();
@@ -1417,6 +1418,7 @@ int main() {
     gFailures += RunToggleTests();
     gFailures += RunRadioButtonTests();
     gFailures += RunCheckBoxTests();
+    gFailures += RunProgressBarTests();
     gFailures += RunTooltipTests();
     gFailures += RunAlertTests();
     gFailures += RunTextFieldTests();

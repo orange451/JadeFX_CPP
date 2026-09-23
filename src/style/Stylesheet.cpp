@@ -1192,6 +1192,34 @@ void applyDeclarations(ComputedStyle& style, const std::vector<Declaration>& dec
                 }
                 style.opacity = static_cast<float>(opacity);
             }
+        } else if (property == "indeterminate-bar-length") {
+            const ParsedLength length = ParseLength(value);
+            if (length.ok && length.percent == 0.0) {
+                style.indeterminateBarLengthSet = true;
+                style.indeterminateBarLength = SizeSpec::px(ResolveLength(length, emFontSize));
+            }
+        } else if (property == "indeterminate-bar-escape" || property == "indeterminate-bar-flip") {
+            const std::string kind = lowerCopy(trimCopy(value));
+            if (kind == "true" || kind == "false") {
+                const bool enabled = kind == "true";
+                if (property == "indeterminate-bar-escape") {
+                    style.indeterminateBarEscapeSet = true;
+                    style.indeterminateBarEscape = enabled;
+                } else {
+                    style.indeterminateBarFlipSet = true;
+                    style.indeterminateBarFlip = enabled;
+                }
+            }
+        } else if (property == "indeterminate-bar-animation-time") {
+            double seconds = 0;
+            std::size_t consumed = 0;
+            if (ParseNumber(value, seconds, consumed) && consumed == trimCopy(value).size()) {
+                if (seconds < 0) {
+                    seconds = 0;
+                }
+                style.indeterminateBarAnimationTimeSet = true;
+                style.indeterminateBarAnimationTime = seconds;
+            }
         } else if (property == "transition") {
             ApplyTransition(style, value);
         }

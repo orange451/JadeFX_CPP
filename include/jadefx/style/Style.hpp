@@ -190,6 +190,15 @@ struct ComputedStyle {
     // Set when a rule gives orientation.
     bool orientationFromCss = false;
     Orientation orientation = Orientation::Horizontal;
+    // ProgressBar skin properties. Unset fields leave the control's own values.
+    bool indeterminateBarLengthSet = false;
+    SizeSpec indeterminateBarLength;
+    bool indeterminateBarEscapeSet = false;
+    bool indeterminateBarEscape = true;
+    bool indeterminateBarFlipSet = false;
+    bool indeterminateBarFlip = true;
+    bool indeterminateBarAnimationTimeSet = false;
+    double indeterminateBarAnimationTime = 2;
     // Property name, or "all", to duration and delay.
     std::unordered_map<std::string, TransitionTiming> transitions;
 };

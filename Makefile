@@ -9,7 +9,7 @@
 # tree   — a material TreeView with disclosure arrows and a selection bar
 # split  — a SplitPane with draggable dividers
 # rich     — a code editor and a styled text area
-# controls — fields, slider, spinner, radios, check boxes, menus, tooltips, and alerts
+# controls — fields, slider, spinner, progress bars, radios, check boxes, menus, tooltips, and alerts
 SAMPLE ?= tabs
 
 BUILD_DIR := build
