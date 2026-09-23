@@ -65,6 +65,28 @@ void DrawLine(UiRenderer& renderer, float x, float y, float width, float height,
     renderer.popClip();
 }
 
+// A filled triangle, point down. The centroid sits above the box center, so the
+// mark is shifted down by one sixth of its height to sit on the control's midline.
+void DrawDownArrow(UiRenderer& renderer, float centerX, float centerY, const Color& color) {
+    if (color.a <= 0.f) {
+        return;
+    }
+    constexpr float kWidth = 8.f;
+    constexpr float kHeight = 5.f;
+    const float top = centerY - kHeight * 0.5f + kHeight / 6.f;
+    const float radius[4] = {};
+    const float at = 0.f;
+    for (float row = 0.f; row < kHeight; row += 1.f) {
+        const float y = top + row;
+        const float across = kWidth * (1.f - std::min(1.f, (row + 0.5f) / kHeight));
+        if (across < 0.4f) {
+            continue;
+        }
+        const float rowHeight = std::min(1.f, top + kHeight - y);
+        renderer.fillRounded(centerX - across * 0.5f, y, across, rowHeight, radius, &color, &at, 1, 0.f);
+    }
+}
+
 }  // namespace
 
 class ComboRow : public Controls {
@@ -405,18 +427,8 @@ void ComboBox::renderContent(UiRenderer& renderer, float opacity) {
 
     Color mark = Color::rgb8(95, 99, 104);
     mark.a *= opacity;
-    const float barWidth[3] = {9.f, 6.f, 3.f};
-    const float barHeight = 2.f;
-    const float gap = 2.f;
-    const float block = barHeight * 3.f + gap * 2.f;
-    float top = y + (height - block) * 0.5f;
     const float center = x + width - static_cast<float>(kArrowWidth) * 0.5f;
-    const float at = 0.f;
-    const float barRadius[4] = {1.f, 1.f, 1.f, 1.f};
-    for (float bar : barWidth) {
-        renderer.fillRounded(center - bar * 0.5f, top, bar, barHeight, barRadius, &mark, &at, 1, 0.f);
-        top += barHeight + gap;
-    }
+    DrawDownArrow(renderer, center, y + height * 0.5f, mark);
 }
 
 double ComboBox::preferredContentWidth(double) const {
