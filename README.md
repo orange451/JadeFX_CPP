@@ -146,7 +146,7 @@ cmake -S . -B build-ios -G Xcode -DCMAKE_SYSTEM_NAME=iOS
 cmake -S . -B build-android -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a
 ```
 
-`android/AndroidManifest.xml` is a NativeActivity manifest whose library name is `jadefx-purple`. Shaders and Open Sans are embedded in the binary, so the phone build does not need a separate asset copy. `MobileApplication::showStatusBar`, `setOrientation`, and `setMultitouchEnabled` are applied through GLFM. On the desktop they are stored and otherwise ignored, and the window uses a 375×667 phone size.
+`android/AndroidManifest.xml` is a NativeActivity manifest whose library name is `jadefx-purple`. Open Sans is embedded in the binary. Shader files are loaded from `shaders/` (on Android, `assets/shaders`). If one is missing, the app shows an error and quits. `MobileApplication::showStatusBar`, `setOrientation`, and `setMultitouchEnabled` are applied through GLFM. On the desktop they are stored and otherwise ignored, and the window uses a 375×667 phone size.
 
 ## Layout of the source
 

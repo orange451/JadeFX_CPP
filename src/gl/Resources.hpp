@@ -4,10 +4,11 @@
 
 #include <string>
 
-// Shader files live in shaders/. A Mac app also looks in Contents/Resources.
-// If the file is missing (a phone package, for example) the embedded copy is used.
+// Shader files live in shaders/. A Mac app also looks in Contents/Resources/shaders.
+// There is no built-in copy. An empty result means the file could not be read.
 std::string LoadShaderSource(const char* filename);
 
-GLuint LinkShaderProgram(const std::string& vertexSource, const std::string& fragmentSource, const char* name);
+// Directory the running program expects those files in.
+std::string ShaderFileDirectory();
 
-const char* EmbeddedShader(const char* filename);
+GLuint LinkShaderProgram(const std::string& vertexSource, const std::string& fragmentSource, const char* name);

@@ -6,6 +6,7 @@
 #include <glfm.h>
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 
 namespace jadefx {
@@ -55,6 +56,9 @@ void OnSurfaceCreated(GLFMDisplay* display, int width, int height) {
     state->stage.setSize(static_cast<int>(std::lround(width / scale)), static_cast<int>(std::lround(height / scale)));
     if (!state->graphics) {
         state->graphics = state->stage.initializeGraphics(Proc);
+        if (!state->graphics) {
+            std::exit(1);
+        }
     }
     state->stage.setClipboardHandlers(
         [state, display](const std::string& text) {

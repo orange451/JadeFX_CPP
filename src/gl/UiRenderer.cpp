@@ -3,6 +3,7 @@
 #include "Resources.hpp"
 #include "gl.hpp"
 #include "internal/Subpixel.hpp"
+#include "platform/ErrorDialog.hpp"
 #include "scene/FontInternal.hpp"
 #include "jadefx/scene/text/Font.hpp"
 
@@ -19,28 +20,14 @@ int Location(GLuint program, const char* name) {
     return glGetUniformLocation(program, name);
 }
 
-std::string GrayscaleTextFragment() {
-    const char* body = R"jadefx(
-in vec2 vUv;
-
-uniform sampler2D uTex;
-uniform vec4 uColor;
-
-out vec4 fragColor;
-
-void main() {
-    float coverage = texture(uTex, vUv).r;
-    fragColor = vec4(uColor.rgb, uColor.a * coverage);
-    if (fragColor.a <= 0.001) {
-        discard;
-    }
-}
-)jadefx";
-#if defined(JADEFX_GLES)
-    return std::string("#version 300 es\nprecision highp float;\n") + body;
-#else
-    return std::string("#version 330 core\n") + body;
-#endif
+void ReportMissingShaders(const std::string& missing) {
+    const bool one = missing.find('\n') == std::string::npos;
+    const std::string message =
+        std::string(one ? "A required shader file is missing:\n\n" : "Required shader files are missing:\n\n") +
+        missing + "\n\nExpected in " + ShaderFileDirectory() + "\n\nJadeFX will quit.";
+    std::fprintf(stderr, "%s\n", message.c_str());
+    std::fflush(stderr);
+    ShowErrorDialog("Cannot start", message);
 }
 
 }  // namespace
@@ -56,13 +43,37 @@ bool UiRenderer::initialize() {
     std::printf("OpenGL %s\n%s\n", reinterpret_cast<const char*>(version), rendererName);
     std::fflush(stdout);
 
-    boxProgram_ = LinkShaderProgram(LoadShaderSource("box.vert"), LoadShaderSource("box.frag"), "Box");
+    const std::string boxVertex = LoadShaderSource("box.vert");
+    const std::string boxFragment = LoadShaderSource("box.frag");
     const std::string textVertex = LoadShaderSource("text.vert");
-    textProgram_ = LinkShaderProgram(textVertex, LoadShaderSource("text.frag"), "Text");
+    const std::string textFragment = LoadShaderSource("text.frag");
+    const std::string textGray = LoadShaderSource("text_gray.frag");
+    std::string missing;
+    auto note = [&](const char* name, const std::string& source) {
+        if (!source.empty()) {
+            return;
+        }
+        if (!missing.empty()) {
+            missing.push_back('\n');
+        }
+        missing += name;
+    };
+    note("box.vert", boxVertex);
+    note("box.frag", boxFragment);
+    note("text.vert", textVertex);
+    note("text.frag", textFragment);
+    note("text_gray.frag", textGray);
+    if (!missing.empty()) {
+        ReportMissingShaders(missing);
+        return false;
+    }
+
+    boxProgram_ = LinkShaderProgram(boxVertex, boxFragment, "Box");
+    textProgram_ = LinkShaderProgram(textVertex, textFragment, "Text");
     subpixel_ = textProgram_ != 0;
     if (!subpixel_) {
         std::fprintf(stderr, "LCD subpixel text is unavailable. Using grayscale coverage.\n");
-        textProgram_ = LinkShaderProgram(textVertex, GrayscaleTextFragment(), "Text");
+        textProgram_ = LinkShaderProgram(textVertex, textGray, "Text");
     }
     if (boxProgram_ == 0 || textProgram_ == 0) {
         shutdown();

@@ -22,6 +22,13 @@
 #include <unistd.h>
 #endif
 
+#if defined(__ANDROID__)
+#include <android/asset_manager.h>
+#include <android/native_activity.h>
+
+extern "C" ANativeActivity* glfmAndroidGetActivity(void);
+#endif
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -79,6 +86,37 @@ bool IsFile(const fs::path& path) {
     std::error_code error;
     return fs::is_regular_file(path, error);
 }
+
+std::string DisplayPath(const fs::path& path) {
+    std::error_code error;
+    const fs::path canonical = fs::weakly_canonical(path, error);
+    return (error ? path.lexically_normal() : canonical).u8string();
+}
+
+#if defined(__ANDROID__)
+std::string ReadAndroidAsset(const char* filename) {
+    ANativeActivity* activity = glfmAndroidGetActivity();
+    if (activity == nullptr || activity->assetManager == nullptr || filename == nullptr) {
+        return {};
+    }
+    const std::string path = std::string("shaders/") + filename;
+    AAsset* asset = AAssetManager_open(activity->assetManager, path.c_str(), AASSET_MODE_BUFFER);
+    if (asset == nullptr) {
+        return {};
+    }
+    const off_t length = AAsset_getLength(asset);
+    std::string contents;
+    if (length > 0) {
+        contents.resize(static_cast<std::size_t>(length));
+        const int read = AAsset_read(asset, contents.data(), static_cast<std::size_t>(length));
+        if (read != static_cast<int>(length)) {
+            contents.clear();
+        }
+    }
+    AAsset_close(asset);
+    return contents;
+}
+#endif
 
 std::string ReadTextFile(const fs::path& path) {
     std::ifstream file(path, std::ios::binary);
@@ -172,12 +210,28 @@ std::string LoadShaderSource(const char* filename) {
         }
     }
 
-    const char* embedded = EmbeddedShader(filename);
-    if (embedded != nullptr && embedded[0] != '\0') {
-        return Preamble(filename) + embedded;
+#if defined(__ANDROID__)
+    const std::string asset = ReadAndroidAsset(filename);
+    if (!asset.empty()) {
+        return Preamble(filename) + asset;
     }
+#endif
     std::fprintf(stderr, "Could not find shader file \"%s\".\n", filename);
     return {};
+}
+
+std::string ShaderFileDirectory() {
+#if defined(__ANDROID__)
+    return "assets/shaders";
+#else
+    const fs::path exeDir = ExecutableDirectory();
+#if defined(__APPLE__) && !defined(JADEFX_GLFM)
+    const fs::path dir = exeDir.empty() ? fs::path("shaders") : exeDir / ".." / "Resources" / "shaders";
+#else
+    const fs::path dir = exeDir.empty() ? fs::path("shaders") : exeDir / "shaders";
+#endif
+    return DisplayPath(dir);
+#endif
 }
 
 GLuint LinkShaderProgram(const std::string& vertexSource, const std::string& fragmentSource, const char* name) {

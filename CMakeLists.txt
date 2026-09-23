@@ -57,10 +57,16 @@ set(JADEFX_SOURCES
     src/application/Application.cpp
     src/gl/gl.cpp
     src/gl/Resources.cpp
-    src/gl/EmbeddedShaders.cpp
     src/gl/UiRenderer.cpp
     src/platform/GlfmHost.cpp
 )
+
+if(APPLE)
+    enable_language(OBJCXX)
+    list(APPEND JADEFX_SOURCES src/platform/ErrorDialog_apple.mm)
+else()
+    list(APPEND JADEFX_SOURCES src/platform/ErrorDialog.cpp)
+endif()
 
 if(NOT JADEFX_GLFM)
     list(APPEND JADEFX_SOURCES src/platform/GlfwHost.cpp)
@@ -136,6 +142,9 @@ else()
         set(JADEFX_GLFW_TARGET glfw)
     endif()
     target_link_libraries(jadefx PUBLIC ${JADEFX_GLFW_TARGET})
+    if(APPLE)
+        target_link_libraries(jadefx PUBLIC "-framework Cocoa")
+    endif()
 endif()
 
 if(MSVC)
@@ -295,8 +304,12 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
         MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
     )
+    jadefx_attach_resources(jadefx-purple)
 else()
     add_executable(jadefx-purple examples/purple_app.cpp examples/glfm_entry.cpp)
     target_link_libraries(jadefx-purple PRIVATE jadefx)
     target_compile_definitions(jadefx-purple PRIVATE JADEFX_GLFM)
+    if(EMSCRIPTEN)
+        target_link_options(jadefx-purple PRIVATE "SHELL:--preload-file ${CMAKE_SOURCE_DIR}/shaders@shaders")
+    endif()
 endif()
