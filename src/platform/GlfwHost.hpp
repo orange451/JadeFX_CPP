@@ -22,6 +22,8 @@ public:
     void show();
     void setSize(int width, int height);
     void setTitle(const char* title);
+    // 0 presents as soon as the frame is finished. The default waits for the display.
+    void setSwapInterval(int interval);
     void windowSize(int& width, int& height) const;
     void framebufferSize(int& width, int& height) const;
     static void* proc(const char* name);
@@ -40,6 +42,7 @@ private:
     GLFWcursor* cursors_[static_cast<int>(CursorShape::Hidden) + 1] = {};
     std::function<void()> redraw_;
     bool redrawing_ = false;
+    int swapInterval_ = 1;
 };
 
 }  // namespace jadefx

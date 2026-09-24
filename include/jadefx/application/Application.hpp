@@ -22,6 +22,8 @@ protected:
     virtual void preStart(Stage& stage, int argc, char** argv);
     virtual Size defaultWindowSize() const;
     virtual std::string defaultTitle() const;
+    // How many refreshes to wait before showing the frame. 0 presents immediately.
+    virtual int swapInterval() const;
 };
 
 // Same scene graph as Application. On desktop the window defaults to a phone

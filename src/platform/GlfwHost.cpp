@@ -221,8 +221,15 @@ bool GlfwHost::create(int width, int height, const char* title) {
     }
     glfwSetWindowSizeLimits(window_, 240, 160, GLFW_DONT_CARE, GLFW_DONT_CARE);
     glfwMakeContextCurrent(window_);
-    glfwSwapInterval(1);
+    glfwSwapInterval(swapInterval_);
     return true;
+}
+
+void GlfwHost::setSwapInterval(int interval) {
+    swapInterval_ = interval < 0 ? 0 : interval;
+    if (window_ != nullptr) {
+        glfwSwapInterval(swapInterval_);
+    }
 }
 
 void GlfwHost::destroy() {
@@ -367,7 +374,7 @@ void GlfwHost::performRedraw() {
     glfwSwapInterval(0);
     redraw_();
     if (window_ != nullptr) {
-        glfwSwapInterval(1);
+        glfwSwapInterval(swapInterval_);
     }
     redrawing_ = false;
 }

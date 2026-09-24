@@ -20,6 +20,8 @@ Size Application::defaultWindowSize() const { return {800, 600}; }
 
 std::string Application::defaultTitle() const { return "JadeFX"; }
 
+int Application::swapInterval() const { return 1; }
+
 Size MobileApplication::defaultWindowSize() const { return {375, 667}; }
 
 MobileChrome& mobileChrome() { return gChrome; }
@@ -73,6 +75,7 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
     if (!host.create(static_cast<int>(size.width), static_cast<int>(size.height), title.c_str())) {
         return 1;
     }
+    host.setSwapInterval(app->swapInterval());
 
     Stage stage;
     host.bind(&stage);
