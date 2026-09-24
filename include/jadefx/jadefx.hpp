@@ -6,6 +6,8 @@
 #include "jadefx/geometry/Geometry.hpp"
 #include "jadefx/paint/Color.hpp"
 #include "jadefx/scene/Node.hpp"
+#include "jadefx/scene/image/Image.hpp"
+#include "jadefx/scene/image/ImageView.hpp"
 #include "jadefx/scene/Parent.hpp"
 #include "jadefx/scene/Scene.hpp"
 #include "jadefx/scene/controls/Alert.hpp"

@@ -44,6 +44,8 @@ set(JADEFX_SOURCES
     src/scene/controls/ComboBox.cpp
     src/scene/controls/Tab.cpp
     src/scene/controls/TabPane.cpp
+    src/scene/image/Image.cpp
+    src/scene/image/ImageView.cpp
     src/scene/text/Font.cpp
     src/scene/text/StyledDocument.cpp
     src/scene/controls/StyledTextArea.cpp
@@ -83,8 +85,8 @@ target_include_directories(jadefx
 )
 target_compile_definitions(jadefx PRIVATE "JADEFX_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
 
-# stb_truetype is one public-domain header. Fetch it the same way as GLFW and
-# GLFM, pinned to nothings/stb 2c980bb (the bytes this tree used to vendor).
+# stb_truetype and stb_image are public-domain headers. Fetch them the same way
+# as GLFW and GLFM, pinned to nothings/stb 2c980bb (the bytes this tree used to vendor).
 include(FetchContent)
 FetchContent_Declare(
     stb_truetype
@@ -100,7 +102,20 @@ if(NOT stb_truetype_POPULATED)
     endif()
     FetchContent_Populate(stb_truetype)
 endif()
-target_include_directories(jadefx PRIVATE "${stb_truetype_SOURCE_DIR}")
+FetchContent_Declare(
+    stb_image
+    URL https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h
+    URL_HASH SHA256=594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
+    DOWNLOAD_NO_EXTRACT TRUE
+)
+FetchContent_GetProperties(stb_image)
+if(NOT stb_image_POPULATED)
+    if(POLICY CMP0169)
+        cmake_policy(SET CMP0169 OLD)
+    endif()
+    FetchContent_Populate(stb_image)
+endif()
+target_include_directories(jadefx PRIVATE "${stb_truetype_SOURCE_DIR}" "${stb_image_SOURCE_DIR}")
 
 if(JADEFX_GLFM)
     target_compile_definitions(jadefx PUBLIC JADEFX_GLFM JADEFX_GLES)
@@ -173,9 +188,11 @@ endif()
 if(MSVC)
     target_compile_options(jadefx PRIVATE /W4 /utf-8)
     set_source_files_properties(src/scene/text/Font.cpp PROPERTIES COMPILE_OPTIONS "/wd4505")
+    set_source_files_properties(src/scene/image/Image.cpp PROPERTIES COMPILE_OPTIONS "/wd4505")
 else()
     target_compile_options(jadefx PRIVATE -Wall -Wextra)
     set_source_files_properties(src/scene/text/Font.cpp PROPERTIES COMPILE_OPTIONS "-Wno-unused-function;-Wno-sign-compare")
+    set_source_files_properties(src/scene/image/Image.cpp PROPERTIES COMPILE_OPTIONS "-Wno-unused-function;-Wno-sign-compare")
 endif()
 
 function(jadefx_attach_resources target)
@@ -231,6 +248,7 @@ if(NOT JADEFX_GLFM)
         tests/slider_tests.cpp
         tests/spinner_tests.cpp
         tests/split_pane_tests.cpp
+        tests/image_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     foreach(target jadefx-purple jadefx-hello jadefx-border jadefx-tabs jadefx-tree jadefx-split jadefx-rich jadefx-controls jadefx-tests)

@@ -3,14 +3,16 @@
 #include "jadefx/paint/Color.hpp"
 
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
 namespace jadefx {
 
 struct FontFace;
+struct ImageData;
 
-// Draws rounded rectangles and text in window points. The GL context is current.
+// Draws rounded rectangles, text, and bitmaps in window points. The GL context is current.
 class UiRenderer {
 public:
     bool initialize();
@@ -31,6 +33,8 @@ public:
     // subpixel uses stripe coverage when the context can blend it. Otherwise the glyph is grayscale.
     void text(float x, float y, const std::string& utf8, const std::string& family, float fontSize, const Color& color,
               bool subpixel);
+    // Straight-alpha RGBA, top row first. x and y are the top left in window points.
+    void drawImage(const std::shared_ptr<ImageData>& image, float x, float y, float width, float height, float opacity);
     // Clip later draws to this rectangle in window points, origin top left.
     // Clips nest by intersection. popClip restores the previous one.
     void pushClip(float x, float y, float width, float height);
@@ -46,6 +50,7 @@ private:
                  const float sides[4], float blur, float angleDeg, const float* clip = nullptr,
                  const float* clipRadii = nullptr);
     const Glyph* glyphFor(int codepoint, int pixelSize, int phase, const struct FontFace* face, bool wantSubpixel);
+    unsigned imageTexture(const std::shared_ptr<ImageData>& image);
 
     unsigned boxProgram_ = 0;
     unsigned textProgram_ = 0;
@@ -74,6 +79,15 @@ private:
     int textViewport_ = -1;
     int textColor_ = -1;
     int textSampler_ = -1;
+    unsigned imageProgram_ = 0;
+    int imageViewport_ = -1;
+    int imageOpacity_ = -1;
+    int imageSampler_ = -1;
+    struct GpuImage {
+        std::weak_ptr<ImageData> data;
+        unsigned texture = 0;
+    };
+    std::vector<GpuImage> gpuImages_;
 
     struct Glyph {
         float u0 = 0;

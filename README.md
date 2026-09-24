@@ -82,11 +82,14 @@ Layout is in window points, with the origin at the top left. On a Retina display
 | `Tab`, `TabPane` | `jadefx/scene/controls/Tab.hpp`, `jadefx/scene/controls/TabPane.hpp` |
 | `SplitPane` | `jadefx/scene/controls/SplitPane.hpp` |
 | `TreeItem`, `TreeView` | `jadefx/scene/controls/TreeItem.hpp`, `jadefx/scene/controls/TreeView.hpp` |
+| `Image`, `ImageView` | `jadefx/scene/image/Image.hpp`, `jadefx/scene/image/ImageView.hpp` |
 | `Font`, `Color`, `Pos`, `Side`, `Insets` | `jadefx/scene/text/Font.hpp`, `jadefx/paint/Color.hpp`, `jadefx/geometry/Geometry.hpp` |
 
 `VBox` and `HBox` stack children with `setSpacing`. `StackPane` layers them and aligns each child. `BorderPane` places `setTop`, `setBottom`, `setLeft`, `setRight`, and `setCenter`. `Label` measures its text with the bundled Open Sans face. `"Google Sans"` is accepted as a family name and uses that same face.
 
 `TreeView` is the material tree from JFoenix's `JFXTreeView`. A `TreeItem` is not a node: `setValue` is the row label, `setGraphic` is an optional node beside it, and `getChildren` holds nested items. `setExpanded` shows or hides those children. Rows indent by `setIndent` (10px per level). A branch draws a disclosure arrow that turns down while it is open; a click on the arrow, a second click on the row, or the Right and Left keys opens and closes it. The selected row keeps a 3px bar on its left edge (`selection-bar`, red unless `setSelectionBarColor` or CSS changes it). The wheel and trackpad scroll in pixels when the rows are taller than the view, so a slow swipe moves the list. The scrollbar is the same one the rich text editor uses: drag the thumb, or click the track to page. `setShowRoot(false)` hides the root and lists its children, which stay hidden while the root is collapsed. The row type is `tree-cell`, so `tree-cell:selected` and `tree-cell:hover` style it. The label is `tree-cell-label` and the arrow is `tree-disclosure-node`.
+
+`Image::load` decodes a PNG, JPEG, GIF, or BMP into a bitmap. `ImageView` draws that bitmap in its box. The preferred size is the bitmap size in points, and the bitmap stretches when the view is given a different size. `TreeItem::setGraphic` accepts an `ImageView`, so a row can show an icon beside its label.
 
 `CodeArea`, `StyledTextArea`, `StyleClassedTextArea`, and `InlineCssTextArea` are a virtualized rich text editor in the shape of [RichTextFX](https://github.com/FXMisc/RichTextFX). Text is a list of paragraphs, a newline counts as one code point, and only the visible paragraphs are drawn. `make rich` opens a code page (line numbers, syntax colors, a fold) and a notes page (color, size, bold, underline). Cmd/Ctrl with Z, Y, A, C, X, and V are undo, redo, select all, copy, cut, and paste. On the notes page, Cmd/Ctrl+B toggles bold and Cmd/Ctrl+U toggles underline. The code page pastes characters and leaves color to the highlighter. Alt-click adds a caret.
 

@@ -4,6 +4,7 @@
 #include "gl.hpp"
 #include "internal/Subpixel.hpp"
 #include "platform/ErrorDialog.hpp"
+#include "scene/image/ImageData.hpp"
 #include "scene/text/FontInternal.hpp"
 #include "jadefx/scene/text/Font.hpp"
 
@@ -48,6 +49,8 @@ bool UiRenderer::initialize() {
     const std::string textVertex = LoadShaderSource("text.vert");
     const std::string textFragment = LoadShaderSource("text.frag");
     const std::string textGray = LoadShaderSource("text_gray.frag");
+    const std::string imageVertex = LoadShaderSource("image.vert");
+    const std::string imageFragment = LoadShaderSource("image.frag");
     std::string missing;
     auto note = [&](const char* name, const std::string& source) {
         if (!source.empty()) {
@@ -63,6 +66,8 @@ bool UiRenderer::initialize() {
     note("text.vert", textVertex);
     note("text.frag", textFragment);
     note("text_gray.frag", textGray);
+    note("image.vert", imageVertex);
+    note("image.frag", imageFragment);
     if (!missing.empty()) {
         ReportMissingShaders(missing);
         return false;
@@ -75,7 +80,8 @@ bool UiRenderer::initialize() {
         std::fprintf(stderr, "LCD subpixel text is unavailable. Using grayscale coverage.\n");
         textProgram_ = jadefx_LinkShaderProgram(textVertex, textGray, "Text");
     }
-    if (boxProgram_ == 0 || textProgram_ == 0) {
+    imageProgram_ = jadefx_LinkShaderProgram(imageVertex, imageFragment, "Image");
+    if (boxProgram_ == 0 || textProgram_ == 0 || imageProgram_ == 0) {
         shutdown();
         return false;
     }
@@ -98,6 +104,9 @@ bool UiRenderer::initialize() {
     textViewport_ = Location(textProgram_, "uViewport");
     textColor_ = Location(textProgram_, "uColor");
     textSampler_ = Location(textProgram_, "uTex");
+    imageViewport_ = Location(imageProgram_, "uViewport");
+    imageOpacity_ = Location(imageProgram_, "uOpacity");
+    imageSampler_ = Location(imageProgram_, "uTex");
 
     const float quad[] = {0.f, 0.f, 1.f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f, 1.f, 0.f, 1.f};
     glGenVertexArrays(1, &boxVao_);
@@ -180,10 +189,20 @@ void UiRenderer::shutdown() {
         glDeleteProgram(textProgram_);
         textProgram_ = 0;
     }
+    if (imageProgram_ != 0) {
+        glDeleteProgram(imageProgram_);
+        imageProgram_ = 0;
+    }
     if (boxProgram_ != 0) {
         glDeleteProgram(boxProgram_);
         boxProgram_ = 0;
     }
+    for (GpuImage& image : gpuImages_) {
+        if (image.texture != 0) {
+            glDeleteTextures(1, &image.texture);
+        }
+    }
+    gpuImages_.clear();
 }
 
 void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixelsPerPoint, const Color& clear,
@@ -559,6 +578,82 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
     glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(vertices.size() * sizeof(float)), vertices.data(),
                  GL_DYNAMIC_DRAW);
     glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size() / 4));
+}
+
+unsigned UiRenderer::imageTexture(const std::shared_ptr<ImageData>& image) {
+    if (!image || image->width <= 0 || image->height <= 0 || image->rgba.empty()) {
+        return 0;
+    }
+    for (std::size_t i = 0; i < gpuImages_.size();) {
+        const std::shared_ptr<ImageData> live = gpuImages_[i].data.lock();
+        if (!live) {
+            if (gpuImages_[i].texture != 0) {
+                glDeleteTextures(1, &gpuImages_[i].texture);
+            }
+            gpuImages_[i] = std::move(gpuImages_.back());
+            gpuImages_.pop_back();
+            continue;
+        }
+        if (live == image) {
+            return gpuImages_[i].texture;
+        }
+        ++i;
+    }
+
+    const std::size_t height = static_cast<std::size_t>(image->height);
+    const std::size_t width = static_cast<std::size_t>(image->width);
+    if (height == 0 || width > image->rgba.size() / 4 / height) {
+        return 0;
+    }
+
+    unsigned texture = 0;
+    glGenTextures(1, &texture);
+    if (texture == 0) {
+        return 0;
+    }
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, image->width, image->height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                 image->rgba.data());
+    gpuImages_.push_back(GpuImage{image, texture});
+    return texture;
+}
+
+void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, float y, float width, float height,
+                           float opacity) {
+    if (!ready_ || imageProgram_ == 0 || opacity <= 0.f || width <= 0.f || height <= 0.f || viewportW_ <= 0 ||
+        viewportH_ <= 0) {
+        return;
+    }
+    const unsigned texture = imageTexture(image);
+    if (texture == 0) {
+        return;
+    }
+    const float scale = scale_;
+    const float left = x * scale;
+    const float top = y * scale;
+    const float right = (x + width) * scale;
+    const float bottom = (y + height) * scale;
+    // v 0 is the top row, the order stb_image decodes.
+    const float quad[] = {
+        left, top, 0.f, 0.f, right, top,    1.f, 0.f, right, bottom, 1.f, 1.f,
+        left, top, 0.f, 0.f, right, bottom, 1.f, 1.f, left,  bottom, 0.f, 1.f,
+    };
+
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(imageProgram_);
+    glUniform2f(imageViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
+    glUniform1f(imageOpacity_, opacity);
+    glUniform1i(imageSampler_, 0);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindVertexArray(textVao_);
+    glBindBuffer(GL_ARRAY_BUFFER, textVbo_);
+    glBufferData(GL_ARRAY_BUFFER, sizeof quad, quad, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
 bool UiRenderer::writePpm(const char* path) const {
