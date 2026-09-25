@@ -1227,6 +1227,18 @@ void StyledTextArea::moveVertical(int lines, bool select) {
         return;
     }
     const Font font = areaFont();
+    // Up from the first line goes to its start. Down from the last line goes to its end.
+    bool snapped = false;
+    auto placeEdge = [&](Selection& selection, int paragraph, int column) {
+        const int offset = content_.offset(paragraph, column);
+        if (selection.caret != offset || (!select && selection.anchor != offset)) {
+            snapped = true;
+        }
+        if (!select) {
+            selection.anchor = offset;
+        }
+        selection.caret = offset;
+    };
     for (Selection& selection : selections_) {
         const TextPos pos = content_.position(selection.caret);
         int found = 0;
@@ -1240,6 +1252,20 @@ void StyledTextArea::moveVertical(int lines, bool select) {
             if (pos.column >= layout.start && (pos.column < layout.end || (last && pos.column <= layout.end))) {
                 found = i;
             }
+        }
+        if (lines == -1 && found == 0) {
+            const Visual& edge = visual.front();
+            const LineLayout& layout =
+                view_.paragraphs[static_cast<std::size_t>(edge.paragraph)].lines[static_cast<std::size_t>(edge.line)];
+            placeEdge(selection, edge.paragraph, layout.start);
+            continue;
+        }
+        if (lines == 1 && found + 1 == static_cast<int>(visual.size())) {
+            const Visual& edge = visual.back();
+            const LineLayout& layout =
+                view_.paragraphs[static_cast<std::size_t>(edge.paragraph)].lines[static_cast<std::size_t>(edge.line)];
+            placeEdge(selection, edge.paragraph, layout.end);
+            continue;
         }
         if (preferredX_ < 0) {
             const Visual& line = visual[static_cast<std::size_t>(found)];
@@ -1276,6 +1302,9 @@ void StyledTextArea::moveVertical(int lines, bool select) {
             selection.anchor = offset;
         }
         selection.caret = offset;
+    }
+    if (snapped) {
+        preferredX_ = -1;
     }
     mergeArmed_ = false;
     typingStyle_.reset();

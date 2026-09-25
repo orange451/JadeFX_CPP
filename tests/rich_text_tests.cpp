@@ -233,6 +233,103 @@ void TestCharacterStyleShortcuts() {
     Expect(!StyleAt(*code, 0, 3).hasFill && !StyleAt(*code, 0, 3).bold, "a code area drops pasted styles");
 }
 
+void TestArrowEdges() {
+    auto code = jadefx::make<jadefx::CodeArea>();
+    code->setPrefSize(240, 160);
+    auto scene = jadefx::make<jadefx::Scene>(code, 240, 160);
+    scene->layout(240, 160, 0);
+    code->requestFocus();
+
+    code->setText("aaaaaa\naaaaaa\naaaaaa");
+    code->moveTo(code->absolutePosition(0, 3));
+    Key(*scene, jadefx::Key::Up);
+    Expect(code->caretPosition() == 0 && code->anchor() == 0, "up on the first line moves to the start");
+
+    code->moveTo(code->absolutePosition(0, 3));
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->currentParagraph() == 1 && code->caretColumn() == 3, "down from the first line keeps the column");
+
+    code->moveTo(code->absolutePosition(1, 2));
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->currentParagraph() == 2 && code->caretColumn() == 2, "down onto the last line keeps the column");
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->caretPosition() == code->length() && code->currentParagraph() == 2, "down on the last line moves to the end");
+
+    code->moveTo(code->absolutePosition(2, 2));
+    Key(*scene, jadefx::Key::Up);
+    Expect(code->currentParagraph() == 1 && code->caretColumn() == 2, "up from the last line keeps the column");
+
+    code->moveTo(0);
+    Key(*scene, jadefx::Key::Up);
+    Expect(code->caretPosition() == 0, "up at the start stays there");
+    code->moveTo(code->length());
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->caretPosition() == code->length(), "down at the end stays there");
+
+    code->moveTo(4);
+    Key(*scene, jadefx::Key::Up, jadefx::Key::ModShift);
+    Expect(code->anchor() == 4 && code->caretPosition() == 0, "shift+up on the first line selects to the start");
+    code->moveTo(code->absolutePosition(2, 1));
+    Key(*scene, jadefx::Key::Down, jadefx::Key::ModShift);
+    Expect(code->anchor() == code->absolutePosition(2, 1) && code->caretPosition() == code->length(),
+           "shift+down on the last line selects to the end");
+
+    code->setText("    aaaa");
+    code->moveTo(6);
+    Key(*scene, jadefx::Key::Up);
+    Expect(code->caretPosition() == 0, "up on the first line passes the indent");
+
+    code->setText("hello");
+    code->moveTo(2);
+    Key(*scene, jadefx::Key::Up);
+    Expect(code->caretPosition() == 0, "up on a single line moves to the start");
+    code->moveTo(2);
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->caretPosition() == code->length(), "down on a single line moves to the end");
+
+    code->setText("aaaaaa\naa");
+    code->moveTo(4);
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->currentParagraph() == 1 && code->caretColumn() == 2, "down clamps a short last line");
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->caretColumn() == 2, "down again stays at the end of the short line");
+    Key(*scene, jadefx::Key::Up);
+    Expect(code->currentParagraph() == 0 && code->caretColumn() == 4, "a column remembered from above is kept");
+
+    code->setText("aaaaaa\naaaaaa");
+    code->moveTo(2);
+    Key(*scene, jadefx::Key::Down);
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->caretPosition() == code->length(), "a second down on the last line reaches the end");
+    Key(*scene, jadefx::Key::Up);
+    Expect(code->currentParagraph() == 0 && code->caretColumn() == 6, "the column follows the caret after it moves to the end");
+
+    code->setText("aaaaaa\naaaaaa");
+    code->moveTo(4);
+    Key(*scene, jadefx::Key::Up);
+    Key(*scene, jadefx::Key::Down);
+    Expect(code->currentParagraph() == 1 && code->caretColumn() == 0, "the column follows the caret after it moves to the start");
+
+    auto wrapped = jadefx::make<jadefx::StyledTextArea>();
+    wrapped->setWrapText(true);
+    wrapped->setPrefSize(48, 160);
+    wrapped->setText("abcdefghijklmnopqrstuvwxyz");
+    auto wrappedScene = jadefx::make<jadefx::Scene>(wrapped, 48, 160);
+    wrappedScene->layout(48, 160, 0);
+    wrapped->requestFocus();
+    Expect(wrapped->visualLineCount() > 2, "the arrow test wraps onto several lines");
+    wrapped->moveTo(1);
+    Key(*wrappedScene, jadefx::Key::Up);
+    Expect(wrapped->caretPosition() == 0, "up on the first wrapped line moves to the start");
+    wrapped->moveTo(1);
+    Key(*wrappedScene, jadefx::Key::Down);
+    Expect(wrapped->caretPosition() > 1 && wrapped->caretPosition() < wrapped->length(),
+           "down from the first wrapped line moves one visual line");
+    wrapped->moveTo(wrapped->length() - 1);
+    Key(*wrappedScene, jadefx::Key::Down);
+    Expect(wrapped->caretPosition() == wrapped->length(), "down on the last wrapped line moves to the end");
+}
+
 }  // namespace
 
 int RunRichTextTests() {
@@ -246,5 +343,6 @@ int RunRichTextTests() {
     TestStylesAndUndo(*scene, *area);
     TestWrapFoldAndClipboard(*scene, *area);
     TestCharacterStyleShortcuts();
+    TestArrowEdges();
     return gFailures;
 }
