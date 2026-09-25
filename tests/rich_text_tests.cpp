@@ -330,6 +330,32 @@ void TestArrowEdges() {
     Expect(wrapped->caretPosition() == wrapped->length(), "down on the last wrapped line moves to the end");
 }
 
+void TestTextMarks() {
+    auto code = jadefx::make<jadefx::CodeArea>();
+    code->setPrefSize(240, 160);
+    auto scene = jadefx::make<jadefx::Scene>(code, 240, 160);
+    scene->layout(240, 160, 0);
+    code->setText("local x =\nreturn 1");
+    jadefx::TextMark syntax;
+    syntax.start = 8;
+    syntax.end = 8;
+    syntax.severity = jadefx::TextMarkSeverity::Error;
+    jadefx::TextMark warning;
+    warning.start = 10;
+    warning.end = 16;
+    warning.severity = jadefx::TextMarkSeverity::Warning;
+    code->setTextMarks({syntax, warning});
+    Expect(code->textMarks().size() == 2, "a code area keeps squiggle ranges");
+    Expect(code->textMarks()[0].start == 8 && code->textMarks()[0].severity == jadefx::TextMarkSeverity::Error,
+           "the first squiggle is the syntax error");
+    Expect(code->textMarks()[1].end == 16 && code->textMarks()[1].severity == jadefx::TextMarkSeverity::Warning,
+           "the second squiggle is the warning");
+    code->setTextMarks({syntax, warning});
+    Expect(code->textMarks().size() == 2, "the same ranges stay put");
+    code->setTextMarks({});
+    Expect(code->textMarks().empty(), "clearing marks removes the squiggles");
+}
+
 }  // namespace
 
 int RunRichTextTests() {
@@ -344,5 +370,6 @@ int RunRichTextTests() {
     TestWrapFoldAndClipboard(*scene, *area);
     TestCharacterStyleShortcuts();
     TestArrowEdges();
+    TestTextMarks();
     return gFailures;
 }

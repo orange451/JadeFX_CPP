@@ -94,6 +94,70 @@ void Fill(UiRenderer& renderer, float x, float y, float width, float height, con
     renderer.fillRounded(x, y, width, height, radius, &color, &at, 1, 0.f);
 }
 
+Color MarkColor(TextMarkSeverity severity) {
+    switch (severity) {
+    case TextMarkSeverity::Error:
+        return Color::rgb8(209, 36, 47);
+    case TextMarkSeverity::Warning:
+        return Color::rgb8(191, 135, 0);
+    case TextMarkSeverity::Information:
+        return Color::rgb8(26, 115, 232);
+    case TextMarkSeverity::Hint:
+        return Color::rgb8(110, 119, 129);
+    }
+    return Color::rgb8(209, 36, 47);
+}
+
+int MarkRank(TextMarkSeverity severity) {
+    switch (severity) {
+    case TextMarkSeverity::Hint:
+        return 0;
+    case TextMarkSeverity::Information:
+        return 1;
+    case TextMarkSeverity::Warning:
+        return 2;
+    case TextMarkSeverity::Error:
+        return 3;
+    }
+    return 3;
+}
+
+// A mark hits this visual line when its range overlaps the glyphs, or sits on the caret at the line end.
+bool MarkHitsLine(const TextMark& mark, int lineStart, int lineEnd) {
+    if (mark.end > mark.start) {
+        return mark.start <= lineEnd && mark.end > lineStart;
+    }
+    return mark.start >= lineStart && mark.start <= lineEnd;
+}
+
+void DrawSquiggle(UiRenderer& renderer, float x0, float x1, float baseline, const Color& color) {
+    if (x1 < x0 + 3.f) {
+        x1 = x0 + 6.f;
+    }
+    const float step = 2.f;
+    for (float x = x0; x + 0.5f < x1; x += step) {
+        const int index = static_cast<int>((x - x0) / step);
+        const float y = baseline + ((index & 1) != 0 ? 1.5f : 0.f);
+        Fill(renderer, x, y, std::min(step, x1 - x), 1.25f, color);
+    }
+}
+
+const TextMark* WorstMark(const std::vector<TextMark>& marks, int lineStart, int lineEnd) {
+    const TextMark* worst = nullptr;
+    int rank = -1;
+    for (const TextMark& mark : marks) {
+        if (!MarkHitsLine(mark, lineStart, lineEnd)) {
+            continue;
+        }
+        const int next = MarkRank(mark.severity);
+        if (worst == nullptr || next > rank) {
+            worst = &mark;
+            rank = next;
+        }
+    }
+    return worst;
+}
+
 struct MeasuredLine {
     struct Piece {
         int begin = 0;
@@ -110,6 +174,56 @@ struct MeasuredLine {
     float height = 0.f;
     float ascent = 0.f;
 };
+
+float CaretX(const MeasuredLine& measured, int lineStart, int absolute) {
+    int local = absolute - lineStart;
+    if (measured.caret.empty()) {
+        return 0.f;
+    }
+    if (local < 0) {
+        local = 0;
+    }
+    if (local >= static_cast<int>(measured.caret.size())) {
+        local = static_cast<int>(measured.caret.size()) - 1;
+    }
+    return measured.caret[static_cast<std::size_t>(local)];
+}
+
+void DrawLineMarks(UiRenderer& renderer, float originX, float scrollX, float lineY, float lineHeight, float ascent,
+                   int lineStart, int lineEnd, const MeasuredLine& measured, const std::vector<TextMark>& marks,
+                   float opacity) {
+    if (marks.empty()) {
+        return;
+    }
+    float baseline = lineY + ascent + 1.f;
+    const float limit = lineY + lineHeight - 3.f;
+    if (baseline > limit) {
+        baseline = std::max(lineY, limit);
+    }
+    for (int pass = 0; pass <= 3; ++pass) {
+        for (const TextMark& mark : marks) {
+            if (MarkRank(mark.severity) != pass || !MarkHitsLine(mark, lineStart, lineEnd)) {
+                continue;
+            }
+            int from = std::max(mark.start, lineStart);
+            int to = mark.end > mark.start ? std::min(mark.end, lineEnd) : from;
+            if (from > lineEnd) {
+                from = lineEnd;
+            }
+            if (to > lineEnd) {
+                to = lineEnd;
+            }
+            if (to < from) {
+                to = from;
+            }
+            Color color = MarkColor(mark.severity);
+            color.a *= opacity;
+            const float x0 = originX + CaretX(measured, lineStart, from) - scrollX;
+            const float x1 = originX + CaretX(measured, lineStart, to) - scrollX;
+            DrawSquiggle(renderer, x0, x1, baseline, color);
+        }
+    }
+}
 
 Font FontFor(const std::string& family, float baseSize, const TextStyle& style) {
     const float size = style.fontSize > 0.f ? style.fontSize : baseSize;
@@ -1685,6 +1799,13 @@ TextBounds StyledTextArea::caretBounds() const {
     return bounds;
 }
 
+void StyledTextArea::setTextMarks(std::vector<TextMark> marks) {
+    if (marks == textMarks_) {
+        return;
+    }
+    textMarks_ = std::move(marks);
+}
+
 int StyledTextArea::visualLineCount() const {
     rebuild();
     int count = 0;
@@ -2208,6 +2329,10 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
                     }
                 }
             }
+            if (!textMarks_.empty()) {
+                DrawLineMarks(renderer, absX + view_.textX, static_cast<float>(scrollX_), lineY, line.height,
+                              measured.ascent, lineStart, lineEnd, measured, textMarks_, opacity);
+            }
         }
     }
     bool caretOn = showCaret_ == CaretVisibility::On || (showCaret_ == CaretVisibility::Auto && isFocused());
@@ -2270,6 +2395,22 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
                 color.a *= (paragraph == caretParagraph ? 0.9f : 0.45f) * opacity;
                 renderer.text(boxX + view_.gutter - 8.f - width, y, number, font.family(), font.size(), color,
                               computedStyle().subpixel);
+            }
+            if (!textMarks_.empty() && paragraph < static_cast<int>(view_.paragraphs.size()) &&
+                !view_.paragraphs[static_cast<std::size_t>(paragraph)].lines.empty()) {
+                const LineLayout& first = view_.paragraphs[static_cast<std::size_t>(paragraph)].lines.front();
+                const LineLayout& last = view_.paragraphs[static_cast<std::size_t>(paragraph)].lines.back();
+                const int lineStart = content_.offset(paragraph, first.start);
+                const int lineEnd = content_.offset(paragraph, last.end);
+                if (const TextMark* mark = WorstMark(textMarks_, lineStart, lineEnd)) {
+                    Color color = MarkColor(mark->severity);
+                    color.a *= opacity;
+                    const float size = 6.f;
+                    const float markY = y + std::max(0.f, (bottom - top) - size) * 0.5f;
+                    const float radius[4] = {size * 0.5f, size * 0.5f, size * 0.5f, size * 0.5f};
+                    const float at = 0.f;
+                    renderer.fillRounded(boxX + 4.f, markY, size, size, radius, &color, &at, 1, 0.f);
+                }
             }
         }
         renderer.popClip();

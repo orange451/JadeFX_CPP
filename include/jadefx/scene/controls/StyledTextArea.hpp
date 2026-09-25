@@ -31,6 +31,20 @@ struct TextBounds {
     double height = 0;
 };
 
+// How a text mark is drawn. Error is the strongest gutter color.
+enum class TextMarkSeverity { Error, Warning, Information, Hint };
+
+// One underline range in code points, the same offsets as the caret.
+struct TextMark {
+    int start = 0;
+    int end = 0;
+    TextMarkSeverity severity = TextMarkSeverity::Error;
+
+    bool operator==(const TextMark& other) const {
+        return start == other.start && end == other.end && severity == other.severity;
+    }
+};
+
 // Virtualized rich text editor in the shape of RichTextFX's StyledTextArea.
 // Text is a list of paragraphs. A newline starts a paragraph and counts as one code point.
 // Only the paragraphs inside the viewport are drawn. Styles cover code-point ranges.
@@ -143,6 +157,11 @@ public:
     CharacterHit hit(double x, double y) const;
     TextBounds caretBounds() const;
     int visualLineCount() const;
+
+    // A wavy underline under a code-point range, drawn with the text so it scrolls.
+    // end <= start marks the caret gap at start. The script editor uses these for analysis.
+    void setTextMarks(std::vector<TextMark> marks);
+    const std::vector<TextMark>& textMarks() const { return textMarks_; }
 
     void setOnPlainTextChange(std::function<void(const PlainTextChange&)> handler) { onPlain_ = std::move(handler); }
     void setOnRichTextChange(std::function<void(const DocumentChange&)> handler) { onRich_ = std::move(handler); }
@@ -310,6 +329,7 @@ private:
     std::function<void(const PlainTextChange&)> onPlain_;
     std::function<void(const DocumentChange&)> onRich_;
     std::function<void(int)> onHover_;
+    std::vector<TextMark> textMarks_;
 };
 
 }  // namespace jadefx
