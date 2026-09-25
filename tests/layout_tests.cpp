@@ -1409,6 +1409,72 @@ void TestTreeView() {
     }
     Expect(contexts == 1 && contextItem == carol.get(), "a right-click asks for a context menu on that row");
     Expect(tree->getSelectedItem() == carol.get(), "a right-click selects the row");
+
+    sales->setExpanded(true);
+    root->setExpanded(true);
+    tree->setShowRoot(true);
+    tree->scrollTo(0);
+    tree->setPrefSize(240, 200);
+    auto plus = jadefx::make<jadefx::Label>("+");
+    plus->setAlignment(jadefx::Pos::Center);
+    plus->setPrefSize(16, 16);
+    plus->getClassList().add("row-plus");
+    int plusClicks = 0;
+    plus->setOnMouseClicked([&](const jadefx::MouseEvent&) { ++plusClicks; });
+    scene->notePointerExit();
+    tree->setHoverAccessory(plus);
+    scene->layout(240, 200, 0);
+    Expect(!plus->isVisible(), "the plus is hidden until a row is hovered");
+    salesCell = CellNamed(*scene, "Sales");
+    if (salesCell != nullptr) {
+        const bool wasOpen = sales->isExpanded();
+        scene->noteMove(salesCell->getAbsoluteX() + 12, salesCell->getAbsoluteY() + salesCell->getHeight() * 0.5);
+        scene->layout(240, 200, 0);
+        salesCell = CellNamed(*scene, "Sales");
+        Expect(plus->isVisible() && plus->getWidth() > 8, "hovering a row shows the plus");
+        Expect(tree->getHoveredItem() == sales.get(), "the hovered row is Sales");
+        if (salesCell != nullptr) {
+            Expect(plus->getAbsoluteX() > salesCell->getAbsoluteX() + salesCell->getWidth() * 0.5,
+                   "the plus sits on the right of the row");
+            Expect(plus->getAbsoluteX() + plus->getWidth() <= salesCell->getAbsoluteX() + salesCell->getWidth() + 1,
+                   "the plus stays inside the row");
+            Expect(Near(plus->getAbsoluteY() + plus->getHeight() * 0.5,
+                        salesCell->getAbsoluteY() + salesCell->getHeight() * 0.5, 2),
+                   "the plus is centered on the row");
+            jadefx::Node* salesLabel = nullptr;
+            for (jadefx::Node* node : salesCell->getElementsByClassName("tree-cell-label")) {
+                salesLabel = node;
+            }
+            if (salesLabel != nullptr) {
+                Expect(salesLabel->getAbsoluteX() + salesLabel->getWidth() <= plus->getAbsoluteX() + 1,
+                       "the label stops before the plus");
+            }
+        }
+        scene->noteMove(plus->getAbsoluteX() + plus->getWidth() * 0.5,
+                        plus->getAbsoluteY() + plus->getHeight() * 0.5);
+        scene->layout(240, 200, 0);
+        Expect(plus->isVisible() && tree->getHoveredItem() == sales.get(),
+               "the plus stays while the pointer is on it");
+        ClickAt(*scene, plus.get(), plus->getWidth() * 0.5);
+        Expect(plusClicks == 1, "the plus receives the click");
+        Expect(sales->isExpanded() == wasOpen, "clicking the plus does not toggle the branch");
+        carolCell = CellNamed(*scene, "Carol");
+        if (carolCell != nullptr) {
+            scene->noteMove(carolCell->getAbsoluteX() + 12, carolCell->getAbsoluteY() + carolCell->getHeight() * 0.5);
+            scene->layout(240, 200, 0);
+            carolCell = CellNamed(*scene, "Carol");
+            Expect(tree->getHoveredItem() == carol.get(), "the plus follows the row under the pointer");
+            if (carolCell != nullptr) {
+                Expect(Near(plus->getAbsoluteY() + plus->getHeight() * 0.5,
+                            carolCell->getAbsoluteY() + carolCell->getHeight() * 0.5, 2),
+                       "the plus moves onto Carol");
+            }
+        }
+    }
+    scene->notePointerExit();
+    scene->layout(240, 200, 0);
+    Expect(!plus->isVisible(), "leaving the tree hides the plus");
+    tree->setHoverAccessory(nullptr);
 }
 
 void TestGrayscaleFrame() {

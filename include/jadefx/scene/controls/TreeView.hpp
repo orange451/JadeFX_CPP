@@ -63,6 +63,12 @@ public:
     void setOnContextMenuRequested(std::function<void(TreeItem&, const MouseEvent&)> handler);
     // Double-click. Return true to keep a branch from opening or closing.
     void setOnItemActivated(std::function<bool(TreeItem&)> handler);
+    // Drawn on the right of the row under the pointer. Hidden when no row is
+    // hovered. The pointer can rest on the node without that row losing it.
+    // Null clears it. A click belongs to the node, not the row.
+    void setHoverAccessory(std::shared_ptr<Node> node);
+    // The row the accessory is standing on, or null.
+    TreeItem* getHoveredItem() const;
     // The row calls these. contextMenuRequested selects the item first.
     void contextMenuRequested(TreeItem& item, const MouseEvent& event);
     bool itemActivated(TreeItem& item);

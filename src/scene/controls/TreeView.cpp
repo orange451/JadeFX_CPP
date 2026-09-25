@@ -56,6 +56,10 @@ constexpr double kDisclosure = 18;
 constexpr double kBarWidth = 3;
 constexpr double kGraphicGap = 3;
 constexpr double kRightPad = 10;
+// Width kept clear on the hovered row. The button fills that slot, so the
+// pointer does not have to land on the glyph itself.
+constexpr double kHoverSlot = 24;
+constexpr double kHoverButton = kHoverSlot;
 constexpr double kDefaultRow = 32;
 constexpr double kDefaultIndent = 10;
 constexpr double kMinRow = 8;
@@ -304,9 +308,10 @@ public:
         updateChrome();
     }
 
-    void prepare(int level, double indent) {
+    void prepare(int level, double indent, double trail) {
         level_ = level;
         indent_ = indent;
+        trail_ = trail;
     }
 
     void updateChrome() {
@@ -423,7 +428,9 @@ protected:
             }
         }
         double x = arrowX + kDisclosure;
-        const double limit = std::max(x, width - kRightPad);
+        // A hovered row reserves the right edge for the insert button.
+        const double right = trail_ > 0 ? trail_ : kRightPad;
+        const double limit = std::max(x, width - right);
         if (graphic_ && graphic_->isVisible()) {
             const double avail = std::max(0.0, limit - x - kGraphicGap);
             const double graphicW = std::min(avail, std::max(0.0, graphic_->measuredWidth(avail)));
@@ -571,6 +578,7 @@ private:
     std::shared_ptr<Node> graphic_;
     int level_ = 0;
     double indent_ = kDefaultIndent;
+    double trail_ = 0;
     bool arrowClick_ = false;
     double lastClick_ = 0;
     bool rippling_ = false;
@@ -617,6 +625,8 @@ struct TreeView::Impl {
     double indent = kDefaultIndent;
     double cellSize = kDefaultRow;
     Color barColor = Color::rgb8(26, 115, 232);
+    std::shared_ptr<Node> accessory;
+    TreeItem* hoverItem = nullptr;
     std::shared_ptr<TreeScrollBar> track;
     ScrollBar vbar;
     double scroll = 0;
@@ -667,6 +677,13 @@ TreeView::~TreeView() {
         }
         impl_->track.reset();
     }
+    if (impl_->accessory) {
+        if (impl_->accessory->getParent() == this) {
+            impl_->accessory->setParent(nullptr);
+        }
+        impl_->accessory.reset();
+    }
+    impl_->hoverItem = nullptr;
     impl_->root.reset();
     impl_.reset();
 }
@@ -801,6 +818,39 @@ void TreeView::setOnItemActivated(std::function<bool(TreeItem&)> handler) {
     if (impl_) {
         impl_->onActivated = std::move(handler);
     }
+}
+
+void TreeView::setHoverAccessory(std::shared_ptr<Node> node) {
+    if (!impl_ || !impl_->alive) {
+        return;
+    }
+    if (impl_->accessory == node) {
+        return;
+    }
+    if (impl_->accessory && impl_->accessory->getParent() == this) {
+        impl_->accessory->setParent(nullptr);
+    }
+    impl_->accessory = std::move(node);
+    impl_->hoverItem = nullptr;
+    if (!impl_->accessory) {
+        return;
+    }
+    if (impl_->accessory->getParent() != nullptr && impl_->accessory->getParent() != this) {
+        impl_->accessory->getParent()->detachChild(impl_->accessory.get());
+    }
+    if (impl_->accessory && impl_->accessory->getParent() != this) {
+        impl_->accessory->setParent(this);
+    }
+    if (impl_->accessory) {
+        impl_->accessory->setVisible(false);
+    }
+}
+
+TreeItem* TreeView::getHoveredItem() const {
+    if (!impl_ || impl_->hoverItem == nullptr || !containsItem(impl_->hoverItem)) {
+        return nullptr;
+    }
+    return impl_->hoverItem;
 }
 
 void TreeView::contextMenuRequested(TreeItem& item, const MouseEvent& event) {
@@ -1186,12 +1236,34 @@ void TreeView::layoutChildren() {
     const double gutter = impl_->vbar.visible ? ScrollBar::kThickness : 0.0;
     const double rowWidth = std::max(0.0, width - gutter);
     const double viewBottom = top + height;
+    // The row under the pointer, decided before the cells move, so the label
+    // can leave the right edge clear for the button.
+    if (!impl_->accessory) {
+        impl_->hoverItem = nullptr;
+    } else {
+        TreeItem* under = nullptr;
+        for (const std::shared_ptr<TreeCell>& candidate : impl_->rows) {
+            if (candidate && candidate->isVisible() && candidate->isHovered() && candidate->item() != nullptr) {
+                under = candidate->item();
+                break;
+            }
+        }
+        if (under != nullptr) {
+            impl_->hoverItem = under;
+        } else if (!(impl_->accessory->isVisible() && impl_->accessory->isHovered() &&
+                     containsItem(impl_->hoverItem))) {
+            impl_->hoverItem = nullptr;
+        }
+    }
+    double hoverTop = 0;
+    bool hoverShown = false;
     for (int i = 0; i < count; ++i) {
         TreeCell* cell = impl_->rows[static_cast<std::size_t>(i)].get();
         if (cell == nullptr) {
             continue;
         }
-        cell->prepare(shownLevel(cell->item()), impl_->indent);
+        const double trail = impl_->hoverItem != nullptr && cell->item() == impl_->hoverItem ? kHoverSlot : 0;
+        cell->prepare(shownLevel(cell->item()), impl_->indent, trail);
         cell->updateChrome();
         const double y = top + static_cast<double>(i) * row - scroll;
         const bool onScreen = height > 0.5 && y + row > top + 0.5 && y < viewBottom - 0.5;
@@ -1202,6 +1274,22 @@ void TreeView::layoutChildren() {
         }
         cell->setVisible(true);
         cell->performLayout(left, y, rowWidth, row);
+        if (trail > 0) {
+            hoverTop = y;
+            hoverShown = true;
+        }
+    }
+    if (impl_->accessory) {
+        if (!hoverShown || rowWidth < kHoverButton || row < kHoverButton) {
+            impl_->accessory->setVisible(false);
+            impl_->accessory->performLayout(0, 0, 0, 0);
+        } else {
+            const double size = std::min(kHoverButton, row - 4);
+            const double x = left + rowWidth - kHoverSlot + (kHoverSlot - size) * 0.5;
+            const double y = hoverTop + (row - size) * 0.5;
+            impl_->accessory->setVisible(true);
+            impl_->accessory->performLayout(x, y, size, size);
+        }
     }
     if (impl_->track) {
         if (impl_->vbar.visible) {
@@ -1225,6 +1313,11 @@ void TreeView::visitChildren(const std::function<void(Node*)>& visitor) {
             visitor(row.get());
         }
     }
+    // After the rows and before the scrollbar, so a click on the button hits
+    // the button and a click on the bar still hits the bar.
+    if (impl_->accessory) {
+        visitor(impl_->accessory.get());
+    }
     if (impl_->track) {
         visitor(impl_->track.get());
     }
@@ -1232,6 +1325,14 @@ void TreeView::visitChildren(const std::function<void(Node*)>& visitor) {
 
 void TreeView::detachChild(Node* child) {
     if (child == nullptr || !impl_) {
+        return;
+    }
+    if (impl_->accessory.get() == child) {
+        if (child->getParent() == this) {
+            child->setParent(nullptr);
+        }
+        impl_->accessory.reset();
+        impl_->hoverItem = nullptr;
         return;
     }
     for (std::shared_ptr<TreeCell>& row : impl_->rows) {
