@@ -61,6 +61,8 @@ constexpr double kDefaultIndent = 10;
 constexpr double kMinRow = 8;
 constexpr double kDoubleClickSeconds = 0.4;
 constexpr double kArrowSeconds = 0.16;
+// Full-grown diameter, in row heights. The circle is larger than the row and clipped to it.
+constexpr float kRippleDiameter = 7.f;
 
 double Now() {
     using Clock = std::chrono::steady_clock;
@@ -317,9 +319,9 @@ public:
             bar_->setVisible(selected);
         }
         if (selected && isHovered()) {
-            setBackground(Color::rgb8(255, 205, 210));
+            setBackground(Color::rgb8(210, 227, 252));
         } else if (selected) {
-            setBackground(Color::rgb8(255, 235, 238));
+            setBackground(Color::rgb8(232, 240, 254));
         } else if (isHovered()) {
             setBackground(Color::rgb8(245, 245, 245));
         } else {
@@ -346,15 +348,18 @@ public:
         }
         const float height = static_cast<float>(getHeight());
         const float width = static_cast<float>(getWidth());
-        const float radius = height * 0.48f * std::max(grow, 0.08f);
-        const float cx = std::min(std::max(rippleX_, radius), std::max(radius, width - radius));
-        const float cy = height * 0.5f;
+        const float radius = height * (kRippleDiameter * 0.5f) * std::max(grow, 0.08f);
+        const float cx = rippleX_;
+        const float cy = rippleY_;
         const float box = radius * 2.f;
         const float corner[4] = {radius, radius, radius, radius};
         const float at = 0.f;
         Color color = Color::rgba(0.f, 0.f, 0.f, alpha * opacity);
-        renderer.fillRounded(static_cast<float>(getAbsoluteX()) + cx - radius,
-                             static_cast<float>(getAbsoluteY()) + cy - radius, box, box, corner, &color, &at, 1, 0.f);
+        const float absX = static_cast<float>(getAbsoluteX());
+        const float absY = static_cast<float>(getAbsoluteY());
+        renderer.pushClip(absX, absY, width, height);
+        renderer.fillRounded(absX + cx - radius, absY + cy - radius, box, box, corner, &color, &at, 1, 0.f);
+        renderer.popClip();
     }
 
     void detachChild(Node* child) override {
@@ -501,6 +506,7 @@ private:
 
     void pressed(const MouseEvent& event) {
         rippleX_ = static_cast<float>(event.x - getAbsoluteX());
+        rippleY_ = static_cast<float>(event.y - getAbsoluteY());
         rippleStart_ = Now();
         rippleRelease_ = -1;
         rippling_ = true;
@@ -571,6 +577,7 @@ private:
     double rippleStart_ = 0;
     double rippleRelease_ = -1;
     float rippleX_ = 0.f;
+    float rippleY_ = 0.f;
 
     friend class TreeRipple;
 };
@@ -609,7 +616,7 @@ struct TreeView::Impl {
     bool showRoot = true;
     double indent = kDefaultIndent;
     double cellSize = kDefaultRow;
-    Color barColor = Color::rgb8(255, 0, 0);
+    Color barColor = Color::rgb8(26, 115, 232);
     std::shared_ptr<TreeScrollBar> track;
     ScrollBar vbar;
     double scroll = 0;
@@ -722,7 +729,7 @@ void TreeView::setSelectionBarColor(const Color& color) {
 }
 
 Color TreeView::getSelectionBarColor() const {
-    return impl_ ? impl_->barColor : Color::rgb8(255, 0, 0);
+    return impl_ ? impl_->barColor : Color::rgb8(26, 115, 232);
 }
 
 int TreeView::getExpandedItemCount() const {

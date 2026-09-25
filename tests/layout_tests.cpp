@@ -1184,7 +1184,9 @@ void TestTreeView() {
         Expect(Near(bar->getX(), 0) && Near(bar->getWidth(), 3) && Near(bar->getHeight(), tree->getFixedCellSize()),
                "the selection bar is a 3px strip along the row");
         const jadefx::Color& ink = bar->computedStyle().background.color;
-        Expect(Near(ink.r, 1, 0.02) && ink.g < 0.05f && ink.b < 0.05f, "the selection bar starts red");
+        const jadefx::Color accent = jadefx::Color::rgb8(26, 115, 232);
+        Expect(Near(ink.r, accent.r, 0.02) && Near(ink.g, accent.g, 0.02) && Near(ink.b, accent.b, 0.02),
+               "the selection bar starts in the accent blue");
     }
 
     if (salesCell != nullptr) {

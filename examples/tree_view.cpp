@@ -31,10 +31,13 @@ tree-cell:hover {
     background-color: #f5f5f5;
 }
 tree-cell:selected {
-    background-color: #ffebee;
+    background-color: #e8f0fe;
+}
+tree-cell:selected:hover {
+    background-color: #d2e3fc;
 }
 .selection-bar {
-    background-color: #f44336;
+    background-color: #1a73e8;
 }
 tree-disclosure-node {
     color: #757575;
