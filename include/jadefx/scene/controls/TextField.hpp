@@ -43,6 +43,9 @@ public:
     void setOnAction(ActionHandler handler) { onAction_ = std::move(handler); }
     void fire();
 
+    // Window points of the caret bar. False until the field has been given a size.
+    bool caretBounds(double& x, double& y, double& height);
+
 protected:
     void handleMousePressed(const MouseEvent& event) override;
     void handleMouseDragged(const MouseEvent& event) override;

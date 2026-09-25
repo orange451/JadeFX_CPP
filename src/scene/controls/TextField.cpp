@@ -230,6 +230,27 @@ void TextField::fire() {
     onAction_(event);
 }
 
+bool TextField::caretBounds(double& x, double& y, double& height) {
+    x = 0;
+    y = 0;
+    height = 0;
+    if (!(getWidth() > 0.0) || !(getHeight() > 0.0)) {
+        return false;
+    }
+    ensureCaretVisible();
+    const LineLayout line = measureLine();
+    if (line.caretX.empty() || !(line.lineHeight > 0.f)) {
+        return false;
+    }
+    const int length = static_cast<int>(line.caretX.size()) - 1;
+    const int caret = ClampIndex(caret_, length);
+    x = getAbsoluteX() + contentLeft() + static_cast<double>(line.origin) +
+        static_cast<double>(line.caretX[static_cast<std::size_t>(caret)]);
+    y = getAbsoluteY() + contentTop() + static_cast<double>(line.top);
+    height = line.lineHeight;
+    return true;
+}
+
 Font TextField::face() const {
     const ComputedStyle& style = computedStyle();
     const float size = style.fontSize > 0.f ? style.fontSize : 16.f;

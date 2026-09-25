@@ -315,6 +315,35 @@ void TestDisabledPromptAndPointer() {
     Expect(open.field->getCaretPosition() == 1, "a click on the right of centered text moves past it");
 }
 
+void TestCaretBounds() {
+    auto open = Open("ab");
+    open.field->positionCaret(0);
+    double startX = 0;
+    double startY = 0;
+    double startHeight = 0;
+    Expect(open.field->caretBounds(startX, startY, startHeight), "a laid-out field reports its caret");
+    Expect(startHeight > 1, "the caret has a line height");
+    open.field->positionCaret(2);
+    double endX = 0;
+    double endY = 0;
+    double endHeight = 0;
+    Expect(open.field->caretBounds(endX, endY, endHeight), "the caret at the end is reported");
+    Expect(endX > startX + 1, "the caret moves right with the text");
+
+    auto field = jadefx::make<jadefx::TextField>();
+    field->setPrefColumnCount(2);
+    auto scene = jadefx::make<jadefx::Scene>(field, 480, 160);
+    scene->layout(480, 160, 0);
+    field->setText("abcdefghij");
+    field->positionCaret(field->getLength());
+    double scrolledX = 0;
+    double scrolledY = 0;
+    double scrolledHeight = 0;
+    Expect(field->caretBounds(scrolledX, scrolledY, scrolledHeight), "a scrolled field reports its caret");
+    const double right = field->getAbsoluteX() + field->getWidth();
+    Expect(scrolledX > field->getAbsoluteX() && scrolledX <= right + 1, "a scrolled caret stays inside the field");
+}
+
 void TestHorizontalScroll() {
     auto field = jadefx::make<jadefx::TextField>();
     field->setPrefColumnCount(2);
@@ -347,6 +376,7 @@ int RunTextFieldTests() {
     TestNavigation();
     TestPreferredColumns();
     TestDisabledPromptAndPointer();
+    TestCaretBounds();
     TestHorizontalScroll();
     return gFailures;
 }
