@@ -2,6 +2,7 @@
 #include "jadefx/scene/controls/MenuBar.hpp"
 #include "jadefx/scene/controls/MenuButton.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -416,6 +417,43 @@ void TestEscapeHidesMenu() {
     Expect(popups.empty() || !scene->isPopupShowing(popups[0]), "Escape drops the popup");
 }
 
+void TestMenuShowAtPoint() {
+    auto menu = jadefx::make<jadefx::Menu>();
+    int fires = 0;
+    auto item = jadefx::make<jadefx::MenuItem>("Rename");
+    item->setOnAction([&](jadefx::ActionEvent&) { ++fires; });
+    menu->getItems().add(item);
+    auto root = FullRoot();
+    auto scene = jadefx::make<jadefx::Scene>(root, 720, 420);
+    scene->layout(720, 420, 0);
+    menu->show(*scene, 40, 50);
+    Expect(menu->isShowing(), "show at a point opens the menu");
+    std::vector<jadefx::Node*> popups = Popups(*scene);
+    Expect(popups.size() == 1, "the point menu has one popup");
+    if (popups.size() == 1) {
+        Expect(std::abs(popups[0]->getX() - 40) < 0.5 && std::abs(popups[0]->getY() - 50) < 0.5,
+               "the popup sits at the requested point");
+        jadefx::Node* row = scene->getElementById("Rename");
+        Expect(row != nullptr, "the row is in the popup");
+        if (row != nullptr) {
+            ClickNode(*scene, *row);
+        }
+        Expect(fires == 1, "the point menu runs its item");
+        Expect(!menu->isShowing(), "the point menu hides after the item runs");
+    }
+
+    menu->show(*scene, 700, 400);
+    popups = Popups(*scene);
+    Expect(menu->isShowing() && popups.size() == 1, "a second show at a point opens again");
+    if (popups.size() == 1) {
+        Expect(popups[0]->getX() >= -0.5 && popups[0]->getY() >= -0.5, "the popup stays on the scene");
+        Expect(popups[0]->getX() + popups[0]->getWidth() <= scene->getWidth() + 0.5, "the popup stays inside the width");
+        Expect(popups[0]->getY() + popups[0]->getHeight() <= scene->getHeight() + 0.5, "the popup stays inside the height");
+    }
+    scene->noteButton(0, true, 8, 8);
+    Expect(!menu->isShowing(), "a press outside the point menu hides it");
+}
+
 }  // namespace
 
 int RunMenuTests() {
@@ -429,5 +467,6 @@ int RunMenuTests() {
     TestRebuildWhileOpen();
     TestLeavingScene();
     TestEscapeHidesMenu();
+    TestMenuShowAtPoint();
     return gFailures;
 }

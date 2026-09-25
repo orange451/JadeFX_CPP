@@ -100,6 +100,14 @@ public:
     void setOnMouseClicked(MouseHandler handler) { onClicked_ = std::move(handler); }
     void setOnMouseEntered(MouseHandler handler) { onEntered_ = std::move(handler); }
     void setOnMouseExited(MouseHandler handler) { onExited_ = std::move(handler); }
+    // Right-click. The scene walks from the hit node to the root and stops at the first handler.
+    void setOnContextMenuRequested(MouseHandler handler) { onContext_ = std::move(handler); }
+    bool hasContextMenuHandler() const { return static_cast<bool>(onContext_); }
+    void fireContextMenu(const MouseEvent& event) {
+        if (onContext_) {
+            onContext_(event);
+        }
+    }
 
     bool isHovered() const { return hovered_; }
     bool isPressed() const { return pressed_; }
@@ -320,6 +328,7 @@ private:
     MouseHandler onClicked_;
     MouseHandler onEntered_;
     MouseHandler onExited_;
+    MouseHandler onContext_;
 };
 
 }  // namespace jadefx

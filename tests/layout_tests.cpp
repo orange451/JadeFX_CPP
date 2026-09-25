@@ -1368,6 +1368,45 @@ void TestTreeView() {
         jadefx::Node* dana = CellNamed(*scene, "Dana");
         Expect(dana != nullptr && dana->isVisible() && Near(dana->getY(), 48), "clicking the track pages by one view");
     }
+
+    tree->setPrefSize(240, 200);
+    tree->scrollTo(0);
+    sales->setExpanded(false);
+    scene->layout(240, 200, 0);
+    int activations = 0;
+    tree->setOnItemActivated([&](jadefx::TreeItem& item) {
+        ++activations;
+        return &item == sales.get();
+    });
+    salesCell = CellNamed(*scene, "Sales");
+    if (salesCell != nullptr) {
+        ClickAt(*scene, salesCell, salesCell->getWidth() * 0.5);
+        ClickAt(*scene, salesCell, salesCell->getWidth() * 0.5);
+    }
+    Expect(activations == 1 && !sales->isExpanded(), "a handled double-click does not open the branch");
+    tree->setOnItemActivated(nullptr);
+    if (salesCell != nullptr) {
+        ClickAt(*scene, salesCell, salesCell->getWidth() * 0.5);
+        ClickAt(*scene, salesCell, salesCell->getWidth() * 0.5);
+        scene->layout(240, 200, 0);
+    }
+    Expect(sales->isExpanded(), "a double-click with no handler opens the branch");
+
+    int contexts = 0;
+    jadefx::TreeItem* contextItem = nullptr;
+    tree->setOnContextMenuRequested([&](jadefx::TreeItem& item, const jadefx::MouseEvent&) {
+        ++contexts;
+        contextItem = &item;
+    });
+    carolCell = CellNamed(*scene, "Carol");
+    if (carolCell != nullptr) {
+        const double x = carolCell->getAbsoluteX() + carolCell->getWidth() * 0.5;
+        const double y = carolCell->getAbsoluteY() + carolCell->getHeight() * 0.5;
+        scene->noteButton(1, true, x, y);
+        scene->noteButton(1, false, x, y);
+    }
+    Expect(contexts == 1 && contextItem == carol.get(), "a right-click asks for a context menu on that row");
+    Expect(tree->getSelectedItem() == carol.get(), "a right-click selects the row");
 }
 
 void TestGrayscaleFrame() {

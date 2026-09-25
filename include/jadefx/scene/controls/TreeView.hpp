@@ -14,7 +14,8 @@ class TreeScrollBar;
 // Rows indent by level. A branch draws a disclosure arrow that turns down when
 // the branch is open. The selected row keeps a thin bar on its left edge.
 // A click selects the row. The arrow, or a second click on the row, opens or
-// closes a branch. Arrow keys move the selection. The wheel and trackpad scroll
+// closes a branch. A double-click handler can take that second click instead.
+// A right-click selects the row and asks for a context menu. Arrow keys move the selection. The wheel and trackpad scroll
 // in pixels when the rows are taller than the view, so a slow swipe still moves.
 // The scrollbar matches StyledTextArea: drag the thumb, or click the track to page.
 class TreeView : public Controls {
@@ -57,6 +58,14 @@ public:
     void select(int row);
     void clearSelection();
     void setOnSelectionChanged(std::function<void(TreeItem*)> handler);
+
+    // Right-click on a row. The view has already selected that row.
+    void setOnContextMenuRequested(std::function<void(TreeItem&, const MouseEvent&)> handler);
+    // Double-click. Return true to keep a branch from opening or closing.
+    void setOnItemActivated(std::function<bool(TreeItem&)> handler);
+    // The row calls these. contextMenuRequested selects the item first.
+    void contextMenuRequested(TreeItem& item, const MouseEvent& event);
+    bool itemActivated(TreeItem& item);
 
     // scrollTo(TreeItem) opens ancestors so the row can move into view.
     void scrollTo(int row);

@@ -387,11 +387,51 @@ void Menu::show(Scene& scene, Node* anchor, Side side) {
     inShow_ = true;
     anchor_ = anchor;
     side_ = side;
+    atPoint_ = false;
     rebuildRows();
     PopupOptions options;
     options.owner = anchor;
     options.autoHide = true;
     scene.showPopupNear(popup_, anchor, side, options);
+    inShow_ = false;
+}
+
+void Menu::show(Scene& scene, double x, double y) {
+    if (inShow_) {
+        return;
+    }
+    inShow_ = true;
+    anchor_ = nullptr;
+    atPoint_ = true;
+    pointX_ = x;
+    pointY_ = y;
+    rebuildRows();
+    PopupOptions options;
+    options.autoHide = true;
+    scene.showPopup(popup_, x, y, -1, -1, options);
+    if (popup_ != nullptr) {
+        double left = x;
+        double top = y;
+        const double popupWidth = popup_->getWidth();
+        const double popupHeight = popup_->getHeight();
+        const double sceneWidth = scene.getWidth();
+        const double sceneHeight = scene.getHeight();
+        if (sceneWidth > 0 && left + popupWidth > sceneWidth) {
+            left = std::max(0.0, sceneWidth - popupWidth);
+        }
+        if (sceneHeight > 0 && top + popupHeight > sceneHeight) {
+            top = std::max(0.0, sceneHeight - popupHeight);
+        }
+        if (left < 0) {
+            left = 0;
+        }
+        if (top < 0) {
+            top = 0;
+        }
+        if (left != x || top != y) {
+            scene.movePopup(popup_.get(), left, top, popupWidth, popupHeight);
+        }
+    }
     inShow_ = false;
 }
 
@@ -442,11 +482,18 @@ void Menu::removeItem(MenuItem* item) {
 }
 
 void Menu::refreshIfOpen() {
-    if (mute_ || inShow_ || inHide_ || !isShowing() || anchor_ == nullptr || popup_ == nullptr) {
+    if (mute_ || inShow_ || inHide_ || !isShowing() || popup_ == nullptr) {
         return;
     }
     Scene* scene = popup_->getScene();
     if (scene == nullptr) {
+        return;
+    }
+    if (atPoint_) {
+        show(*scene, pointX_, pointY_);
+        return;
+    }
+    if (anchor_ == nullptr) {
         return;
     }
     show(*scene, anchor_, side_);

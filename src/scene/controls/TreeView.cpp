@@ -263,6 +263,7 @@ public:
         setOnMousePressed([this](const MouseEvent& event) { pressed(event); });
         setOnMouseReleased([this](const MouseEvent&) { released(); });
         setOnMouseClicked([this](const MouseEvent&) { clickedRow(); });
+        setOnContextMenuRequested([this](const MouseEvent& event) { contextMenu(event); });
         setOnMouseEntered([this](const MouseEvent&) { updateChrome(); });
         setOnMouseExited([this](const MouseEvent&) { updateChrome(); });
     }
@@ -537,9 +538,22 @@ private:
         const bool repeat = lastClick_ > 0 && now - lastClick_ < kDoubleClickSeconds;
         lastClick_ = repeat ? 0 : now;
         view->select(item);
-        if (repeat && !item->isLeaf()) {
-            item->setExpanded(!item->isExpanded());
+        if (repeat) {
+            const bool handled = view->itemActivated(*item);
+            if (!handled && !item->isLeaf()) {
+                item->setExpanded(!item->isExpanded());
+            }
         }
+    }
+
+    void contextMenu(const MouseEvent& event) {
+        TreeItem* item = item_;
+        TreeView* view = view_;
+        if (item == nullptr || view == nullptr) {
+            return;
+        }
+        view->select(item);
+        view->contextMenuRequested(*item, event);
     }
 
     TreeView* view_ = nullptr;
@@ -590,6 +604,8 @@ struct TreeView::Impl {
     std::vector<std::shared_ptr<TreeCell>> rows;
     std::shared_ptr<TreeItem> selected;
     std::function<void(TreeItem*)> onSelection;
+    std::function<void(TreeItem&, const MouseEvent&)> onContext;
+    std::function<bool(TreeItem&)> onActivated;
     bool showRoot = true;
     double indent = kDefaultIndent;
     double cellSize = kDefaultRow;
@@ -621,6 +637,8 @@ TreeView::~TreeView() {
     }
     impl_->alive = false;
     impl_->onSelection = nullptr;
+    impl_->onContext = nullptr;
+    impl_->onActivated = nullptr;
     if (impl_->watched != nullptr) {
         impl_->watched->setStructureListener(nullptr);
         impl_->watched = nullptr;
@@ -764,6 +782,35 @@ void TreeView::setOnSelectionChanged(std::function<void(TreeItem*)> handler) {
     if (impl_) {
         impl_->onSelection = std::move(handler);
     }
+}
+
+void TreeView::setOnContextMenuRequested(std::function<void(TreeItem&, const MouseEvent&)> handler) {
+    if (impl_) {
+        impl_->onContext = std::move(handler);
+    }
+}
+
+void TreeView::setOnItemActivated(std::function<bool(TreeItem&)> handler) {
+    if (impl_) {
+        impl_->onActivated = std::move(handler);
+    }
+}
+
+void TreeView::contextMenuRequested(TreeItem& item, const MouseEvent& event) {
+    if (!impl_ || !impl_->alive) {
+        return;
+    }
+    select(&item);
+    if (impl_->onContext) {
+        impl_->onContext(item, event);
+    }
+}
+
+bool TreeView::itemActivated(TreeItem& item) {
+    if (!impl_ || !impl_->onActivated) {
+        return false;
+    }
+    return impl_->onActivated(item);
 }
 
 void TreeView::scrollTo(int row) {

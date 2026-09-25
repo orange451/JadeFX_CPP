@@ -146,6 +146,36 @@ void Scene::noteMove(double x, double y) {
 
 void Scene::noteButton(int button, bool down, double x, double y) {
     noteMove(x, y);
+    // GLFW button 1 is the right button. A press opens a context menu and does not click.
+    if (button == 1) {
+        if (!down) {
+            return;
+        }
+        Node* hit = pick(x, y);
+        std::vector<Node*> dismiss;
+        for (const PopupRecord& popup : popups_) {
+            if (popup.node && !popupStays(popup, hit, 0)) {
+                dismiss.push_back(popup.node.get());
+            }
+        }
+        for (Node* popup : dismiss) {
+            hidePopup(popup);
+        }
+        hit = pick(x, y);
+        MouseEvent event;
+        event.x = x;
+        event.y = y;
+        event.button = button;
+        for (Node* node = hit; node != nullptr; node = node->getParent()) {
+            if (!node->hasContextMenuHandler()) {
+                continue;
+            }
+            event.target = node;
+            node->fireContextMenu(event);
+            break;
+        }
+        return;
+    }
     if (button != 0) {
         return;
     }

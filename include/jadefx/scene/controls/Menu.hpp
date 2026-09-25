@@ -27,6 +27,8 @@ public:
     bool isShowing() const;
     void hide();
     void show(Scene& scene, Node* anchor, Side side);
+    // Opens the popup at a window point, then shifts it so it stays inside the scene.
+    void show(Scene& scene, double x, double y);
 
 private:
     friend class MenuItem;
@@ -45,6 +47,9 @@ private:
     std::shared_ptr<Node> popup_;
     Node* anchor_ = nullptr;
     Side side_ = Side::Bottom;
+    bool atPoint_ = false;
+    double pointX_ = 0;
+    double pointY_ = 0;
     bool mute_ = false;
     bool inShow_ = false;
     bool inHide_ = false;
