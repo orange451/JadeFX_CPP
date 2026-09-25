@@ -77,6 +77,9 @@ public:
     // The pump returns 1 after one turn, 0 when a frame is already running, and -1 to stop.
     void setEventPump(std::function<int()> pump);
 
+    // Runs after the frame has been drawn. A resize requested here shows up next frame.
+    void setFrameTail(std::function<void()> tail);
+
 private:
     struct Event;
     void processEvents();
@@ -100,6 +103,7 @@ private:
     std::function<void(const std::string&)> clipboardSet_;
     std::function<std::string()> clipboardGet_;
     std::function<int()> eventPump_;
+    std::function<void()> frameTail_;
     std::string clipboard_;
     int pointWidth_ = 0;
     int pointHeight_ = 0;

@@ -4,6 +4,7 @@
 #include "jadefx/scene/controls/Tab.hpp"
 
 #include <cstddef>
+#include <functional>
 #include <memory>
 
 namespace jadefx {
@@ -21,6 +22,33 @@ namespace jadefx {
 // because only the selected tab shows one. A tab that is not closable, a
 // disabled tab, and TabClosingPolicy::Unavailable stay open. Close asks
 // onCloseRequest first; consume() keeps the tab.
+//
+// Dragging a header along the strip reorders the tabs. Once the pointer leaves
+// the header, the drag is reported so the application can preview a dock.
+// Release reports the same event with released set. The tab stays in this pane
+// until the handler moves it.
+struct TabDrag {
+    std::shared_ptr<Tab> tab;
+    // Window coordinates of the pointer.
+    double x = 0;
+    double y = 0;
+    // True when the pointer is not on this pane's header.
+    bool outside = false;
+    // True for the mouse release that ends the gesture.
+    bool released = false;
+};
+
+// Where a header drop would insert. Valid while the point is on the header bar.
+// The rectangle is a caret in window coordinates.
+struct TabHeaderGap {
+    double x = 0;
+    double y = 0;
+    double width = 0;
+    double height = 0;
+    std::size_t index = 0;
+    bool valid = false;
+};
+
 class TabPane : public Controls {
 public:
     enum class TabClosingPolicy { SelectedTab, AllTabs, Unavailable };
@@ -56,6 +84,22 @@ public:
     double getTabMaxWidth() const;
     double getTabMinHeight() const;
     double getTabMaxHeight() const;
+
+    // Asks onCloseRequest, then removes the tab. False when the tab stays.
+    bool close(const std::shared_ptr<Tab>& tab);
+
+    // Header index under a window point. Past the strip, the index is the tab count.
+    std::size_t insertionIndex(double x, double y) const;
+
+    // Caret for a drop on the header. Invalid when the point is off the strip.
+    TabHeaderGap headerGap(double x, double y) const;
+
+    // Thickness of the header strip. Zero when the pane has no tabs.
+    double headerExtent() const;
+
+    // Fired while a header drag is off the strip, and again on release.
+    // The tab is still in this pane until the handler moves it.
+    void setOnTabDrag(std::function<void(const TabDrag&)> handler);
 
     // Grays the headers and blocks header clicks and close buttons.
     void setDisable(bool value);
@@ -95,6 +139,14 @@ private:
     void closeTabsAfter(const std::shared_ptr<Tab>& origin);
     void selectNow(const std::shared_ptr<Tab>& tab);
     std::shared_ptr<TabHeader> makeHeader(const std::shared_ptr<Tab>& tab);
+    void beginHeaderDrag(const std::shared_ptr<Tab>& tab, double x, double y);
+    void moveHeaderDrag(double x, double y);
+    void endHeaderDrag(double x, double y);
+    void moveTab(std::size_t from, std::size_t to);
+    std::size_t indexOf(const Tab* tab) const;
+    bool pointerOnHeader(double x, double y) const;
+    void publishDrag(double x, double y, bool released);
+    std::size_t indexForDrag(double x, double y) const;
 
     std::unique_ptr<Impl> impl_;
 };

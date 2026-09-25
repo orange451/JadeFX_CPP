@@ -1,5 +1,6 @@
 #include "jadefx/application/Application.hpp"
 
+#include "platform/DesktopWindows.hpp"
 #include "platform/GlfwHost.hpp"
 
 #include <cstdlib>
@@ -79,6 +80,7 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
 
     Stage stage;
     host.bind(&stage);
+    bindDesktopPrimary(host, stage);
     stage.setHostHandlers([&](int width, int height) { host.setSize(width, height); }, [&]() { host.show(); },
                           [&](const std::string& next) { host.setTitle(next.c_str()); });
     stage.setCursorHandler([&](Cursor cursor) { host.setCursor(cursor); });
@@ -99,6 +101,7 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
             return true;
         }
         drawing = true;
+        host.makeCurrent();
         int pointWidth = 0;
         int pointHeight = 0;
         int framebufferWidth = 0;
@@ -123,6 +126,7 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
         }
         ++pumping;
         host.poll();
+        closeFlaggedDesktopWindows();
         const bool closed = host.shouldClose();
         const bool ok = !closed && drawFrame();
         --pumping;
@@ -138,7 +142,8 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
 
     while (!host.shouldClose()) {
         host.poll();
-        if (host.shouldClose() || !drawFrame()) {
+        closeFlaggedDesktopWindows();
+        if (host.shouldClose() || !drawFrame() || !drawDesktopWindows()) {
             break;
         }
         if (smokeFrames > 0 && rendered >= smokeFrames) {
@@ -146,6 +151,7 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
         }
     }
 
+    shutdownDesktopWindows();
     stage.shutdownGraphics();
     host.destroy();
     return stage.graphicsOk() ? 0 : 1;

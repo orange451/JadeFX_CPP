@@ -120,6 +120,14 @@ void OnRefresh(GLFWwindow* window) {
     }
 }
 
+void OnClose(GLFWwindow* window) {
+    if (GlfwHost* host = HostOf(window)) {
+        if (host->closeHookRejects()) {
+            glfwSetWindowShouldClose(window, GLFW_FALSE);
+        }
+    }
+}
+
 void OnCursorEnter(GLFWwindow* window, int entered) {
     GlfwHost* host = HostOf(window);
     Stage* stage = host != nullptr ? host->boundStage() : nullptr;
@@ -211,12 +219,14 @@ bool GlfwHost::create(int width, int height, const char* title) {
         std::fprintf(stderr, "glfwInit failed (%s).\n", gError);
         return false;
     }
+    ownsLibrary_ = true;
     gError[0] = '\0';
     SetCoreHints();
     window_ = glfwCreateWindow(width, height, title, nullptr, nullptr);
     if (window_ == nullptr) {
         std::fprintf(stderr, "Could not create an OpenGL window (%s).\n", gError);
         glfwTerminate();
+        ownsLibrary_ = false;
         return false;
     }
     glfwSetWindowSizeLimits(window_, 240, 160, GLFW_DONT_CARE, GLFW_DONT_CARE);
@@ -224,6 +234,38 @@ bool GlfwHost::create(int width, int height, const char* title) {
     glfwSwapInterval(swapInterval_);
     return true;
 }
+
+bool GlfwHost::openChild(int width, int height, const char* title, int x, int y) {
+    if (window_ != nullptr) {
+        return false;
+    }
+    GLFWwindow* previous = glfwGetCurrentContext();
+    SetCoreHints();
+    window_ = glfwCreateWindow(width, height, title != nullptr ? title : "", nullptr, nullptr);
+    if (window_ == nullptr) {
+        std::fprintf(stderr, "Could not create a utility window (%s).\n", gError);
+        if (previous != nullptr) {
+            glfwMakeContextCurrent(previous);
+        }
+        return false;
+    }
+    glfwSetWindowPos(window_, x, y);
+    glfwSetWindowSizeLimits(window_, 160, 120, GLFW_DONT_CARE, GLFW_DONT_CARE);
+    if (previous != nullptr) {
+        glfwMakeContextCurrent(previous);
+    }
+    return true;
+}
+
+void GlfwHost::makeCurrent() {
+    if (window_ != nullptr) {
+        glfwMakeContextCurrent(window_);
+    }
+}
+
+void GlfwHost::setCloseHook(std::function<bool()> hook) { closeHook_ = std::move(hook); }
+
+bool GlfwHost::closeHookRejects() const { return closeHook_ && !closeHook_(); }
 
 void GlfwHost::setSwapInterval(int interval) {
     swapInterval_ = interval < 0 ? 0 : interval;
@@ -251,7 +293,10 @@ void GlfwHost::destroy() {
         glfwDestroyWindow(window_);
         window_ = nullptr;
     }
-    glfwTerminate();
+    if (ownsLibrary_) {
+        glfwTerminate();
+        ownsLibrary_ = false;
+    }
 }
 
 bool GlfwHost::shouldClose() const {
@@ -339,6 +384,7 @@ void GlfwHost::bind(Stage* stage) {
     glfwSetWindowSizeCallback(window_, OnContentChange);
     glfwSetFramebufferSizeCallback(window_, OnContentChange);
     glfwSetWindowRefreshCallback(window_, OnRefresh);
+    glfwSetWindowCloseCallback(window_, OnClose);
 }
 
 void GlfwHost::setCursor(Cursor cursor) {

@@ -142,6 +142,23 @@ void TestMinAndMax() {
     ExpectNear(rightNode->getWidth(), 172, "the leftover goes to the other item");
 }
 
+void TestMinimumGrowsLater() {
+    auto split = jadefx::make<jadefx::SplitPane>();
+    auto left = Box();
+    auto right = Box();
+    left->setMinSize(40, 0);
+    right->setMinSize(40, 0);
+    jadefx::Node* leftNode = left.get();
+    split->getItems().add(left);
+    split->getItems().add(right);
+    split->setDividerPosition(0, 0.2);
+    auto scene = Show(split, 400, 100);
+    Expect(leftNode->getWidth() < 150, "the left side starts narrow");
+    left->setMinSize(220, 0);
+    scene->layout(400, 100, 0);
+    ExpectNear(leftNode->getWidth(), 220, "raising the minimum widens that side");
+}
+
 void TestResizeKeepsFixedItem() {
     auto split = jadefx::make<jadefx::SplitPane>();
     auto left = Box();
@@ -261,6 +278,49 @@ void TestPercentMinimum() {
     ExpectNear(leftNode->getWidth(), 200, "a percent minimum is a fraction of the pane");
 }
 
+void TestSideColumnsStayPut() {
+    auto horizontal = jadefx::make<jadefx::SplitPane>();
+    auto west = Box();
+    auto east = Box();
+    auto center = Box();
+    auto south = Box();
+    west->setMinSize(150, 80);
+    west->setPrefWidth(9999999);
+    east->setMinSize(150, 80);
+    east->setPrefWidth(9999999);
+    center->setMinSize(64, 64);
+    south->setMinSize(80, 64);
+    auto vertical = jadefx::make<jadefx::SplitPane>();
+    vertical->setOrientation(jadefx::Orientation::Vertical);
+    vertical->getItems().add(center);
+    vertical->getItems().add(south);
+    vertical->setDividerPositions({1.0 - 150.0 / 748.0});
+    jadefx::SplitPane::setResizableWithParent(*south, false);
+    horizontal->getItems().add(west);
+    horizontal->getItems().add(vertical);
+    horizontal->getItems().add(east);
+    const double side = 240.0 / 1280.0;
+    horizontal->setDividerPositions({side, 1.0 - side});
+    jadefx::SplitPane::setResizableWithParent(*west, false);
+    jadefx::SplitPane::setResizableWithParent(*east, false);
+    const std::vector<double> before = horizontal->getDividerPositions();
+    Expect(before.size() == 2, "the shell row has two dividers");
+    if (before.size() == 2) {
+        ExpectNear(before[0], side, "the left divider is the side width");
+        ExpectNear(before[1], 1.0 - side, "the right divider is the side width from the other edge");
+    }
+    auto scene = jadefx::make<jadefx::Scene>(horizontal, 1280, 748);
+    scene->setStylesheet(
+        "split-pane:horizontal > .split-pane-divider, split-pane:vertical > .split-pane-divider { padding: 0 2px; }");
+    scene->layout(1280, 748, 0);
+    ExpectNear(west->getWidth(), 240, "the left column starts at the side width", 8);
+    ExpectNear(east->getWidth(), 240, "the right column starts at the side width", 8);
+    Expect(center->getWidth() > 600, "the scene column keeps the middle");
+    scene->layout(1800, 748, 0);
+    ExpectNear(west->getWidth(), 240, "growing the window leaves the left column", 8);
+    ExpectNear(east->getWidth(), 240, "growing the window leaves the right column", 8);
+}
+
 void TestDividerOrder() {
     auto split = jadefx::make<jadefx::SplitPane>();
     auto first = Box();
@@ -297,10 +357,12 @@ int RunSplitPaneTests() {
     TestEqualSplit();
     TestDividerPositionAndDrag();
     TestMinAndMax();
+    TestMinimumGrowsLater();
     TestResizeKeepsFixedItem();
     TestThreePanesAndRemoval();
     TestVerticalAndCss();
     TestPercentMinimum();
+    TestSideColumnsStayPut();
     TestDividerOrder();
     return gFailures - before;
 }

@@ -48,6 +48,7 @@
 #include "jadefx/scene/text/StyledDocument.hpp"
 #include "jadefx/scene/text/TextStyle.hpp"
 #include "jadefx/stage/Stage.hpp"
+#include "jadefx/stage/UtilityWindow.hpp"
 #include "jadefx/style/Style.hpp"
 
 #include <memory>

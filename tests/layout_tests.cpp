@@ -1,6 +1,7 @@
 #include "jadefx/jadefx.hpp"
 
 #include "internal/Subpixel.hpp"
+#include "platform/DesktopWindows.hpp"
 #include "platform/GlfwHost.hpp"
 
 #include <algorithm>
@@ -1679,6 +1680,134 @@ void TestGrayscaleFrame() {
     Expect(shot.light > 20, "grayscale background stays light");
 }
 
+void TestTabReorder() {
+    auto first = jadefx::make<jadefx::Tab>("One", jadefx::make<jadefx::Label>("A"));
+    auto second = jadefx::make<jadefx::Tab>("Two", jadefx::make<jadefx::Label>("B"));
+    auto third = jadefx::make<jadefx::Tab>("Three", jadefx::make<jadefx::Label>("C"));
+    auto pane = jadefx::make<jadefx::TabPane>();
+    pane->setPrefSize(360, 200);
+    pane->getTabs().add(first);
+    pane->getTabs().add(second);
+    pane->getTabs().add(third);
+    auto scene = jadefx::make<jadefx::Scene>(pane, 360, 200);
+    scene->layout(360, 200, 0);
+
+    jadefx::Node* one = FindClass(*scene, "tab", 0);
+    jadefx::Node* three = FindClass(*scene, "tab", 2);
+    Expect(one != nullptr && three != nullptr, "three headers are laid out");
+    if (one == nullptr || three == nullptr) {
+        return;
+    }
+    const double y = one->getAbsoluteY() + one->getHeight() * 0.5;
+    const double dropX = three->getAbsoluteX() + three->getWidth() - 1;
+    scene->noteButton(0, true, one->getAbsoluteX() + 8, y);
+    scene->noteMove(dropX, y);
+    scene->layout(360, 200, 0);
+    Expect(pane->getTabs()[0]->getText() == "Two", "dragging the first header past the others moves it");
+    Expect(pane->getTabs()[2]->getText() == "One", "the dragged tab lands at the end");
+    scene->noteButton(0, false, dropX, y);
+
+    scene->layout(360, 200, 0);
+    jadefx::Node* left = FindClass(*scene, "tab", 0);
+    if (left != nullptr) {
+        const double leftX = left->getAbsoluteX() + 8;
+        const double leftY = left->getAbsoluteY() + left->getHeight() * 0.5;
+        scene->noteButton(0, true, leftX, leftY);
+        scene->noteMove(leftX + 2, leftY);
+        scene->noteButton(0, false, leftX + 2, leftY);
+    }
+    Expect(pane->getTabs()[0]->getText() == "Two", "a short drag leaves the order alone");
+
+    int outsides = 0;
+    pane->setOnTabDrag([&](const jadefx::TabDrag& drag) {
+        if (drag.released && drag.outside && drag.tab) {
+            ++outsides;
+        }
+    });
+    scene->layout(360, 200, 0);
+    jadefx::Node* header = FindClass(*scene, "tab", 0);
+    if (header != nullptr) {
+        const double hx = header->getAbsoluteX() + 10;
+        const double hy = header->getAbsoluteY() + header->getHeight() * 0.5;
+        scene->noteButton(0, true, hx, hy);
+        scene->noteMove(hx, -40);
+        scene->noteButton(0, false, hx, -40);
+    }
+    Expect(outsides == 1, "releasing outside the pane reports the drag");
+    Expect(pane->getTabs().size() == 3, "the pane keeps the tab until the handler moves it");
+
+    int moves = 0;
+    pane->setOnTabDrag([&](const jadefx::TabDrag& drag) {
+        if (!drag.released && drag.outside) {
+            ++moves;
+        }
+    });
+    scene->layout(360, 200, 0);
+    header = FindClass(*scene, "tab", 0);
+    const std::string before = pane->getTabs()[0]->getText();
+    if (header != nullptr) {
+        const double hx = header->getAbsoluteX() + 10;
+        const double hy = header->getAbsoluteY() + header->getHeight() * 0.5;
+        const jadefx::TabHeaderGap gap = pane->headerGap(hx, hy);
+        Expect(gap.valid && gap.index == 0, "a point on the first header marks that gap");
+        scene->noteButton(0, true, hx, hy);
+        scene->noteMove(hx, hy + header->getHeight() + 30);
+        scene->noteButton(0, false, hx, hy + header->getHeight() + 30);
+    }
+    Expect(moves >= 1, "dragging off the header reports the gesture");
+    Expect(pane->getTabs()[0]->getText() == before, "dragging into the content does not reorder");
+
+    auto stuck = jadefx::make<jadefx::Tab>("Stay", jadefx::make<jadefx::Label>("S"));
+    stuck->setClosable(false);
+    pane->getTabs().add(stuck);
+    Expect(!pane->close(stuck), "a tab that is not closable stays");
+    Expect(pane->close(first), "close removes a closable tab");
+    int blocked = 0;
+    second->setOnCloseRequest([&](jadefx::TabCloseRequest& request) {
+        ++blocked;
+        request.consume();
+    });
+    Expect(!pane->close(second) && blocked == 1, "a consumed close request keeps the tab");
+}
+
+void TestUtilityWindow() {
+    jadefx::GlfwHost host;
+    if (!host.create(640, 480, "primary")) {
+        Expect(false, "the primary window opens");
+        return;
+    }
+    jadefx::Stage stage;
+    host.bind(&stage);
+    jadefx::bindDesktopPrimary(host, stage);
+    if (!stage.initializeGraphics(&jadefx::GlfwHost::proc)) {
+        Expect(false, "primary graphics initialize");
+        host.destroy();
+        return;
+    }
+    stage.show();
+    host.poll();
+    std::shared_ptr<jadefx::UtilityWindow> utility = jadefx::UtilityWindow::open("Tools", 320, 240, 40, 40);
+    Expect(utility != nullptr && utility->isOpen(), "a utility window opens beside the primary");
+    if (utility) {
+        double screenX = 0;
+        double screenY = 0;
+        Expect(jadefx::stageToScreen(utility->stage(), 0, 0, screenX, screenY), "a utility point maps to the screen");
+        jadefx::Stage* hit = nullptr;
+        double localX = 0;
+        double localY = 0;
+        host.poll();
+        Expect(jadefx::windowUnderScreen(screenX + 10, screenY + 10, hit, localX, localY) && hit == &utility->stage(),
+               "the utility window is the window under its own screen point");
+        utility->setCanClose([]() { return false; });
+        Expect(!utility->tryClose() && utility->isOpen(), "a refused close leaves the utility window open");
+        utility->setCanClose([]() { return true; });
+        Expect(utility->tryClose() && !utility->isOpen(), "an allowed close destroys the utility window");
+    }
+    jadefx::shutdownDesktopWindows();
+    stage.shutdownGraphics();
+    host.destroy();
+}
+
 }  // namespace
 
 int RunRichTextTests();
@@ -1713,6 +1842,8 @@ int main() {
     TestCalcAndBorder();
     TestLabelEllipsis();
     TestTabPane();
+    TestTabReorder();
+    TestUtilityWindow();
     TestTreeView();
     gFailures += RunRichTextTests();
     gFailures += RunButtonTests();

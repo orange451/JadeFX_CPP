@@ -75,7 +75,9 @@ else()
 endif()
 
 if(NOT JADEFX_GLFM)
-    list(APPEND JADEFX_SOURCES src/platform/GlfwHost.cpp)
+    list(APPEND JADEFX_SOURCES src/platform/GlfwHost.cpp src/platform/UtilityWindow.cpp)
+else()
+    list(APPEND JADEFX_SOURCES src/platform/UtilityWindowStub.cpp)
 endif()
 
 add_library(jadefx STATIC ${JADEFX_SOURCES})

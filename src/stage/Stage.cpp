@@ -85,6 +85,8 @@ void Stage::setEventPump(std::function<int()> pump) {
     }
 }
 
+void Stage::setFrameTail(std::function<void()> tail) { frameTail_ = std::move(tail); }
+
 void Stage::setHostHandlers(ResizeHandler resize, ShowHandler show, TitleHandler title) {
     onResize_ = std::move(resize);
     onShow_ = std::move(show);
@@ -260,6 +262,9 @@ bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int fra
         }
     }
     renderer_->end();
+    if (frameTail_) {
+        frameTail_();
+    }
 
     const GLenum error = glGetError();
     if (error != GL_NO_ERROR) {

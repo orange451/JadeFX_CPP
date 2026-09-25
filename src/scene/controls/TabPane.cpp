@@ -9,6 +9,7 @@
 #include "../layout/LayoutDetail.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <utility>
 #include <vector>
@@ -19,6 +20,8 @@ namespace {
 constexpr double kTabGap = 2;
 constexpr double kInnerGap = 6;
 constexpr double kUnlimited = 1.0e9;
+constexpr double kDragSlop = 6;
+constexpr double kCaret = 3;
 
 struct InputGuard {
     int& depth;
@@ -201,6 +204,9 @@ private:
     void clickedClose();
     void clickedHeader();
     void contextMenu(const MouseEvent& event);
+    void handleMousePressed(const MouseEvent& event) override;
+    void handleMouseDragged(const MouseEvent& event) override;
+    void handleMouseReleased(const MouseEvent& event) override;
     void adoptGraphic(std::shared_ptr<Node> graphic);
     void replaceLabel();
     void replaceClose();
@@ -237,8 +243,22 @@ struct TabPane::Impl {
     bool suppressRemove = false;
     bool closing = false;
     bool syncing = false;
+    bool reordering = false;
+    bool suppressClick = false;
     int eventDepth = 0;
     std::shared_ptr<Menu> tabMenu;
+    std::function<void(const TabDrag&)> onDrag;
+
+    struct Drag {
+        bool tracking = false;
+        bool moved = false;
+        // Header positions stay put until the next layout, so only one reorder happens per frame.
+        bool waitingForLayout = false;
+        std::shared_ptr<Tab> tab;
+        double originX = 0;
+        double originY = 0;
+    };
+    Drag drag;
 };
 
 TabPane::TabHeader::TabHeader(TabPane& pane, std::shared_ptr<Tab> tab) : pane_(&pane), tab_(std::move(tab)) {
@@ -267,6 +287,8 @@ TabPane::TabHeader::~TabHeader() {
 
 void TabPane::TabHeader::replaceLabel() {
     label_ = std::make_shared<TabLabel>(tab_ ? tab_->getText() : std::string());
+    // Presses land on the header so a drag can reorder the tab. The close button stays hittable.
+    label_->setMouseTransparent(true);
     label_->setParent(this);
 }
 
@@ -295,10 +317,35 @@ void TabPane::TabHeader::clickedHeader() {
         pane_->impl_->suppressHeader = false;
         return;
     }
+    if (pane_->impl_->suppressClick) {
+        pane_->impl_->suppressClick = false;
+        return;
+    }
     if (tab_->isDisabled() || tab_->getTabPane() != pane_) {
         return;
     }
     pane_->select(tab_);
+}
+
+void TabPane::TabHeader::handleMousePressed(const MouseEvent& event) {
+    if (pane_ == nullptr || !tab_ || event.button != 0) {
+        return;
+    }
+    pane_->beginHeaderDrag(tab_, event.x, event.y);
+}
+
+void TabPane::TabHeader::handleMouseDragged(const MouseEvent& event) {
+    if (pane_ == nullptr) {
+        return;
+    }
+    pane_->moveHeaderDrag(event.x, event.y);
+}
+
+void TabPane::TabHeader::handleMouseReleased(const MouseEvent& event) {
+    if (pane_ == nullptr) {
+        return;
+    }
+    pane_->endHeaderDrag(event.x, event.y);
 }
 
 void TabPane::TabHeader::contextMenu(const MouseEvent& event) {
@@ -653,6 +700,232 @@ void TabPane::setDisable(bool value) {
 
 bool TabPane::isDisabled() const { return impl_ && impl_->disabled; }
 
+bool TabPane::close(const std::shared_ptr<Tab>& tab) {
+    if (!impl_ || !tab || !canClose(*tab)) {
+        return false;
+    }
+    requestClose(tab);
+    for (const std::shared_ptr<Tab>& item : impl_->tabs.items()) {
+        if (item == tab) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool TabPane::pointerOnHeader(double x, double y) const {
+    if (!impl_ || !impl_->bar || !impl_->bar->isVisible()) {
+        return false;
+    }
+    const Node* bar = impl_->bar.get();
+    return x >= bar->getAbsoluteX() && y >= bar->getAbsoluteY() && x < bar->getAbsoluteX() + bar->getWidth() &&
+           y < bar->getAbsoluteY() + bar->getHeight();
+}
+
+TabHeaderGap TabPane::headerGap(double x, double y) const {
+    TabHeaderGap gap;
+    if (!pointerOnHeader(x, y) || !impl_->bar) {
+        return gap;
+    }
+    gap.valid = true;
+    gap.index = insertionIndex(x, y);
+    const bool horizontal = HorizontalSide(impl_->side);
+    const Node* bar = impl_->bar.get();
+    double edge = horizontal ? bar->getAbsoluteX() : bar->getAbsoluteY();
+    std::size_t seen = 0;
+    for (const Impl::Slot& slot : impl_->slots) {
+        if (!slot.header) {
+            continue;
+        }
+        if (seen == gap.index) {
+            edge = horizontal ? slot.header->getAbsoluteX() : slot.header->getAbsoluteY();
+            break;
+        }
+        ++seen;
+        edge = horizontal ? slot.header->getAbsoluteX() + slot.header->getWidth()
+                          : slot.header->getAbsoluteY() + slot.header->getHeight();
+    }
+    if (horizontal) {
+        gap.x = edge - kCaret * 0.5;
+        gap.y = bar->getAbsoluteY();
+        gap.width = kCaret;
+        gap.height = bar->getHeight();
+    } else {
+        gap.x = bar->getAbsoluteX();
+        gap.y = edge - kCaret * 0.5;
+        gap.width = bar->getWidth();
+        gap.height = kCaret;
+    }
+    return gap;
+}
+
+std::size_t TabPane::insertionIndex(double x, double y) const {
+    if (!impl_ || impl_->slots.empty()) {
+        return 0;
+    }
+    const bool horizontal = HorizontalSide(impl_->side);
+    const Node* bar = impl_->bar.get();
+    const bool inBar = bar != nullptr && bar->isVisible() && x >= bar->getAbsoluteX() && y >= bar->getAbsoluteY() &&
+                       x < bar->getAbsoluteX() + bar->getWidth() && y < bar->getAbsoluteY() + bar->getHeight();
+    if (!inBar) {
+        return impl_->tabs.size();
+    }
+    std::size_t index = 0;
+    for (const Impl::Slot& slot : impl_->slots) {
+        if (!slot.header) {
+            continue;
+        }
+        const double mid = horizontal ? slot.header->getAbsoluteX() + slot.header->getWidth() * 0.5
+                                      : slot.header->getAbsoluteY() + slot.header->getHeight() * 0.5;
+        if ((horizontal ? x : y) < mid) {
+            return index;
+        }
+        ++index;
+    }
+    return index;
+}
+
+double TabPane::headerExtent() const {
+    if (!impl_ || impl_->slots.empty()) {
+        return 0;
+    }
+    if (impl_->bar && impl_->bar->isVisible()) {
+        const double extent = HorizontalSide(impl_->side) ? impl_->bar->getHeight() : impl_->bar->getWidth();
+        if (extent > 1.0) {
+            return extent;
+        }
+    }
+    return 32;
+}
+
+void TabPane::setOnTabDrag(std::function<void(const TabDrag&)> handler) {
+    if (impl_) {
+        impl_->onDrag = std::move(handler);
+    }
+}
+
+void TabPane::beginHeaderDrag(const std::shared_ptr<Tab>& tab, double x, double y) {
+    if (!impl_ || !tab || impl_->disabled || tab->isDisabled() || tab->getTabPane() != this) {
+        return;
+    }
+    impl_->drag = {};
+    impl_->drag.tracking = true;
+    impl_->drag.tab = tab;
+    impl_->drag.originX = x;
+    impl_->drag.originY = y;
+}
+
+void TabPane::publishDrag(double x, double y, bool released) {
+    if (!impl_ || !impl_->onDrag || !impl_->drag.tab) {
+        return;
+    }
+    TabDrag event;
+    event.tab = impl_->drag.tab;
+    event.x = x;
+    event.y = y;
+    event.outside = !pointerOnHeader(x, y);
+    event.released = released;
+    impl_->onDrag(event);
+}
+
+void TabPane::moveHeaderDrag(double x, double y) {
+    if (!impl_ || !impl_->drag.tracking || !impl_->drag.tab) {
+        return;
+    }
+    const double dx = x - impl_->drag.originX;
+    const double dy = y - impl_->drag.originY;
+    if (!impl_->drag.moved && (dx * dx + dy * dy) < kDragSlop * kDragSlop) {
+        return;
+    }
+    if (!impl_->drag.moved) {
+        impl_->drag.moved = true;
+        select(impl_->drag.tab);
+    }
+    publishDrag(x, y, false);
+    // Reorder only while the pointer stays on the strip. The content area and
+    // the space outside the pane are dock targets, reported above.
+    if (!pointerOnHeader(x, y) || impl_->drag.waitingForLayout || impl_->drag.tab->getTabPane() != this) {
+        return;
+    }
+    const std::size_t from = indexOf(impl_->drag.tab.get());
+    const std::size_t to = indexForDrag(x, y);
+    if (from == npos || to == npos || from == to) {
+        return;
+    }
+    moveTab(from, to);
+    impl_->drag.waitingForLayout = true;
+}
+
+void TabPane::endHeaderDrag(double x, double y) {
+    if (!impl_) {
+        return;
+    }
+    InputGuard guard(impl_->eventDepth);
+    Impl::Drag drag = std::move(impl_->drag);
+    impl_->drag = {};
+    if (drag.moved) {
+        impl_->suppressClick = true;
+    }
+    if (!drag.moved || !drag.tab || drag.tab->getTabPane() != this || !impl_->onDrag) {
+        return;
+    }
+    TabDrag event;
+    event.tab = std::move(drag.tab);
+    event.x = x;
+    event.y = y;
+    event.outside = !pointerOnHeader(x, y);
+    event.released = true;
+    impl_->onDrag(event);
+}
+
+void TabPane::moveTab(std::size_t from, std::size_t to) {
+    if (!impl_ || from == to || from >= impl_->slots.size() || to >= impl_->slots.size()) {
+        return;
+    }
+    impl_->reordering = true;
+    std::shared_ptr<Tab> tab = impl_->tabs[from];
+    impl_->tabs.removeAt(from);
+    impl_->tabs.insert(to, std::move(tab));
+    Impl::Slot slot = std::move(impl_->slots[from]);
+    impl_->slots.erase(impl_->slots.begin() + static_cast<std::ptrdiff_t>(from));
+    impl_->slots.insert(impl_->slots.begin() + static_cast<std::ptrdiff_t>(to), std::move(slot));
+    impl_->reordering = false;
+}
+
+std::size_t TabPane::indexOf(const Tab* tab) const {
+    if (!impl_ || tab == nullptr) {
+        return npos;
+    }
+    const std::vector<std::shared_ptr<Tab>>& items = impl_->tabs.items();
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        if (items[i].get() == tab) {
+            return i;
+        }
+    }
+    return npos;
+}
+
+std::size_t TabPane::indexForDrag(double x, double y) const {
+    if (!impl_) {
+        return npos;
+    }
+    const bool horizontal = HorizontalSide(impl_->side);
+    const Tab* dragged = impl_->drag.tab.get();
+    std::size_t target = 0;
+    for (const Impl::Slot& slot : impl_->slots) {
+        if (!slot.tab || !slot.header || slot.tab.get() == dragged) {
+            continue;
+        }
+        const double mid = horizontal ? slot.header->getAbsoluteX() + slot.header->getWidth() * 0.5
+                                      : slot.header->getAbsoluteY() + slot.header->getHeight() * 0.5;
+        if ((horizontal ? x : y) < mid) {
+            return target;
+        }
+        ++target;
+    }
+    return target;
+}
+
 bool TabPane::closeShown(const Tab& tab) const {
     if (!impl_ || !tab.isClosable()) {
         return false;
@@ -678,7 +951,7 @@ bool TabPane::canClose(const Tab& tab) const {
 }
 
 void TabPane::onAdded(std::shared_ptr<Tab> tab, std::size_t index) {
-    if (!impl_) {
+    if (!impl_ || impl_->reordering) {
         return;
     }
     if (!tab) {
@@ -715,7 +988,7 @@ void TabPane::onAdded(std::shared_ptr<Tab> tab, std::size_t index) {
 }
 
 void TabPane::onRemoved(std::shared_ptr<Tab> tab, std::size_t index) {
-    if (!impl_ || impl_->suppressRemove) {
+    if (!impl_ || impl_->suppressRemove || impl_->reordering) {
         return;
     }
     const bool owned = tab && tab->getTabPane() == this;
@@ -1144,6 +1417,7 @@ void TabPane::layoutChildren() {
     if (!impl_) {
         return;
     }
+    impl_->drag.waitingForLayout = false;
     if (impl_->eventDepth == 0) {
         impl_->suppressHeader = false;
         impl_->graveyard.clear();

@@ -285,6 +285,14 @@ double Node::getPrefHeight() const {
     return prefHeight_.kind == SizeKind::Pixels ? prefHeight_.pixels : 0;
 }
 
+double Node::getMinWidth() const {
+    return minWidth_.kind == SizeKind::Pixels ? std::max(0.0, minWidth_.pixels) : 0;
+}
+
+double Node::getMinHeight() const {
+    return minHeight_.kind == SizeKind::Pixels ? std::max(0.0, minHeight_.pixels) : 0;
+}
+
 Pos Node::usingAlignment() const {
     if (computed_.alignmentFromCss && computed_.alignment != Pos::Ancestor) {
         return computed_.alignment;

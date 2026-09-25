@@ -57,6 +57,9 @@ public:
     void setMaxSize(double width, double height);
     double getPrefWidth() const;
     double getPrefHeight() const;
+    // Pixel minimum from setMinSize. Zero when no pixel minimum is set.
+    double getMinWidth() const;
+    double getMinHeight() const;
 
     void setTranslateX(double value) { translateX_ = value; }
     void setTranslateY(double value) { translateY_ = value; }
