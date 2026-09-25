@@ -16,6 +16,11 @@ namespace jadefx {
 //
 // getTabClosingPolicy() decides which closable tabs draw a close button.
 // The default shows it on the selected tab only.
+// A right-click on a header offers Close, Close Others, and Close to the Right.
+// Those actions close any closable tab, including one whose button is hidden
+// because only the selected tab shows one. A tab that is not closable, a
+// disabled tab, and TabClosingPolicy::Unavailable stay open. Close asks
+// onCloseRequest first; consume() keeps the tab.
 class TabPane : public Controls {
 public:
     enum class TabClosingPolicy { SelectedTab, AllTabs, Unavailable };
@@ -82,6 +87,12 @@ private:
     void noteContent(Tab& tab, const std::shared_ptr<Node>& previous);
     void releaseGraphic(Node* child);
     bool closeShown(const Tab& tab) const;
+    // True when Close would remove the tab. The button policy is separate:
+    // SelectedTab hides buttons on the other tabs, and the menu can still close them.
+    bool canClose(const Tab& tab) const;
+    void showTabMenu(Tab& tab, double x, double y);
+    void closeOtherTabs(const std::shared_ptr<Tab>& keep);
+    void closeTabsAfter(const std::shared_ptr<Tab>& origin);
     void selectNow(const std::shared_ptr<Tab>& tab);
     std::shared_ptr<TabHeader> makeHeader(const std::shared_ptr<Tab>& tab);
 

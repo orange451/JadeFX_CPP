@@ -763,6 +763,25 @@ void ClickAt(jadefx::Scene& scene, jadefx::Node* node, double xBias) {
     scene.noteButton(0, false, x, y);
 }
 
+void RightClick(jadefx::Scene& scene, jadefx::Node* node) {
+    if (node == nullptr) {
+        return;
+    }
+    const double x = node->getAbsoluteX() + node->getWidth() * 0.5;
+    const double y = node->getAbsoluteY() + node->getHeight() * 0.5;
+    scene.noteButton(1, true, x, y);
+    scene.noteButton(1, false, x, y);
+}
+
+void ChooseMenu(jadefx::Scene& scene, const char* id) {
+    scene.layout(scene.getWidth(), scene.getHeight(), 0);
+    jadefx::Node* row = scene.getElementById(id);
+    if (row != nullptr) {
+        ClickAt(scene, row, row->getWidth() * 0.5);
+    }
+    scene.layout(scene.getWidth(), scene.getHeight(), 0);
+}
+
 void TestTabPane() {
     {
         auto firstPage = jadefx::make<jadefx::Label>("Alpha");
@@ -1025,6 +1044,181 @@ void TestTabPane() {
                "closing the last tab clears the selection");
         Expect(only->getContent() != nullptr && only->getContent()->getParent() == nullptr,
                "the closed page is kept by the tab and leaves the scene");
+    }
+    {
+        auto pane = jadefx::make<jadefx::TabPane>();
+        pane->setPrefSize(420, 200);
+        pane->setTabClosingPolicy(jadefx::TabPane::TabClosingPolicy::AllTabs);
+        auto alphaPage = jadefx::make<jadefx::Label>("A");
+        auto alpha = jadefx::make<jadefx::Tab>("Alpha", alphaPage);
+        auto beta = jadefx::make<jadefx::Tab>("Beta", jadefx::make<jadefx::Label>("B"));
+        auto gamma = jadefx::make<jadefx::Tab>("Gamma", jadefx::make<jadefx::Label>("C"));
+        beta->setClosable(false);
+        int alphaClosed = 0;
+        int betaClosed = 0;
+        int gammaClosed = 0;
+        alpha->setOnClosed([&] { ++alphaClosed; });
+        beta->setOnClosed([&] { ++betaClosed; });
+        gamma->setOnClosed([&] { ++gammaClosed; });
+        pane->getTabs().add(alpha);
+        pane->getTabs().add(beta);
+        pane->getTabs().add(gamma);
+        auto scene = jadefx::make<jadefx::Scene>(pane, 420, 200);
+        scene->layout(420, 200, 0);
+
+        RightClick(*scene, alphaPage.get());
+        Expect(scene->getElementById("Close") == nullptr, "a right-click on the page is not a tab menu");
+
+        RightClick(*scene, FindClass(*scene, "tab", 2));
+        scene->layout(420, 200, 0);
+        Expect(pane->getSelectedTab() == gamma.get(), "a right-click selects that tab");
+        jadefx::Node* closeItem = scene->getElementById("Close");
+        jadefx::Node* othersItem = scene->getElementById("Close Others");
+        jadefx::Node* rightItem = scene->getElementById("Close to the Right");
+        Expect(closeItem != nullptr && othersItem != nullptr && rightItem != nullptr,
+               "the tab menu lists Close, Close Others, and Close to the Right");
+        Expect(closeItem != nullptr && !closeItem->isDisabled(), "Close is enabled on a closable tab");
+        Expect(othersItem != nullptr && !othersItem->isDisabled(),
+               "Close Others is enabled when another tab can close");
+        Expect(rightItem != nullptr && rightItem->isDisabled(), "Close to the Right is disabled on the last tab");
+        ChooseMenu(*scene, "Close to the Right");
+        Expect(pane->getTabs().size() == 3, "a disabled Close to the Right leaves the tabs");
+
+        RightClick(*scene, FindClass(*scene, "tab", 2));
+        ChooseMenu(*scene, "Close Others");
+        Expect(alphaClosed == 1 && betaClosed == 0 && gammaClosed == 0,
+               "Close Others closes the other closable tabs and fires onClosed");
+        Expect(pane->getTabs().size() == 2 && pane->getTabs()[0] == beta && pane->getTabs()[1] == gamma,
+               "Close Others keeps the clicked tab and a tab that is not closable");
+        Expect(pane->getSelectedTab() == gamma.get(), "Close Others leaves the clicked tab selected");
+
+        pane->getTabs().insert(0, alpha);
+        scene->layout(420, 200, 0);
+        RightClick(*scene, FindClass(*scene, "tab", 0));
+        scene->layout(420, 200, 0);
+        Expect(pane->getSelectedTab() == alpha.get(), "a right-click moves the selection to that tab");
+        rightItem = scene->getElementById("Close to the Right");
+        Expect(rightItem != nullptr && !rightItem->isDisabled(),
+               "Close to the Right is enabled when a later tab can close");
+        ChooseMenu(*scene, "Close to the Right");
+        Expect(gammaClosed == 1 && betaClosed == 0 && pane->getTabs().size() == 2,
+               "Close to the Right closes later closable tabs");
+        Expect(pane->getTabs()[0] == alpha && pane->getTabs()[1] == beta,
+               "Close to the Right keeps the clicked tab and later tabs that are not closable");
+
+        RightClick(*scene, FindClass(*scene, "tab", 1));
+        scene->layout(420, 200, 0);
+        Expect(pane->getSelectedTab() == beta.get(), "a right-click selects a tab that is not closable");
+        closeItem = scene->getElementById("Close");
+        othersItem = scene->getElementById("Close Others");
+        rightItem = scene->getElementById("Close to the Right");
+        Expect(closeItem != nullptr && closeItem->isDisabled(), "Close is disabled when the tab is not closable");
+        Expect(othersItem != nullptr && !othersItem->isDisabled(),
+               "Close Others stays enabled from a tab that is not closable");
+        Expect(rightItem != nullptr && rightItem->isDisabled(),
+               "Close to the Right is disabled when nothing later can close");
+        ChooseMenu(*scene, "Close");
+        Expect(pane->getTabs().size() == 2 && betaClosed == 0, "Close does not remove a tab that is not closable");
+
+        RightClick(*scene, FindClass(*scene, "tab", 1));
+        ChooseMenu(*scene, "Close Others");
+        Expect(alphaClosed == 2 && pane->getTabs().size() == 1 && pane->getSelectedTab() == beta.get(),
+               "Close Others from a fixed tab closes the closable ones");
+
+        auto delta = jadefx::make<jadefx::Tab>("Delta", jadefx::make<jadefx::Label>("D"));
+        int blocked = 0;
+        int deltaClosed = 0;
+        delta->setOnCloseRequest([&](jadefx::TabCloseRequest& request) {
+            ++blocked;
+            request.consume();
+        });
+        delta->setOnClosed([&] { ++deltaClosed; });
+        pane->getTabs().add(delta);
+        scene->layout(420, 200, 0);
+        RightClick(*scene, FindClass(*scene, "tab", 1));
+        ChooseMenu(*scene, "Close");
+        Expect(blocked == 1 && deltaClosed == 0 && pane->getTabs().size() == 2,
+               "Close honors a consumed close request");
+
+        delta->setOnCloseRequest(nullptr);
+        RightClick(*scene, FindClass(*scene, "tab", 1));
+        ChooseMenu(*scene, "Close");
+        Expect(deltaClosed == 1 && pane->getTabs().size() == 1 && pane->getSelectedTab() == beta.get(),
+               "Close removes the tab and fires onClosed");
+
+        pane->getTabs().add(delta);
+        scene->layout(420, 200, 0);
+        jadefx::Node* deltaHeader = FindClass(*scene, "tab", 1);
+        jadefx::Node* deltaClose = nullptr;
+        for (jadefx::Node* node : scene->getElementsByClassName("tab-close-button")) {
+            if (node != nullptr && node->isVisible() && node->getParent() == deltaHeader) {
+                deltaClose = node;
+            }
+        }
+        Expect(deltaClose != nullptr, "the reopened tab shows a close button");
+        RightClick(*scene, deltaClose);
+        scene->layout(420, 200, 0);
+        Expect(pane->getTabs().size() == 2 && deltaClosed == 1,
+               "a right-click on the close button does not close the tab");
+        Expect(scene->getElementById("Close") != nullptr, "a right-click on the close button opens the tab menu");
+    }
+    {
+        auto pane = jadefx::make<jadefx::TabPane>();
+        pane->setPrefSize(360, 180);
+        auto open = jadefx::make<jadefx::Tab>("Open", jadefx::make<jadefx::Label>("open"));
+        auto locked = jadefx::make<jadefx::Tab>("Locked", jadefx::make<jadefx::Label>("locked"));
+        locked->setDisable(true);
+        pane->setTabClosingPolicy(jadefx::TabPane::TabClosingPolicy::AllTabs);
+        pane->getTabs().add(open);
+        pane->getTabs().add(locked);
+        auto scene = jadefx::make<jadefx::Scene>(pane, 360, 180);
+        scene->layout(360, 180, 0);
+        RightClick(*scene, FindClass(*scene, "tab", 1));
+        scene->layout(360, 180, 0);
+        Expect(pane->getSelectedTab() == open.get(), "a right-click on a disabled tab does not select it");
+        jadefx::Node* closeItem = scene->getElementById("Close");
+        Expect(closeItem != nullptr && closeItem->isDisabled(), "Close is disabled on a disabled tab");
+    }
+    {
+        auto pane = jadefx::make<jadefx::TabPane>();
+        pane->setPrefSize(360, 180);
+        auto first = jadefx::make<jadefx::Tab>("One", jadefx::make<jadefx::Label>("1"));
+        auto second = jadefx::make<jadefx::Tab>("Two", jadefx::make<jadefx::Label>("2"));
+        auto third = jadefx::make<jadefx::Tab>("Three", jadefx::make<jadefx::Label>("3"));
+        int closed = 0;
+        third->setOnClosed([&] { ++closed; });
+        pane->getTabs().add(first);
+        pane->getTabs().add(second);
+        pane->getTabs().add(third);
+        auto scene = jadefx::make<jadefx::Scene>(pane, 360, 180);
+        scene->layout(360, 180, 0);
+        Expect(CountVisible(*scene, "tab-close-button") == 1, "only the selected tab shows a close button");
+        RightClick(*scene, FindClass(*scene, "tab", 1));
+        ChooseMenu(*scene, "Close to the Right");
+        Expect(closed == 1 && pane->getTabs().size() == 2 && pane->getTabs()[0] == first && pane->getTabs()[1] == second,
+               "Close to the Right closes a later tab whose close button is hidden");
+        Expect(pane->getSelectedTab() == second.get(), "Close to the Right leaves the clicked tab selected");
+    }
+    {
+        auto pane = jadefx::make<jadefx::TabPane>();
+        pane->setPrefSize(300, 160);
+        pane->setTabClosingPolicy(jadefx::TabPane::TabClosingPolicy::Unavailable);
+        auto only = jadefx::make<jadefx::Tab>("Only", jadefx::make<jadefx::Label>("only"));
+        int closed = 0;
+        only->setOnClosed([&] { ++closed; });
+        pane->getTabs().add(only);
+        auto scene = jadefx::make<jadefx::Scene>(pane, 300, 160);
+        scene->layout(300, 160, 0);
+        RightClick(*scene, FindClass(*scene, "tab", 0));
+        scene->layout(300, 160, 0);
+        jadefx::Node* closeItem = scene->getElementById("Close");
+        jadefx::Node* othersItem = scene->getElementById("Close Others");
+        jadefx::Node* rightItem = scene->getElementById("Close to the Right");
+        Expect(closeItem != nullptr && closeItem->isDisabled(), "Unavailable disables Close");
+        Expect(othersItem != nullptr && othersItem->isDisabled(), "Unavailable disables Close Others");
+        Expect(rightItem != nullptr && rightItem->isDisabled(), "Unavailable disables Close to the Right");
+        ChooseMenu(*scene, "Close");
+        Expect(closed == 0 && pane->getTabs().size() == 1, "Unavailable keeps the tab");
     }
 }
 

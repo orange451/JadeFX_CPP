@@ -1,7 +1,9 @@
 #include "jadefx/scene/controls/TabPane.hpp"
 
 #include "jadefx/paint/Color.hpp"
+#include "jadefx/scene/Scene.hpp"
 #include "jadefx/scene/controls/Label.hpp"
+#include "jadefx/scene/controls/Menu.hpp"
 #include "jadefx/scene/text/Font.hpp"
 #include "gl/UiRenderer.hpp"
 #include "../layout/LayoutDetail.hpp"
@@ -198,6 +200,7 @@ protected:
 private:
     void clickedClose();
     void clickedHeader();
+    void contextMenu(const MouseEvent& event);
     void adoptGraphic(std::shared_ptr<Node> graphic);
     void replaceLabel();
     void replaceClose();
@@ -235,6 +238,7 @@ struct TabPane::Impl {
     bool closing = false;
     bool syncing = false;
     int eventDepth = 0;
+    std::shared_ptr<Menu> tabMenu;
 };
 
 TabPane::TabHeader::TabHeader(TabPane& pane, std::shared_ptr<Tab> tab) : pane_(&pane), tab_(std::move(tab)) {
@@ -245,6 +249,7 @@ TabPane::TabHeader::TabHeader(TabPane& pane, std::shared_ptr<Tab> tab) : pane_(&
     replaceLabel();
     replaceClose();
     setOnMouseClicked([this](const MouseEvent&) { clickedHeader(); });
+    setOnContextMenuRequested([this](const MouseEvent& event) { contextMenu(event); });
 }
 
 TabPane::TabHeader::~TabHeader() {
@@ -294,6 +299,21 @@ void TabPane::TabHeader::clickedHeader() {
         return;
     }
     pane_->select(tab_);
+}
+
+void TabPane::TabHeader::contextMenu(const MouseEvent& event) {
+    if (pane_ == nullptr || !tab_ || pane_->impl_ == nullptr) {
+        return;
+    }
+    // Selecting can run a callback that closes this tab. Keep the header
+    // alive until this call returns; the next layout drops it.
+    InputGuard guard(pane_->impl_->eventDepth);
+    if (!tab_->isDisabled() && tab_->getTabPane() == pane_) {
+        pane_->select(tab_);
+    }
+    if (tab_->getTabPane() == pane_) {
+        pane_->showTabMenu(*tab_, event.x, event.y);
+    }
 }
 
 void TabPane::TabHeader::adoptGraphic(std::shared_ptr<Node> graphic) {
@@ -648,6 +668,15 @@ bool TabPane::closeShown(const Tab& tab) const {
     return false;
 }
 
+bool TabPane::canClose(const Tab& tab) const {
+    if (!impl_ || tab.getTabPane() != this || !tab.isClosable() || tab.isDisabled()) {
+        return false;
+    }
+    // SelectedTab only draws a close button on the selected tab. Close Others
+    // and Close to the Right still close the rest. Unavailable turns closing off.
+    return impl_->policy != TabClosingPolicy::Unavailable;
+}
+
 void TabPane::onAdded(std::shared_ptr<Tab> tab, std::size_t index) {
     if (!impl_) {
         return;
@@ -813,7 +842,7 @@ void TabPane::requestClose(const std::shared_ptr<Tab>& tab) {
         impl_->pendingClose = tab;
         return;
     }
-    if (tab->getTabPane() != this || tab->isDisabled() || !closeShown(*tab)) {
+    if (!canClose(*tab)) {
         return;
     }
     if (tab->notifyCloseRequest()) {
@@ -859,6 +888,117 @@ void TabPane::releaseGraphic(Node* child) {
         if (tab && tab->graphicNode().get() == child) {
             tab->clearGraphic(child);
         }
+    }
+}
+
+void TabPane::showTabMenu(Tab& tab, double x, double y) {
+    if (!impl_) {
+        return;
+    }
+    Scene* scene = getScene();
+    if (scene == nullptr) {
+        return;
+    }
+    std::shared_ptr<Tab> origin;
+    bool others = false;
+    bool after = false;
+    bool seen = false;
+    for (const std::shared_ptr<Tab>& item : impl_->tabs.items()) {
+        if (!item) {
+            continue;
+        }
+        if (item.get() == &tab) {
+            origin = item;
+            seen = true;
+            continue;
+        }
+        if (!canClose(*item)) {
+            continue;
+        }
+        others = true;
+        if (seen) {
+            after = true;
+        }
+    }
+    if (!origin) {
+        return;
+    }
+    if (impl_->tabMenu) {
+        impl_->tabMenu->hide();
+    }
+    // The actions lock the tab only while they run. Holding it in the menu
+    // would keep the closed page alive after it leaves the strip.
+    const std::weak_ptr<Tab> weak = origin;
+    auto menu = std::make_shared<Menu>();
+
+    auto close = std::make_shared<MenuItem>("Close");
+    close->setDisable(!canClose(*origin));
+    close->setOnAction([this, weak](ActionEvent&) {
+        if (const std::shared_ptr<Tab> live = weak.lock()) {
+            requestClose(live);
+        }
+    });
+    menu->getItems().add(std::move(close));
+
+    auto closeOthers = std::make_shared<MenuItem>("Close Others");
+    closeOthers->setDisable(!others);
+    closeOthers->setOnAction([this, weak](ActionEvent&) {
+        if (const std::shared_ptr<Tab> live = weak.lock()) {
+            closeOtherTabs(live);
+        }
+    });
+    menu->getItems().add(std::move(closeOthers));
+
+    auto closeAfter = std::make_shared<MenuItem>("Close to the Right");
+    closeAfter->setDisable(!after);
+    closeAfter->setOnAction([this, weak](ActionEvent&) {
+        if (const std::shared_ptr<Tab> live = weak.lock()) {
+            closeTabsAfter(live);
+        }
+    });
+    menu->getItems().add(std::move(closeAfter));
+
+    menu->show(*scene, x, y);
+    impl_->tabMenu = std::move(menu);
+}
+
+void TabPane::closeOtherTabs(const std::shared_ptr<Tab>& keep) {
+    if (!impl_ || !keep) {
+        return;
+    }
+    std::vector<std::shared_ptr<Tab>> closing;
+    for (const std::shared_ptr<Tab>& tab : impl_->tabs.items()) {
+        if (tab && tab != keep && canClose(*tab)) {
+            closing.push_back(tab);
+        }
+    }
+    for (const std::shared_ptr<Tab>& tab : closing) {
+        requestClose(tab);
+    }
+}
+
+void TabPane::closeTabsAfter(const std::shared_ptr<Tab>& origin) {
+    if (!impl_ || !origin) {
+        return;
+    }
+    std::vector<std::shared_ptr<Tab>> closing;
+    bool after = false;
+    for (const std::shared_ptr<Tab>& tab : impl_->tabs.items()) {
+        if (!tab) {
+            continue;
+        }
+        if (!after) {
+            if (tab == origin) {
+                after = true;
+            }
+            continue;
+        }
+        if (canClose(*tab)) {
+            closing.push_back(tab);
+        }
+    }
+    for (const std::shared_ptr<Tab>& tab : closing) {
+        requestClose(tab);
     }
 }
 
