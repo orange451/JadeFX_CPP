@@ -105,6 +105,9 @@ private:
     double lastTime_ = 0;
     Insets safe_;
     Node* pressedTarget_ = nullptr;
+    double pressX_ = 0;
+    double pressY_ = 0;
+    bool stillSincePress_ = true;
     Node* focused_ = nullptr;
     int keyMods_ = 0;
     bool laidOut_ = false;

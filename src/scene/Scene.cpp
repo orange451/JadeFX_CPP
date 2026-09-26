@@ -4,9 +4,13 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 
 namespace jadefx {
 namespace {
+
+// How far the pointer may wander from a press, in points, and still be a click.
+constexpr double kPressHysteresis = 4;
 
 bool Related(Node* a, Node* b) {
     if (a == nullptr || b == nullptr) {
@@ -134,6 +138,10 @@ void Scene::noteMove(double x, double y) {
     event.x = x;
     event.y = y;
     if (pressedTarget_ != nullptr) {
+        if (stillSincePress_ && std::hypot(x - pressX_, y - pressY_) > kPressHysteresis) {
+            stillSincePress_ = false;
+        }
+        event.stillSincePress = stillSincePress_;
         event.target = pressedTarget_;
         pressedTarget_->handleMouseDragged(event);
     }
@@ -197,6 +205,9 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
             hidePopup(popup);
         }
         pressedTarget_ = pick(x, y);
+        pressX_ = x;
+        pressY_ = y;
+        stillSincePress_ = true;
         setPressedChain(pressedTarget_);
         clearFocus();
         markFocused(pressedTarget_);
@@ -211,6 +222,7 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
 
     Node* released = pick(x, y);
     Node* pressed = pressedTarget_;
+    event.stillSincePress = pressed == nullptr || stillSincePress_;
     setPressedChain(nullptr);
     if (pressed != nullptr) {
         event.target = pressed;

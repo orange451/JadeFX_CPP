@@ -66,6 +66,14 @@ constexpr double kDefaultIndent = 10;
 constexpr double kMinRow = 8;
 constexpr double kDoubleClickSeconds = 0.4;
 constexpr double kArrowSeconds = 0.16;
+// A drop's Before and After bands, as a fraction of the row from its top and bottom.
+constexpr double kDropEdge = 0.25;
+// Seconds a closed branch waits under Into before it opens.
+constexpr double kSpringOpenSeconds = 0.7;
+// Rows per second at full autoscroll speed, one row height past the view's edge.
+constexpr double kAutoScrollRows = 14;
+constexpr double kDropLine = 2;
+constexpr double kDropRing = 4;
 // Full-grown diameter, in row heights. The circle is larger than the row and clipped to it.
 constexpr float kRippleDiameter = 7.f;
 
@@ -288,6 +296,23 @@ public:
     const char* getElementType() const override { return "tree-cell"; }
 
     TreeItem* item() const { return item_; }
+
+    void handleMouseDragged(const MouseEvent& event) override {
+        if (view_ != nullptr && item_ != nullptr) {
+            view_->dragRow(*item_, event);
+            // A drag is not a press on this row, so the ripple fades.
+            if (view_ != nullptr && view_->isDraggingItems() && rippling_ && rippleRelease_ < 0) {
+                rippleRelease_ = Now();
+            }
+        }
+    }
+
+    Cursor cursorAt(double x, double y) const override {
+        if (view_ != nullptr && view_->isDraggingItems()) {
+            return view_->cursorAt(x, y);
+        }
+        return Region::cursorAt(x, y);
+    }
 
     void detachView() {
         view_ = nullptr;
@@ -513,6 +538,7 @@ private:
     }
 
     void pressed(const MouseEvent& event) {
+        dragged_ = false;
         rippleX_ = static_cast<float>(event.x - getAbsoluteX());
         rippleY_ = static_cast<float>(event.y - getAbsoluteY());
         rippleStart_ = Now();
@@ -523,6 +549,10 @@ private:
     void released() {
         if (rippling_) {
             rippleRelease_ = Now();
+        }
+        // The click that follows a drop is not a click.
+        if (view_ != nullptr && view_->releaseRow()) {
+            dragged_ = true;
         }
     }
 
@@ -541,6 +571,11 @@ private:
     void clickedRow(const MouseEvent& event) {
         if (arrowClick_) {
             arrowClick_ = false;
+            return;
+        }
+        if (dragged_) {
+            dragged_ = false;
+            lastClick_ = 0;
             return;
         }
         TreeItem* item = item_;
@@ -584,6 +619,7 @@ private:
     double indent_ = kDefaultIndent;
     double trail_ = 0;
     bool arrowClick_ = false;
+    bool dragged_ = false;
     double lastClick_ = 0;
     bool rippling_ = false;
     double rippleStart_ = 0;
@@ -649,6 +685,21 @@ struct TreeView::Impl {
     int selectDepth = 0;
     bool syncAgain = false;
     bool alive = true;
+    // Row drag and drop. dragItems holds the rows while they are carried, and
+    // dropTarget keeps the target alive while the drop names it.
+    std::function<void(const TreeDrop&)> onDrop;
+    std::function<bool(const TreeDrop&)> dropAcceptor;
+    bool dragging = false;
+    bool dragCancelled = false;
+    std::vector<std::shared_ptr<TreeItem>> dragItems;
+    std::shared_ptr<TreeItem> dropTarget;
+    TreeDropPosition dropPosition = TreeDropPosition::Into;
+    bool dropValid = false;
+    double pointerX = 0;
+    double pointerY = 0;
+    double lastTick = 0;
+    TreeItem* holdTarget = nullptr;
+    double holdStart = 0;
 };
 
 TreeView::TreeView() : impl_(std::make_unique<Impl>()) {
@@ -669,6 +720,10 @@ TreeView::~TreeView() {
     impl_->onItems = nullptr;
     impl_->onContext = nullptr;
     impl_->onActivated = nullptr;
+    impl_->onDrop = nullptr;
+    impl_->dropAcceptor = nullptr;
+    impl_->dragItems.clear();
+    impl_->dropTarget.reset();
     if (impl_->watched != nullptr) {
         impl_->watched->setStructureListener(nullptr);
         impl_->watched = nullptr;
@@ -1243,6 +1298,14 @@ void TreeView::handleKey(KeyEvent& event) {
     if (!impl_ || !impl_->alive || !event.pressed || impl_->root == nullptr) {
         return;
     }
+    if (impl_->dragging) {
+        if (event.key == Key::Escape) {
+            cancelDrag();
+        }
+        // Keys do not move the selection out from under a drag.
+        event.consume();
+        return;
+    }
     const int count = getExpandedItemCount();
     if (count <= 0) {
         return;
@@ -1450,6 +1513,10 @@ void TreeView::layoutChildren() {
     if (!impl_) {
         return;
     }
+    springOpen();
+    if (!impl_) {
+        return;
+    }
     const double row = rowSize();
     const double width = contentWidth();
     const double height = contentHeight();
@@ -1481,7 +1548,7 @@ void TreeView::layoutChildren() {
     const double viewBottom = top + height;
     // The row under the pointer, decided before the cells move, so the label
     // can leave the right edge clear for the button.
-    if (!impl_->accessory) {
+    if (!impl_->accessory || impl_->dragging) {
         impl_->hoverItem = nullptr;
     } else {
         TreeItem* under = nullptr;
@@ -1545,6 +1612,7 @@ void TreeView::layoutChildren() {
             impl_->track->performLayout(0, 0, 0, 0);
         }
     }
+    tickDrag();
 }
 
 void TreeView::visitChildren(const std::function<void(Node*)>& visitor) {
@@ -1619,7 +1687,377 @@ void TreeView::renderChildren(UiRenderer& renderer, float opacity) {
     const float height = static_cast<float>(contentHeight());
     renderer.pushClip(x, y, width, height);
     Node::renderChildren(renderer, opacity);
+    renderDropMarker(renderer, opacity);
     renderer.popClip();
+}
+
+TreeItem* TreeDrop::parent() const {
+    if (target == nullptr) {
+        return nullptr;
+    }
+    return position == TreeDropPosition::Into ? target : target->getParent();
+}
+
+void TreeView::setOnItemsDropped(std::function<void(const TreeDrop&)> handler) {
+    if (!impl_) {
+        return;
+    }
+    impl_->onDrop = std::move(handler);
+    if (!impl_->onDrop) {
+        cancelDrag();
+    }
+}
+
+void TreeView::setDropAcceptor(std::function<bool(const TreeDrop&)> acceptor) {
+    if (impl_) {
+        impl_->dropAcceptor = std::move(acceptor);
+    }
+}
+
+bool TreeView::isDraggingItems() const { return impl_ && impl_->dragging; }
+
+TreeDrop TreeView::getPendingDrop() const {
+    TreeDrop drop;
+    if (!impl_ || !impl_->dragging || !impl_->dropValid || !impl_->dropTarget) {
+        return drop;
+    }
+    drop.items.reserve(impl_->dragItems.size());
+    for (const std::shared_ptr<TreeItem>& item : impl_->dragItems) {
+        drop.items.push_back(item.get());
+    }
+    drop.target = impl_->dropTarget.get();
+    drop.position = impl_->dropPosition;
+    return drop;
+}
+
+Cursor TreeView::cursorAt(double x, double y) const {
+    if (impl_ && impl_->dragging) {
+        return impl_->dropValid ? Cursor::Default : Cursor::NotAllowed;
+    }
+    return Controls::cursorAt(x, y);
+}
+
+void TreeView::dragRow(TreeItem& item, const MouseEvent& event) {
+    if (!impl_ || !impl_->alive || !impl_->onDrop || impl_->dragCancelled) {
+        return;
+    }
+    if (!impl_->dragging) {
+        if (event.stillSincePress) {
+            return;
+        }
+        std::vector<std::shared_ptr<TreeItem>> items = draggedItems(item);
+        if (!impl_ || !impl_->alive || items.empty()) {
+            return;
+        }
+        impl_->dragItems = std::move(items);
+        impl_->dragging = true;
+        impl_->lastTick = Now();
+        impl_->holdTarget = nullptr;
+    }
+    impl_->pointerX = event.x;
+    impl_->pointerY = event.y;
+    aimDrop(event.x, event.y);
+}
+
+bool TreeView::releaseRow() {
+    if (!impl_) {
+        return false;
+    }
+    const bool ended = impl_->dragging || impl_->dragCancelled;
+    impl_->dragCancelled = false;
+    if (!impl_->dragging) {
+        return ended;
+    }
+    // The model may have changed since the last move, so aim once more.
+    aimDrop(impl_->pointerX, impl_->pointerY);
+    const TreeDrop drop = getPendingDrop();
+    // The drop names these rows; they stay alive while the handler runs.
+    const std::vector<std::shared_ptr<TreeItem>> carried = std::move(impl_->dragItems);
+    const std::shared_ptr<TreeItem> target = std::move(impl_->dropTarget);
+    impl_->dragItems.clear();
+    impl_->dropTarget.reset();
+    impl_->dragging = false;
+    impl_->dropValid = false;
+    impl_->holdTarget = nullptr;
+    if (!drop.items.empty() && impl_->onDrop) {
+        const std::function<void(const TreeDrop&)> handler = impl_->onDrop;
+        handler(drop);
+    }
+    return true;
+}
+
+void TreeView::cancelDrag() {
+    if (!impl_ || !impl_->dragging) {
+        return;
+    }
+    impl_->dragging = false;
+    // The rest of this press drags nothing. The release clears it.
+    impl_->dragCancelled = true;
+    impl_->dragItems.clear();
+    impl_->dropTarget.reset();
+    impl_->dropValid = false;
+    impl_->holdTarget = nullptr;
+}
+
+std::vector<std::shared_ptr<TreeItem>> TreeView::draggedItems(TreeItem& grabbed) {
+    std::vector<std::shared_ptr<TreeItem>> out;
+    if (!impl_ || !containsItem(&grabbed)) {
+        return out;
+    }
+    std::unordered_set<const TreeItem*> carried;
+    if (impl_->mode == SelectionMode::Multiple && isSelected(&grabbed)) {
+        carried = impl_->chosenSet;
+    } else {
+        // Like a click, a drag from a row outside the selection selects it.
+        select(&grabbed);
+        if (!impl_ || !impl_->alive) {
+            return out;
+        }
+        carried.insert(&grabbed);
+    }
+    // Row order, and a row inside another carried row goes with it.
+    std::function<void(const std::shared_ptr<TreeItem>&)> walk = [&](const std::shared_ptr<TreeItem>& node) {
+        for (const std::shared_ptr<TreeItem>& child : node->getChildren().items()) {
+            if (!child) {
+                continue;
+            }
+            if (carried.find(child.get()) != carried.end()) {
+                out.push_back(child);
+            } else {
+                walk(child);
+            }
+        }
+    };
+    if (impl_->root) {
+        if (carried.find(impl_->root.get()) != carried.end()) {
+            out.push_back(impl_->root);
+        } else {
+            walk(impl_->root);
+        }
+    }
+    return out;
+}
+
+bool TreeView::dropAllowed(const TreeDrop& drop) const {
+    if (drop.target == nullptr || drop.items.empty() || drop.parent() == nullptr) {
+        return false;
+    }
+    for (const TreeItem* item : drop.items) {
+        // The target, or anything under it, would put a row inside itself.
+        for (const TreeItem* cursor = drop.target; cursor != nullptr; cursor = cursor->getParent()) {
+            if (cursor == item) {
+                return false;
+            }
+        }
+    }
+    return !impl_->dropAcceptor || impl_->dropAcceptor(drop);
+}
+
+void TreeView::aimDrop(double x, double y) {
+    if (!impl_ || !impl_->dragging) {
+        return;
+    }
+    impl_->dropValid = false;
+    impl_->dropTarget.reset();
+    // Rows that left the tree mid-drag are no longer carried.
+    impl_->dragItems.erase(std::remove_if(impl_->dragItems.begin(), impl_->dragItems.end(),
+                                          [this](const std::shared_ptr<TreeItem>& item) {
+                                              return !item || !containsItem(item.get());
+                                          }),
+                           impl_->dragItems.end());
+    std::vector<TreeItem*> rows;
+    eachVisible([&](TreeItem* item) { rows.push_back(item); });
+    if (rows.empty() || impl_->dragItems.empty()) {
+        impl_->holdTarget = nullptr;
+        return;
+    }
+    const double rowH = rowSize();
+    const double localX = x - getAbsoluteX() - contentLeft();
+    const double localY = y - getAbsoluteY() - contentTop() + impl_->scroll;
+    const int count = static_cast<int>(rows.size());
+    const int index = static_cast<int>(std::floor(localY / rowH));
+
+    TreeItem* target = nullptr;
+    TreeDropPosition position = TreeDropPosition::Into;
+    // The row above the line when the drop falls between two rows.
+    int above = -1;
+    if (index < 0) {
+        target = rows.front();
+        position = TreeDropPosition::Before;
+    } else if (index >= count) {
+        above = count - 1;
+    } else {
+        const double within = localY / rowH - index;
+        if (within < kDropEdge) {
+            // Under a deeper row, the gap also closes that row's branch, so it
+            // is aimed as After that row. Otherwise it is Before this one.
+            TreeItem* row = rows[static_cast<std::size_t>(index)];
+            if (index == 0 || shownLevel(rows[static_cast<std::size_t>(index - 1)]) <= shownLevel(row)) {
+                target = row;
+                position = TreeDropPosition::Before;
+            } else {
+                above = index - 1;
+            }
+        } else if (within > 1.0 - kDropEdge) {
+            above = index;
+        } else {
+            target = rows[static_cast<std::size_t>(index)];
+        }
+    }
+    if (above >= 0) {
+        TreeItem* row = rows[static_cast<std::size_t>(above)];
+        const bool opened = row->isExpanded() && !row->getChildren().items().empty();
+        if (opened && above + 1 < count && rows[static_cast<std::size_t>(above + 1)]->getParent() == row) {
+            // Under an open branch the line is above its first child.
+            target = rows[static_cast<std::size_t>(above + 1)];
+            position = TreeDropPosition::Before;
+        } else {
+            // The line under a branch's last row is also under each ancestor
+            // it closes. The pointer's distance from the left picks one.
+            const int level = shownLevel(row);
+            const int floorLevel = above + 1 < count ? shownLevel(rows[static_cast<std::size_t>(above + 1)]) : 0;
+            int want = level;
+            if (impl_->indent > 0.5 && floorLevel < level) {
+                want = static_cast<int>(std::floor((localX - kDisclosure * 0.5) / impl_->indent));
+                want = std::max(floorLevel, std::min(level, want));
+            }
+            target = row;
+            for (int climb = level; climb > want && target->getParent() != nullptr; --climb) {
+                if (target->getParent() == impl_->root.get() && !impl_->showRoot) {
+                    break;
+                }
+                target = target->getParent();
+            }
+            position = TreeDropPosition::After;
+        }
+    }
+
+    if (position == TreeDropPosition::Into) {
+        if (impl_->holdTarget != target) {
+            impl_->holdTarget = target;
+            impl_->holdStart = Now();
+        }
+    } else {
+        impl_->holdTarget = nullptr;
+    }
+
+    TreeDrop drop;
+    for (const std::shared_ptr<TreeItem>& item : impl_->dragItems) {
+        drop.items.push_back(item.get());
+    }
+    drop.target = target;
+    drop.position = position;
+    const bool allowed = dropAllowed(drop);
+    if (!impl_ || !impl_->dragging) {
+        return;
+    }
+    impl_->dropPosition = position;
+    impl_->dropTarget = findShared(target);
+    impl_->dropValid = allowed && impl_->dropTarget != nullptr;
+}
+
+void TreeView::springOpen() {
+    if (!impl_ || !impl_->dragging || impl_->holdTarget == nullptr) {
+        return;
+    }
+    TreeItem* held = impl_->holdTarget;
+    if (Now() - impl_->holdStart < kSpringOpenSeconds || held->isExpanded() || held->isLeaf() ||
+        !containsItem(held)) {
+        return;
+    }
+    impl_->holdTarget = nullptr;
+    held->setExpanded(true);
+}
+
+void TreeView::tickDrag() {
+    if (!impl_ || !impl_->dragging) {
+        return;
+    }
+    const double now = Now();
+    const double elapsed = std::max(0.0, std::min(0.1, now - impl_->lastTick));
+    impl_->lastTick = now;
+    aimDrop(impl_->pointerX, impl_->pointerY);
+    if (!impl_ || !impl_->dragging) {
+        return;
+    }
+    // Within a row of the top or bottom, the rows scroll toward the pointer.
+    // Farther out, up to one more row, they scroll faster.
+    const double rowH = rowSize();
+    const double height = contentHeight();
+    const double localY = impl_->pointerY - getAbsoluteY() - contentTop();
+    double speed = 0;
+    if (localY < rowH) {
+        speed = -(rowH - localY) / rowH;
+    } else if (localY > height - rowH) {
+        speed = (localY - (height - rowH)) / rowH;
+    }
+    speed = std::max(-2.0, std::min(2.0, speed));
+    impl_->scroll += speed * kAutoScrollRows * rowH * elapsed;
+}
+
+void TreeView::renderDropMarker(UiRenderer& renderer, float opacity) {
+    if (!impl_ || !impl_->dragging || !impl_->dropValid || !impl_->dropTarget) {
+        return;
+    }
+    TreeItem* target = impl_->dropTarget.get();
+    std::vector<TreeItem*> rows;
+    eachVisible([&](TreeItem* item) { rows.push_back(item); });
+    int row = -1;
+    for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
+        if (rows[static_cast<std::size_t>(i)] == target) {
+            row = i;
+            break;
+        }
+    }
+    if (row < 0) {
+        return;
+    }
+    const double rowH = rowSize();
+    const double gutter = impl_->vbar.visible ? ScrollBar::kThickness : 0.0;
+    const float left = static_cast<float>(getAbsoluteX() + contentLeft());
+    const float top = static_cast<float>(getAbsoluteY() + contentTop() - impl_->scroll);
+    const float width = static_cast<float>(std::max(0.0, contentWidth() - gutter));
+    const int level = shownLevel(target);
+    Color accent = impl_->barColor;
+    accent.a *= opacity;
+
+    if (impl_->dropPosition == TreeDropPosition::Into) {
+        const float y = top + static_cast<float>(row * rowH);
+        const float radius[4] = {4.f, 4.f, 4.f, 4.f};
+        const float sides[4] = {2.f, 2.f, 2.f, 2.f};
+        Color wash = accent;
+        wash.a *= 0.12f;
+        const float at = 0.f;
+        renderer.fillRounded(left + 1.f, y + 1.f, width - 2.f, static_cast<float>(rowH) - 2.f, radius, &wash, &at, 1,
+                             0.f);
+        renderer.strokeRounded(left + 1.f, y + 1.f, width - 2.f, static_cast<float>(rowH) - 2.f, radius, sides, accent);
+        return;
+    }
+
+    // Before is the top of the row. After is under the row and everything it holds.
+    int edge = row;
+    if (impl_->dropPosition == TreeDropPosition::After) {
+        edge = row + 1;
+        while (edge < static_cast<int>(rows.size()) && shownLevel(rows[static_cast<std::size_t>(edge)]) > level) {
+            ++edge;
+        }
+    }
+    const float lineY = top + static_cast<float>(edge * rowH);
+    const float ringX = left + static_cast<float>(impl_->indent * level + kDisclosure * 0.5);
+    const float lineX = ringX + static_cast<float>(kDropRing);
+    const float lineW = std::max(0.f, left + width - 4.f - lineX);
+    const float none[4] = {};
+    const float at = 0.f;
+    const float half = static_cast<float>(kDropLine) * 0.5f;
+    renderer.fillRounded(lineX, lineY - half, lineW, static_cast<float>(kDropLine), none, &accent, &at, 1, 0.f);
+    const float ring = static_cast<float>(kDropRing);
+    const float round[4] = {ring, ring, ring, ring};
+    const float sides[4] = {2.f, 2.f, 2.f, 2.f};
+    const Background& fill = computedStyle().background;
+    Color hole = fill.hasColor && fill.color.a > 0.f ? fill.color : Color::white();
+    hole.a *= opacity;
+    renderer.fillRounded(ringX - ring, lineY - ring, ring * 2.f, ring * 2.f, round, &hole, &at, 1, 0.f);
+    renderer.strokeRounded(ringX - ring, lineY - ring, ring * 2.f, ring * 2.f, round, sides, accent);
 }
 
 void TreeView::pressScrollBar(const MouseEvent& event) {

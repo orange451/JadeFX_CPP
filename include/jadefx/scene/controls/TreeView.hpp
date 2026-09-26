@@ -16,6 +16,22 @@ class TreeScrollBar;
 // select every row from the anchor to that one.
 enum class SelectionMode { Single, Multiple };
 
+// Where dragged rows would land against the row under the pointer. The top and
+// bottom quarters of a row are Before and After it, as its sibling. The middle
+// half is Into it, as its last child.
+enum class TreeDropPosition { Before, Into, After };
+
+// One drop, while it is dragged and when it lands. items are the dragged rows in
+// row order, with any row whose ancestor is also dragged left out.
+struct TreeDrop {
+    std::vector<TreeItem*> items;
+    TreeItem* target = nullptr;
+    TreeDropPosition position = TreeDropPosition::Into;
+
+    // The item the rows would become children of: target for Into, else its parent.
+    TreeItem* parent() const;
+};
+
 // Material tree, in the shape of JFoenix's JFXTreeView.
 // Rows indent by level. A branch draws a disclosure arrow that turns down when
 // the branch is open. The selected row keeps a thin bar on its left edge.
@@ -100,6 +116,33 @@ public:
     // A left click on the row with these Key::Mod bits. False when the click
     // only changed the selection, so it cannot start a double-click.
     bool rowClicked(TreeItem& item, int mods);
+    // The pointer moved with the left button down on item's row.
+    void dragRow(TreeItem& item, const MouseEvent& event);
+    // The left button came up. True when it ended a drag, or a drag Escape
+    // cancelled, so the click that follows is not a click.
+    bool releaseRow();
+
+    // Row drag and drop, in the shape of a JavaFX cell factory's onDragDetected,
+    // onDragOver, and onDragDropped. It is off until a drop handler is set, so a
+    // tree that never asks for it keeps click and drag doing nothing.
+    // A left press that moves a few points starts the drag. A selected row drags
+    // the whole selection; any other row is selected first and drags alone.
+    // While it moves, the view marks the landing place: a line between rows for
+    // Before and After, or a box around the row for Into. Near the top or bottom
+    // edge the rows scroll, and a closed branch held under Into opens. Where
+    // the last row of a branch meets a shallower one, the pointer's distance
+    // from the left picks which level the line is at. Escape cancels.
+    // The view never moves items itself. The handler changes the model, and
+    // the model's change moves the rows.
+    void setOnItemsDropped(std::function<void(const TreeDrop&)> handler);
+    // Asked for each landing place the pointer finds. False shows no marker
+    // and the release drops nothing. A place inside or beside a dragged row, or
+    // beside a row with no parent, is refused before this is asked.
+    void setDropAcceptor(std::function<bool(const TreeDrop&)> acceptor);
+    // True from the moment a row drag starts until its release or Escape.
+    bool isDraggingItems() const;
+    // The landing place the release would drop on. Empty items when there is none.
+    TreeDrop getPendingDrop() const;
 
     // scrollTo(TreeItem) opens ancestors so the row can move into view.
     void scrollTo(int row);
@@ -107,6 +150,8 @@ public:
 
     void handleScroll(ScrollEvent& event) override;
     void handleKey(KeyEvent& event) override;
+    // NotAllowed while a drag has no landing place.
+    Cursor cursorAt(double x, double y) const override;
 
 protected:
     void layoutChildren() override;
@@ -138,6 +183,16 @@ private:
     double rowSize() const;
     void eachVisible(const std::function<void(TreeItem*)>& visit) const;
     std::shared_ptr<TreeItem> findShared(const TreeItem* item) const;
+    void cancelDrag();
+    std::vector<std::shared_ptr<TreeItem>> draggedItems(TreeItem& grabbed);
+    // Finds the landing place under a point in window points.
+    void aimDrop(double x, double y);
+    bool dropAllowed(const TreeDrop& drop) const;
+    // Opens a closed branch held under Into. Runs before the rows are laid out.
+    void springOpen();
+    // Re-aims at the pointer and scrolls near the edges. Runs after layout.
+    void tickDrag();
+    void renderDropMarker(UiRenderer& renderer, float opacity);
     void pressScrollBar(const MouseEvent& event);
     void dragScrollBar(const MouseEvent& event);
     void releaseScrollBar();

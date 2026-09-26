@@ -14,6 +14,10 @@ struct MouseEvent {
     Node* target = nullptr;
     // Modifier keys held with the button, as Key::Mod bits.
     int mods = 0;
+    // JavaFX's isStillSincePress. False once the pointer has moved more than a
+    // few points from where the left button went down. A drag reads it to start,
+    // and a click that ends a drag reads false.
+    bool stillSincePress = true;
 
     bool shift() const { return (mods & 0x1) != 0; }
     // Ctrl on Windows and Linux, Command on macOS. Either one is accepted.

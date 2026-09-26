@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -225,6 +226,199 @@ void TestSelectItemsAndRemoval() {
     Expect(rig.tree->getSelectedItems().empty() && rig.tree->getSelectedItem() == nullptr, "clearSelection empties it");
 }
 
+// Rows A, B, B1, B2, C under a hidden root. B is open and holds B1 and B2.
+struct DragRig {
+    std::shared_ptr<jadefx::TreeItem> root = jadefx::make<jadefx::TreeItem>("Root");
+    std::shared_ptr<jadefx::TreeItem> a = jadefx::make<jadefx::TreeItem>("A");
+    std::shared_ptr<jadefx::TreeItem> b = jadefx::make<jadefx::TreeItem>("B");
+    std::shared_ptr<jadefx::TreeItem> b1 = jadefx::make<jadefx::TreeItem>("B1");
+    std::shared_ptr<jadefx::TreeItem> b2 = jadefx::make<jadefx::TreeItem>("B2");
+    std::shared_ptr<jadefx::TreeItem> c = jadefx::make<jadefx::TreeItem>("C");
+    std::shared_ptr<jadefx::TreeView> tree;
+    std::shared_ptr<jadefx::Scene> scene;
+    std::vector<jadefx::TreeDrop> drops;
+    int activations = 0;
+
+    explicit DragRig(bool droppable = true) {
+        b->getChildren().add(b1);
+        b->getChildren().add(b2);
+        b->setExpanded(true);
+        root->getChildren().add(a);
+        root->getChildren().add(b);
+        root->getChildren().add(c);
+        root->setExpanded(true);
+        tree = jadefx::make<jadefx::TreeView>(root);
+        tree->setShowRoot(false);
+        tree->setSelectionMode(jadefx::SelectionMode::Multiple);
+        tree->setOnItemActivated([this](jadefx::TreeItem&) {
+            ++activations;
+            return true;
+        });
+        if (droppable) {
+            tree->setOnItemsDropped([this](const jadefx::TreeDrop& drop) { drops.push_back(drop); });
+        }
+        scene = jadefx::make<jadefx::Scene>(tree, kWidth, kHeight);
+        frame();
+    }
+
+    void frame() { scene->layout(kWidth, kHeight); }
+
+    // A point on item's row: along is 0 at its top and 1 at its bottom, and
+    // x is from the row's left edge. A negative x is the middle of the row.
+    std::pair<double, double> at(const jadefx::TreeItem* item, double along, double x = -1) {
+        frame();
+        jadefx::Node* cell = tree->getCell(item);
+        Expect(cell != nullptr, "the row to drag over is on screen");
+        if (cell == nullptr) {
+            return {0, 0};
+        }
+        const double left = x < 0 ? cell->getWidth() * 0.5 : x;
+        return {cell->getAbsoluteX() + left, cell->getAbsoluteY() + cell->getHeight() * along};
+    }
+
+    void press(const jadefx::TreeItem* item, int mods = 0) {
+        const auto [x, y] = at(item, 0.5);
+        scene->noteButton(0, true, x, y, mods);
+    }
+
+    void move(std::pair<double, double> point) {
+        scene->noteMove(point.first, point.second);
+        frame();
+    }
+
+    void release(std::pair<double, double> point) { scene->noteButton(0, false, point.first, point.second, 0); }
+
+    void drag(const jadefx::TreeItem* from, std::pair<double, double> to) {
+        press(from);
+        move(to);
+        release(to);
+    }
+};
+
+bool IsDrop(const jadefx::TreeDrop& drop, std::vector<jadefx::TreeItem*> items, const jadefx::TreeItem* target,
+            jadefx::TreeDropPosition position) {
+    return drop.items == items && drop.target == target && drop.position == position;
+}
+
+void TestDragIsOffWithoutHandler() {
+    DragRig rig(false);
+    rig.drag(rig.a.get(), rig.at(rig.c.get(), 0.5));
+    Expect(!rig.tree->isDraggingItems(), "a tree without a drop handler never drags");
+    rig.press(rig.a.get());
+    rig.move(rig.at(rig.a.get(), 0.9));
+    Expect(!rig.tree->isDraggingItems(), "a drag stays off without a drop handler");
+    rig.release(rig.at(rig.a.get(), 0.9));
+    Expect(rig.tree->getSelectedItems() == std::vector<jadefx::TreeItem*>{rig.a.get()},
+           "without a drop handler, a press that wanders on its row is still a click");
+}
+
+void TestDropZones() {
+    using Pos = jadefx::TreeDropPosition;
+    DragRig rig;
+    rig.press(rig.a.get());
+    rig.move(rig.at(rig.a.get(), 0.55));
+    Expect(!rig.tree->isDraggingItems(), "a small wobble is not a drag");
+    rig.move(rig.at(rig.c.get(), 0.5));
+    Expect(rig.tree->isDraggingItems(), "moving past the hysteresis starts a drag");
+    Expect(rig.tree->getSelectedItems() == std::vector<jadefx::TreeItem*>{rig.a.get()},
+           "a drag from an unselected row selects it");
+    Expect(IsDrop(rig.tree->getPendingDrop(), {rig.a.get()}, rig.c.get(), Pos::Into), "the middle of a row is Into");
+    Expect(rig.tree->getPendingDrop().parent() == rig.c.get(), "Into's parent is the target");
+    rig.move(rig.at(rig.c.get(), 0.1, 2));
+    Expect(IsDrop(rig.tree->getPendingDrop(), {rig.a.get()}, rig.b.get(), Pos::After),
+           "the top of a row under a deeper row picks the shallow level at the left");
+    rig.move(rig.at(rig.c.get(), 0.9));
+    Expect(IsDrop(rig.tree->getPendingDrop(), {rig.a.get()}, rig.c.get(), Pos::After), "the bottom of a row is After");
+    rig.move(rig.at(rig.b.get(), 0.9));
+    Expect(IsDrop(rig.tree->getPendingDrop(), {rig.a.get()}, rig.b1.get(), Pos::Before),
+           "the bottom of an open branch is above its first child");
+    rig.move(rig.at(rig.b1.get(), 0.1));
+    Expect(IsDrop(rig.tree->getPendingDrop(), {rig.a.get()}, rig.b1.get(), Pos::Before),
+           "the top of a first child is Before it");
+    Expect(rig.tree->getPendingDrop().parent() == rig.b.get(), "Before's parent is the target's parent");
+    rig.move(rig.at(rig.b2.get(), 0.9, 2));
+    Expect(IsDrop(rig.tree->getPendingDrop(), {rig.a.get()}, rig.b.get(), Pos::After),
+           "under a branch's last row, the far left is After the branch");
+    rig.move(rig.at(rig.b2.get(), 0.9, 40));
+    Expect(IsDrop(rig.tree->getPendingDrop(), {rig.a.get()}, rig.b2.get(), Pos::After),
+           "under a branch's last row, the right is After that row");
+    const auto last = rig.at(rig.c.get(), 0.5);
+    const auto below = std::make_pair(last.first, last.second + 40);
+    rig.move(below);
+    Expect(IsDrop(rig.tree->getPendingDrop(), {rig.a.get()}, rig.c.get(), Pos::After),
+           "below every row is After the last top-level row");
+    rig.release(rig.at(rig.b.get(), 0.5));
+    Expect(!rig.tree->isDraggingItems(), "the release ends the drag");
+    Expect(rig.drops.size() == 1 && IsDrop(rig.drops[0], {rig.a.get()}, rig.b.get(), Pos::Into),
+           "the release drops on the place under the pointer");
+    Expect(rig.a->getParent() == rig.root.get(), "the view never moves the items itself");
+}
+
+void TestDragCarriesSelection() {
+    using Pos = jadefx::TreeDropPosition;
+    DragRig rig;
+    rig.tree->selectItems({rig.c.get(), rig.b.get(), rig.b1.get()});
+    rig.drag(rig.c.get(), rig.at(rig.a.get(), 0.5));
+    Expect(rig.drops.size() == 1 && IsDrop(rig.drops[0], {rig.b.get(), rig.c.get()}, rig.a.get(), Pos::Into),
+           "a selected row carries the selection in row order, without rows inside carried rows");
+    Expect(rig.tree->getSelectedItems().size() == 3, "dragging a selected row keeps the selection");
+}
+
+void TestDropRefusals() {
+    DragRig rig;
+    rig.tree->selectItems({rig.b.get()});
+    rig.press(rig.b.get());
+    rig.move(rig.at(rig.b1.get(), 0.5));
+    Expect(rig.tree->isDraggingItems(), "the drag starts");
+    Expect(rig.tree->getPendingDrop().items.empty(), "a row cannot go inside its own child");
+    rig.move(rig.at(rig.b.get(), 0.9));
+    Expect(rig.tree->getPendingDrop().items.empty(), "a row cannot go beside its own child");
+    rig.move(rig.at(rig.b.get(), 0.5));
+    Expect(rig.tree->getPendingDrop().items.empty(), "a row cannot go into itself");
+    Expect(rig.tree->cursorAt(0, 0) == jadefx::Cursor::NotAllowed, "a refused place shows NotAllowed");
+    // The release lands on the pressed row, which would click it without the drag.
+    rig.release(rig.at(rig.b.get(), 0.5));
+    Expect(rig.drops.empty(), "a refused place drops nothing");
+    rig.release(rig.at(rig.b.get(), 0.5));
+
+    rig.tree->setDropAcceptor([&](const jadefx::TreeDrop& drop) { return drop.target != rig.c.get(); });
+    rig.drag(rig.a.get(), rig.at(rig.c.get(), 0.5));
+    Expect(rig.drops.empty(), "the acceptor can refuse a place");
+    rig.drag(rig.a.get(), rig.at(rig.b2.get(), 0.5));
+    Expect(rig.drops.size() == 1, "the acceptor lets other places through");
+}
+
+void TestDragDoesNotClick() {
+    DragRig rig;
+    rig.tree->selectItems({rig.a.get(), rig.c.get()});
+    // Down and back up on the same row: a drag that ends where it began.
+    rig.press(rig.c.get());
+    rig.move(rig.at(rig.a.get(), 0.5));
+    rig.move(rig.at(rig.c.get(), 0.4));
+    rig.release(rig.at(rig.c.get(), 0.4));
+    Expect(rig.tree->getSelectedItems().size() == 2, "the release after a drag does not click the row");
+    rig.press(rig.c.get());
+    rig.release(rig.at(rig.c.get(), 0.5));
+    rig.press(rig.c.get());
+    rig.release(rig.at(rig.c.get(), 0.5));
+    Expect(rig.activations == 1, "clicks after a drag still double-click");
+}
+
+void TestEscapeCancelsDrag() {
+    DragRig rig;
+    rig.press(rig.a.get());
+    rig.move(rig.at(rig.c.get(), 0.5));
+    Expect(rig.tree->isDraggingItems(), "the drag starts");
+    rig.scene->noteKey(jadefx::Key::Escape, true, false, 0);
+    Expect(!rig.tree->isDraggingItems(), "Escape ends the drag");
+    rig.move(rig.at(rig.b.get(), 0.5));
+    Expect(!rig.tree->isDraggingItems(), "the rest of that press drags nothing");
+    rig.release(rig.at(rig.b.get(), 0.5));
+    Expect(rig.drops.empty(), "a cancelled drag drops nothing");
+    rig.drag(rig.a.get(), rig.at(rig.c.get(), 0.5));
+    Expect(rig.drops.size() == 1, "the next press drags again");
+}
+
 }  // namespace
 
 int RunTreeViewTests() {
@@ -236,5 +430,11 @@ int RunTreeViewTests() {
     TestShiftArrowExtends();
     TestArrowDoesNotSelect();
     TestSelectItemsAndRemoval();
+    TestDragIsOffWithoutHandler();
+    TestDropZones();
+    TestDragCarriesSelection();
+    TestDropRefusals();
+    TestDragDoesNotClick();
+    TestEscapeCancelsDrag();
     return gFailures;
 }
