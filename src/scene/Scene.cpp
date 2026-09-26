@@ -144,7 +144,7 @@ void Scene::noteMove(double x, double y) {
     updateHoverPopup(hit);
 }
 
-void Scene::noteButton(int button, bool down, double x, double y) {
+void Scene::noteButton(int button, bool down, double x, double y, int mods) {
     noteMove(x, y);
     // GLFW button 1 is the right button. A press opens a context menu and does not click.
     if (button == 1) {
@@ -166,6 +166,7 @@ void Scene::noteButton(int button, bool down, double x, double y) {
         event.x = x;
         event.y = y;
         event.button = button;
+        event.mods = mods;
         for (Node* node = hit; node != nullptr; node = node->getParent()) {
             if (!node->hasContextMenuHandler()) {
                 continue;
@@ -183,6 +184,7 @@ void Scene::noteButton(int button, bool down, double x, double y) {
     event.x = x;
     event.y = y;
     event.button = button;
+    event.mods = mods;
     if (down) {
         Node* hit = pick(x, y);
         std::vector<Node*> dismiss;

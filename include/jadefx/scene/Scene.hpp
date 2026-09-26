@@ -48,7 +48,8 @@ public:
     void notePointerExit();
     // Cursor for the pointer's last position. The arrow when the pointer is outside.
     Cursor hoverCursor();
-    void noteButton(int button, bool down, double x, double y);
+    // mods are the Key::Mod bits held with the button.
+    void noteButton(int button, bool down, double x, double y, int mods = 0);
     void noteScroll(double x, double y, double deltaX, double deltaY);
     // Returns true when the focused node consumed the event.
     bool noteKey(int key, bool pressed, bool repeat, int mods);

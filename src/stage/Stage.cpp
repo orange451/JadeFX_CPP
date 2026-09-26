@@ -134,9 +134,10 @@ void Stage::pushPointerExit() {
     events_.push_back(std::move(event));
 }
 
-void Stage::pushButton(int button, bool down, double x, double y) {
+void Stage::pushButton(int button, bool down, double x, double y, int mods) {
     Event event;
     event.type = Event::Type::Button;
+    event.mods = mods;
     event.button = button;
     event.down = down;
     event.x = x;
@@ -207,7 +208,7 @@ void Stage::processEvents() {
                 scene_->notePointerExit();
                 break;
             case Event::Type::Button:
-                scene_->noteButton(event.button, event.down, event.x, event.y);
+                scene_->noteButton(event.button, event.down, event.x, event.y, event.mods);
                 break;
             case Event::Type::Scroll:
                 scene_->noteScroll(event.x, event.y, event.dx, event.dy);

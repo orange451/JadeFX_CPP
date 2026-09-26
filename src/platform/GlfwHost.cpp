@@ -53,13 +53,13 @@ void OnMove(GLFWwindow* window, double x, double y) {
     }
 }
 
-void OnButton(GLFWwindow* window, int button, int action, int) {
+void OnButton(GLFWwindow* window, int button, int action, int mods) {
     if (GlfwHost* host = HostOf(window)) {
         if (Stage* stage = host->boundStage()) {
             double x = 0;
             double y = 0;
             glfwGetCursorPos(window, &x, &y);
-            stage->pushButton(button, action == GLFW_PRESS, x, y);
+            stage->pushButton(button, action == GLFW_PRESS, x, y, mods);
         }
     }
 }

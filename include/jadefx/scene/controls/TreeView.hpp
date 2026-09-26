@@ -5,17 +5,24 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 namespace jadefx {
 
 class TreeScrollBar;
+
+// Single keeps one row selected. Multiple adds Ctrl or Command and a click to
+// add or remove a row, and Shift and a click, or Shift and an arrow key, to
+// select every row from the anchor to that one.
+enum class SelectionMode { Single, Multiple };
 
 // Material tree, in the shape of JFoenix's JFXTreeView.
 // Rows indent by level. A branch draws a disclosure arrow that turns down when
 // the branch is open. The selected row keeps a thin bar on its left edge.
 // A click selects the row. The arrow, or a second click on the row, opens or
 // closes a branch. A double-click handler can take that second click instead.
-// A right-click selects the row and asks for a context menu. Arrow keys move the selection. The wheel and trackpad scroll
+// A right-click selects the row and asks for a context menu; in Multiple mode a
+// right-click on a selected row keeps the others. Arrow keys move the selection. The wheel and trackpad scroll
 // in pixels when the rows are taller than the view, so a slow swipe still moves.
 // The scrollbar matches StyledTextArea: drag the thumb, or click the track to page.
 class TreeView : public Controls {
@@ -52,12 +59,30 @@ public:
     TreeItem* getTreeItem(int row) const;
     int getRow(const TreeItem* item) const;
 
+    void setSelectionMode(SelectionMode mode);
+    SelectionMode getSelectionMode() const;
+
+    // The last row picked. In Multiple mode it is one of getSelectedItems.
     TreeItem* getSelectedItem() const;
     int getSelectedIndex() const;
+    // Every selected row, in the order it was picked. The last is getSelectedItem.
+    std::vector<TreeItem*> getSelectedItems() const;
+    bool isSelected(const TreeItem* item) const;
+    // select replaces the whole selection with one row, and makes it the anchor.
     void select(TreeItem* item);
     void select(int row);
+    // Replaces the selection. A repeat keeps its first place, and an item not
+    // in this tree is skipped. The last item becomes the selected item and the
+    // anchor. Single mode keeps only the last.
+    void selectItems(const std::vector<TreeItem*>& items);
     void clearSelection();
+    // The selected item changed. The argument is getSelectedItem.
     void setOnSelectionChanged(std::function<void(TreeItem*)> handler);
+    // The set of selected items changed, from a click, a key, a call, or a row
+    // leaving the tree. Read getSelectedItems.
+    void setOnSelectedItemsChanged(std::function<void()> handler);
+    // The row drawing item, or null when that row is not on screen.
+    Node* getCell(const TreeItem* item) const;
 
     // Right-click on a row. The view has already selected that row.
     void setOnContextMenuRequested(std::function<void(TreeItem&, const MouseEvent&)> handler);
@@ -72,6 +97,9 @@ public:
     // The row calls these. contextMenuRequested selects the item first.
     void contextMenuRequested(TreeItem& item, const MouseEvent& event);
     bool itemActivated(TreeItem& item);
+    // A left click on the row with these Key::Mod bits. False when the click
+    // only changed the selection, so it cannot start a double-click.
+    bool rowClicked(TreeItem& item, int mods);
 
     // scrollTo(TreeItem) opens ancestors so the row can move into view.
     void scrollTo(int row);
@@ -96,7 +124,14 @@ private:
     void rebuild();
     void refreshChrome();
     void selectPointer(TreeItem* item);
-    void moveSelection(int delta);
+    // Replaces the selection. primary is the selected item; null picks the last.
+    void applySelection(std::vector<std::shared_ptr<TreeItem>> items, std::shared_ptr<TreeItem> primary);
+    // Visible rows from the anchor through item, ending at item.
+    std::vector<std::shared_ptr<TreeItem>> rangeTo(TreeItem* item) const;
+    void extendTo(TreeItem* item, bool keep);
+    void moveSelection(int delta, bool extend = false);
+    // Selects row, or with extend in Multiple mode, the rows from the anchor to it.
+    void pickRow(int row, bool extend);
     void revealRow(int row);
     bool containsItem(const TreeItem* item) const;
     int shownLevel(const TreeItem* item) const;

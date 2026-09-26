@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -268,7 +269,7 @@ public:
         disclosure_->setOnMouseClicked([this](const MouseEvent&) { clickedArrow(); });
         setOnMousePressed([this](const MouseEvent& event) { pressed(event); });
         setOnMouseReleased([this](const MouseEvent&) { released(); });
-        setOnMouseClicked([this](const MouseEvent&) { clickedRow(); });
+        setOnMouseClicked([this](const MouseEvent& event) { clickedRow(event); });
         setOnContextMenuRequested([this](const MouseEvent& event) { contextMenu(event); });
         setOnMouseEntered([this](const MouseEvent&) { updateChrome(); });
         setOnMouseExited([this](const MouseEvent&) { updateChrome(); });
@@ -315,7 +316,7 @@ public:
     }
 
     void updateChrome() {
-        const bool selected = view_ != nullptr && item_ != nullptr && view_->getSelectedItem() == item_;
+        const bool selected = view_ != nullptr && item_ != nullptr && view_->isSelected(item_);
         setSelected(selected);
         if (bar_) {
             if (view_ != nullptr) {
@@ -532,12 +533,15 @@ private:
         if (item == nullptr || view == nullptr || item->isLeaf()) {
             return;
         }
-        view->select(item);
+        // An arrow on a selected row keeps the rest of the selection.
+        if (!view->isSelected(item)) {
+            view->select(item);
+        }
         item->setExpanded(!item->isExpanded());
         lastClick_ = 0;
     }
 
-    void clickedRow() {
+    void clickedRow(const MouseEvent& event) {
         if (arrowClick_) {
             arrowClick_ = false;
             return;
@@ -550,7 +554,11 @@ private:
         const double now = Now();
         const bool repeat = lastClick_ > 0 && now - lastClick_ < kDoubleClickSeconds;
         lastClick_ = repeat ? 0 : now;
-        view->select(item);
+        if (!view->rowClicked(*item, event.mods)) {
+            // A click that edits the selection is never half of a double-click.
+            lastClick_ = 0;
+            return;
+        }
         if (repeat) {
             const bool handled = view->itemActivated(*item);
             if (!handled && !item->isLeaf()) {
@@ -565,7 +573,6 @@ private:
         if (item == nullptr || view == nullptr) {
             return;
         }
-        view->select(item);
         view->contextMenuRequested(*item, event);
     }
 
@@ -617,8 +624,16 @@ struct TreeView::Impl {
     std::shared_ptr<TreeItem> root;
     TreeItem* watched = nullptr;
     std::vector<std::shared_ptr<TreeCell>> rows;
+    SelectionMode mode = SelectionMode::Single;
+    // The last row picked. It is also in chosen.
     std::shared_ptr<TreeItem> selected;
+    // Every selected row, in the order picked, and the same rows for lookup.
+    std::vector<std::shared_ptr<TreeItem>> chosen;
+    std::unordered_set<const TreeItem*> chosenSet;
+    // Where Shift ranges start: the last row picked without Shift.
+    std::shared_ptr<TreeItem> anchor;
     std::function<void(TreeItem*)> onSelection;
+    std::function<void()> onItems;
     std::function<void(TreeItem&, const MouseEvent&)> onContext;
     std::function<bool(TreeItem&)> onActivated;
     bool showRoot = true;
@@ -654,6 +669,7 @@ TreeView::~TreeView() {
     }
     impl_->alive = false;
     impl_->onSelection = nullptr;
+    impl_->onItems = nullptr;
     impl_->onContext = nullptr;
     impl_->onActivated = nullptr;
     if (impl_->watched != nullptr) {
@@ -785,6 +801,205 @@ int TreeView::getRow(const TreeItem* item) const {
     return found;
 }
 
+void TreeView::setSelectionMode(SelectionMode mode) {
+    if (!impl_ || impl_->mode == mode) {
+        return;
+    }
+    impl_->mode = mode;
+    if (mode == SelectionMode::Single && impl_->chosen.size() > 1) {
+        std::vector<std::shared_ptr<TreeItem>> one;
+        if (impl_->selected) {
+            one.push_back(impl_->selected);
+        }
+        impl_->anchor = impl_->selected;
+        applySelection(std::move(one), impl_->selected);
+    }
+}
+
+SelectionMode TreeView::getSelectionMode() const { return impl_ ? impl_->mode : SelectionMode::Single; }
+
+std::vector<TreeItem*> TreeView::getSelectedItems() const {
+    std::vector<TreeItem*> out;
+    if (!impl_) {
+        return out;
+    }
+    out.reserve(impl_->chosen.size());
+    for (const std::shared_ptr<TreeItem>& item : impl_->chosen) {
+        out.push_back(item.get());
+    }
+    return out;
+}
+
+bool TreeView::isSelected(const TreeItem* item) const {
+    return impl_ && item != nullptr && impl_->chosenSet.find(item) != impl_->chosenSet.end();
+}
+
+void TreeView::selectItems(const std::vector<TreeItem*>& items) {
+    if (!impl_ || !impl_->alive) {
+        return;
+    }
+    std::vector<std::shared_ptr<TreeItem>> shared;
+    shared.reserve(items.size());
+    for (TreeItem* item : items) {
+        if (std::shared_ptr<TreeItem> found = findShared(item)) {
+            shared.push_back(std::move(found));
+        }
+    }
+    impl_->anchor = shared.empty() ? nullptr : shared.back();
+    applySelection(std::move(shared), nullptr);
+}
+
+void TreeView::setOnSelectedItemsChanged(std::function<void()> handler) {
+    if (impl_) {
+        impl_->onItems = std::move(handler);
+    }
+}
+
+Node* TreeView::getCell(const TreeItem* item) const {
+    if (!impl_ || item == nullptr) {
+        return nullptr;
+    }
+    for (const std::shared_ptr<TreeCell>& row : impl_->rows) {
+        if (row && row->item() == item) {
+            return row->isVisible() && row->getHeight() > 0 ? row.get() : nullptr;
+        }
+    }
+    return nullptr;
+}
+
+bool TreeView::rowClicked(TreeItem& item, int mods) {
+    if (!impl_ || !impl_->alive) {
+        return true;
+    }
+    if (impl_->mode == SelectionMode::Multiple) {
+        const bool add = (mods & (Key::ModControl | Key::ModSuper)) != 0;
+        if ((mods & Key::ModShift) != 0) {
+            extendTo(&item, add);
+            return false;
+        }
+        if (add) {
+            std::shared_ptr<TreeItem> shared = findShared(&item);
+            if (!shared) {
+                return false;
+            }
+            std::vector<std::shared_ptr<TreeItem>> items = impl_->chosen;
+            const auto found = std::find(items.begin(), items.end(), shared);
+            impl_->anchor = shared;
+            if (found != items.end()) {
+                items.erase(found);
+                applySelection(std::move(items), nullptr);
+            } else {
+                items.push_back(shared);
+                applySelection(std::move(items), shared);
+            }
+            return false;
+        }
+    }
+    select(&item);
+    return true;
+}
+
+void TreeView::applySelection(std::vector<std::shared_ptr<TreeItem>> items, std::shared_ptr<TreeItem> primary) {
+    if (!impl_ || !impl_->alive || impl_->selectDepth > 3) {
+        return;
+    }
+    std::vector<std::shared_ptr<TreeItem>> kept;
+    std::unordered_set<const TreeItem*> set;
+    kept.reserve(items.size());
+    for (std::shared_ptr<TreeItem>& item : items) {
+        if (item && set.insert(item.get()).second) {
+            kept.push_back(std::move(item));
+        }
+    }
+    if (!primary || set.find(primary.get()) == set.end()) {
+        primary = kept.empty() ? nullptr : kept.back();
+    }
+    if (impl_->mode == SelectionMode::Single && kept.size() > 1) {
+        kept.assign(1, primary);
+        set.clear();
+        set.insert(primary.get());
+    }
+    const bool itemsChanged = kept != impl_->chosen;
+    const bool primaryChanged = primary != impl_->selected;
+    impl_->chosen = std::move(kept);
+    impl_->chosenSet = std::move(set);
+    impl_->selected = std::move(primary);
+    refreshChrome();
+    ++impl_->selectDepth;
+    if (primaryChanged && impl_->onSelection) {
+        impl_->onSelection(impl_->selected.get());
+    }
+    if (itemsChanged && impl_ && impl_->onItems) {
+        impl_->onItems();
+    }
+    --impl_->selectDepth;
+}
+
+std::vector<std::shared_ptr<TreeItem>> TreeView::rangeTo(TreeItem* item) const {
+    std::vector<std::shared_ptr<TreeItem>> out;
+    if (!impl_ || !impl_->anchor || item == nullptr) {
+        return out;
+    }
+    std::vector<TreeItem*> rows;
+    eachVisible([&](TreeItem* row) { rows.push_back(row); });
+    int from = -1;
+    int to = -1;
+    for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
+        if (rows[static_cast<std::size_t>(i)] == impl_->anchor.get()) {
+            from = i;
+        }
+        if (rows[static_cast<std::size_t>(i)] == item) {
+            to = i;
+        }
+    }
+    if (from < 0 || to < 0) {
+        return out;
+    }
+    // A row's parent lists the owning pointer, so the range needs no tree walk per row.
+    const auto shared = [this](TreeItem* row) -> std::shared_ptr<TreeItem> {
+        if (row == impl_->root.get()) {
+            return impl_->root;
+        }
+        if (TreeItem* parent = row->getParent()) {
+            for (const std::shared_ptr<TreeItem>& child : parent->getChildren().items()) {
+                if (child.get() == row) {
+                    return child;
+                }
+            }
+        }
+        return nullptr;
+    };
+    const int step = from <= to ? 1 : -1;
+    for (int i = from;; i += step) {
+        if (std::shared_ptr<TreeItem> row = shared(rows[static_cast<std::size_t>(i)])) {
+            out.push_back(std::move(row));
+        }
+        if (i == to) {
+            break;
+        }
+    }
+    return out;
+}
+
+void TreeView::extendTo(TreeItem* item, bool keep) {
+    if (!impl_ || item == nullptr) {
+        return;
+    }
+    std::vector<std::shared_ptr<TreeItem>> range = rangeTo(item);
+    if (range.empty()) {
+        // No anchor on screen: the row starts a new range.
+        select(item);
+        return;
+    }
+    std::shared_ptr<TreeItem> primary = range.back();
+    std::vector<std::shared_ptr<TreeItem>> items;
+    if (keep) {
+        items = impl_->chosen;
+    }
+    items.insert(items.end(), range.begin(), range.end());
+    applySelection(std::move(items), std::move(primary));
+}
+
 TreeItem* TreeView::getSelectedItem() const {
     return impl_ && impl_->selected ? impl_->selected.get() : nullptr;
 }
@@ -857,7 +1072,15 @@ void TreeView::contextMenuRequested(TreeItem& item, const MouseEvent& event) {
     if (!impl_ || !impl_->alive) {
         return;
     }
-    select(&item);
+    if (impl_->mode == SelectionMode::Multiple && isSelected(&item)) {
+        // The menu is for the whole selection. The row only becomes the last picked.
+        applySelection(impl_->chosen, findShared(&item));
+    } else {
+        select(&item);
+    }
+    if (!impl_ || !impl_->alive) {
+        return;
+    }
     if (impl_->onContext) {
         impl_->onContext(item, event);
     }
@@ -925,15 +1148,36 @@ void TreeView::requestSync() {
     if (!impl_->alive) {
         return;
     }
-    if (impl_->selected && !containsItem(impl_->selected.get())) {
-        impl_->selected.reset();
-        refreshChrome();
-        if (impl_->onSelection && impl_->selectDepth == 0) {
-            ++impl_->selectDepth;
-            impl_->onSelection(nullptr);
-            --impl_->selectDepth;
+    if (impl_->chosen.empty()) {
+        return;
+    }
+    // Rows that left the tree leave the selection.
+    std::unordered_set<const TreeItem*> present;
+    std::function<void(const TreeItem*)> walk = [&](const TreeItem* node) {
+        for (const std::shared_ptr<TreeItem>& child : node->getChildren().items()) {
+            if (child && present.insert(child.get()).second) {
+                walk(child.get());
+            }
+        }
+    };
+    if (impl_->root) {
+        present.insert(impl_->root.get());
+        walk(impl_->root.get());
+    }
+    std::vector<std::shared_ptr<TreeItem>> kept;
+    for (const std::shared_ptr<TreeItem>& item : impl_->chosen) {
+        if (present.find(item.get()) != present.end()) {
+            kept.push_back(item);
         }
     }
+    if (kept.size() == impl_->chosen.size()) {
+        return;
+    }
+    if (impl_->anchor && present.find(impl_->anchor.get()) == present.end()) {
+        impl_->anchor.reset();
+    }
+    std::shared_ptr<TreeItem> primary = impl_->selected;
+    applySelection(std::move(kept), std::move(primary));
 }
 
 void TreeView::rebuild() {
@@ -1007,20 +1251,19 @@ void TreeView::handleKey(KeyEvent& event) {
         return;
     }
     TreeItem* item = getSelectedItem();
+    const bool extend = event.shift;
     if (event.key == Key::Down) {
-        moveSelection(1);
+        moveSelection(1, extend);
     } else if (event.key == Key::Up) {
-        moveSelection(-1);
+        moveSelection(-1, extend);
     } else if (event.key == Key::Home) {
-        select(0);
-        revealRow(0);
+        pickRow(0, extend);
     } else if (event.key == Key::End) {
-        select(count - 1);
-        revealRow(count - 1);
+        pickRow(count - 1, extend);
     } else if (event.key == Key::PageDown) {
-        moveSelection(std::max(1, impl_->visibleRows));
+        moveSelection(std::max(1, impl_->visibleRows), extend);
     } else if (event.key == Key::PageUp) {
-        moveSelection(-std::max(1, impl_->visibleRows));
+        moveSelection(-std::max(1, impl_->visibleRows), extend);
     } else if (event.key == Key::Right) {
         if (item == nullptr) {
             select(0);
@@ -1063,7 +1306,7 @@ void TreeView::handleKey(KeyEvent& event) {
     event.consume();
 }
 
-void TreeView::moveSelection(int delta) {
+void TreeView::moveSelection(int delta, bool extend) {
     const int count = getExpandedItemCount();
     if (count <= 0) {
         return;
@@ -1080,7 +1323,15 @@ void TreeView::moveSelection(int delta) {
             row = count - 1;
         }
     }
-    select(row);
+    pickRow(row, extend);
+}
+
+void TreeView::pickRow(int row, bool extend) {
+    if (extend && impl_ && impl_->mode == SelectionMode::Multiple && impl_->anchor) {
+        extendTo(getTreeItem(row), false);
+    } else {
+        select(row);
+    }
     revealRow(row);
 }
 
@@ -1110,17 +1361,12 @@ void TreeView::selectPointer(TreeItem* item) {
             return;
         }
     }
-    if (impl_->selected == next) {
-        refreshChrome();
-        return;
+    std::vector<std::shared_ptr<TreeItem>> items;
+    if (next) {
+        items.push_back(next);
     }
-    impl_->selected = std::move(next);
-    refreshChrome();
-    if (impl_->onSelection) {
-        ++impl_->selectDepth;
-        impl_->onSelection(impl_->selected.get());
-        --impl_->selectDepth;
-    }
+    impl_->anchor = next;
+    applySelection(std::move(items), std::move(next));
 }
 
 bool TreeView::containsItem(const TreeItem* item) const {

@@ -45,7 +45,7 @@ public:
 
     void pushMove(double x, double y);
     void pushPointerExit();
-    void pushButton(int button, bool down, double x, double y);
+    void pushButton(int button, bool down, double x, double y, int mods = 0);
     void pushScroll(double x, double y, double deltaX, double deltaY);
     void pushKey(int key, bool pressed);
     void pushKey(int key, bool pressed, int mods, bool repeat);

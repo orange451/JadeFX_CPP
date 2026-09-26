@@ -262,6 +262,7 @@ if(NOT JADEFX_GLFM)
         tests/split_pane_tests.cpp
         tests/image_tests.cpp
         tests/run_later_tests.cpp
+        tests/tree_view_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     foreach(target jadefx-purple jadefx-hello jadefx-border jadefx-tabs jadefx-tree jadefx-split jadefx-rich jadefx-controls jadefx-tests)

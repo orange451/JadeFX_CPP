@@ -12,6 +12,12 @@ struct MouseEvent {
     double y = 0;
     int button = 0;
     Node* target = nullptr;
+    // Modifier keys held with the button, as Key::Mod bits.
+    int mods = 0;
+
+    bool shift() const { return (mods & 0x1) != 0; }
+    // Ctrl on Windows and Linux, Command on macOS. Either one is accepted.
+    bool shortcut() const { return (mods & (0x2 | 0x8)) != 0; }
 };
 
 struct ScrollEvent {
