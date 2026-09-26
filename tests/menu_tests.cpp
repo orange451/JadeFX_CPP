@@ -417,6 +417,72 @@ void TestEscapeHidesMenu() {
     Expect(popups.empty() || !scene->isPopupShowing(popups[0]), "Escape drops the popup");
 }
 
+void TestMenuItemGraphic() {
+    auto icon = jadefx::make<jadefx::Pane>();
+    icon->setPrefSize(16, 16);
+    icon->setElementId("save-icon");
+    auto save = jadefx::make<jadefx::MenuItem>("Save");
+    Expect(save->getGraphic() == nullptr, "a menu item starts without a graphic");
+    save->setGraphic(icon);
+    Expect(save->getGraphic() == icon, "setGraphic keeps the node");
+    save->setAccelerator(jadefx::Key::S, jadefx::Key::ModControl);
+    int fires = 0;
+    save->setOnAction([&](jadefx::ActionEvent&) { ++fires; });
+
+    auto plain = jadefx::make<jadefx::MenuItem>("Open");
+    auto button = jadefx::make<jadefx::MenuButton>("File");
+    button->getItems().add(save);
+    button->getItems().add(plain);
+    auto root = FullRoot();
+    root->getChildren().add(button);
+    auto scene = jadefx::make<jadefx::Scene>(root, 720, 420);
+    scene->layout(720, 420, 0);
+    ClickNode(*scene, *button);
+    scene->layout(720, 420, 0);
+
+    jadefx::Node* row = scene->getElementById("Save");
+    jadefx::Node* mark = scene->getElementById("save-icon");
+    jadefx::Node* saveLabel = scene->getElementById("menu-label:Save");
+    jadefx::Node* openLabel = scene->getElementById("menu-label:Open");
+    Expect(mark != nullptr && mark->getParent() == row, "the graphic is a child of its row");
+    Expect(mark != nullptr && std::abs(mark->getX() - 12) < 0.5, "the graphic sits in the row padding");
+    Expect(mark != nullptr && std::abs(mark->getWidth() - 16) < 0.5 && std::abs(mark->getHeight() - 16) < 0.5,
+           "the graphic keeps its 16px size");
+    Expect(saveLabel != nullptr && mark != nullptr && saveLabel->getX() + 0.5 >= mark->getX() + mark->getWidth(),
+           "the label starts to the right of the graphic");
+    Expect(saveLabel != nullptr && openLabel != nullptr && std::abs(saveLabel->getX() - openLabel->getX()) < 0.5,
+           "a row without a graphic lines its label up with the icon column");
+    jadefx::Node* accel = scene->getElementById("menu-accel:Save");
+    Expect(accel != nullptr && saveLabel != nullptr && accel->getX() + 0.5 >= saveLabel->getX() + saveLabel->getWidth(),
+           "the accelerator stays to the right of the label");
+    if (mark != nullptr) {
+        Click(*scene, mark->getAbsoluteX() + mark->getWidth() * 0.5, mark->getAbsoluteY() + mark->getHeight() * 0.5);
+    }
+    Expect(fires == 1, "a click on the graphic runs the item");
+    Expect(!button->isShowing(), "the graphic click hides the menu");
+
+    ClickNode(*scene, *button);
+    scene->layout(720, 420, 0);
+    auto next = jadefx::make<jadefx::Pane>();
+    next->setPrefSize(16, 16);
+    next->setElementId("next-icon");
+    save->setGraphic(next);
+    scene->layout(720, 420, 0);
+    Expect(scene->getElementById("save-icon") == nullptr, "replacing the graphic removes the old one");
+    Expect(scene->getElementById("next-icon") != nullptr, "the open menu shows the new graphic");
+    Expect(save->getGraphic() == next, "getGraphic returns the replacement");
+
+    save->setGraphic(nullptr);
+    scene->layout(720, 420, 0);
+    Expect(save->getGraphic() == nullptr, "clearing the graphic drops it");
+    Expect(scene->getElementById("next-icon") == nullptr, "the open menu drops a cleared graphic");
+    saveLabel = scene->getElementById("menu-label:Save");
+    openLabel = scene->getElementById("menu-label:Open");
+    Expect(saveLabel != nullptr && std::abs(saveLabel->getX() - 12) < 0.5, "the label returns to the row padding");
+    Expect(saveLabel != nullptr && openLabel != nullptr && std::abs(saveLabel->getX() - openLabel->getX()) < 0.5,
+           "clearing the graphic lines both labels up");
+}
+
 void TestMenuShowAtPoint() {
     auto menu = jadefx::make<jadefx::Menu>();
     int fires = 0;
@@ -467,6 +533,7 @@ int RunMenuTests() {
     TestRebuildWhileOpen();
     TestLeavingScene();
     TestEscapeHidesMenu();
+    TestMenuItemGraphic();
     TestMenuShowAtPoint();
     return gFailures;
 }

@@ -1,5 +1,6 @@
 #include "jadefx/scene/controls/MenuItem.hpp"
 
+#include "jadefx/scene/Node.hpp"
 #include "jadefx/scene/controls/Menu.hpp"
 
 namespace jadefx {
@@ -63,6 +64,19 @@ void MenuItem::setAccelerator(int key, int mods) {
 int MenuItem::getAcceleratorKey() const { return acceleratorKey_; }
 
 int MenuItem::getAcceleratorMods() const { return acceleratorMods_; }
+
+void MenuItem::setGraphic(std::shared_ptr<Node> graphic) {
+    if (graphic_ == graphic) {
+        return;
+    }
+    if (graphic_ != nullptr && graphic_->getParent() != nullptr) {
+        graphic_->getParent()->detachChild(graphic_.get());
+    }
+    graphic_ = std::move(graphic);
+    notifyParent();
+}
+
+std::shared_ptr<Node> MenuItem::getGraphic() const { return graphic_; }
 
 Menu* MenuItem::getParentMenu() const { return parent_; }
 

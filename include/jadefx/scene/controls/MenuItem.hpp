@@ -2,11 +2,13 @@
 
 #include "jadefx/event/Events.hpp"
 
+#include <memory>
 #include <string>
 
 namespace jadefx {
 
 class Menu;
+class Node;
 
 // One entry in a Menu or MenuButton. Not a scene-graph node. fire() runs the
 // action unless the item is disabled. Accelerators are matched by menu bars
@@ -39,6 +41,10 @@ public:
     int getAcceleratorKey() const;
     int getAcceleratorMods() const;
 
+    // Drawn left of the label. Clicks fall through to the row.
+    void setGraphic(std::shared_ptr<Node> graphic);
+    std::shared_ptr<Node> getGraphic() const;
+
     Menu* getParentMenu() const;
     void setParentMenu(Menu* menu);
 
@@ -53,6 +59,7 @@ private:
     ActionHandler onAction_;
     int acceleratorKey_ = 0;
     int acceleratorMods_ = 0;
+    std::shared_ptr<Node> graphic_;
     Menu* parent_ = nullptr;
 };
 

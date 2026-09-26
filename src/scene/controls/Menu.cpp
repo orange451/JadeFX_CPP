@@ -20,6 +20,7 @@ constexpr double kRowHeight = 28;
 constexpr double kSeparatorHeight = 9;
 constexpr double kMinPopupWidth = 160;
 constexpr double kLabelGap = 16;
+constexpr double kGraphicGap = 8;
 
 Color MenuGray() { return Color::rgb8(95, 99, 104); }
 
@@ -179,7 +180,8 @@ void HoverRow(MenuItem* item, Node* row);
 
 class MenuRow : public Region {
 public:
-    explicit MenuRow(std::shared_ptr<MenuItem> item) : item_(std::move(item)) {
+    MenuRow(std::shared_ptr<MenuItem> item, double graphicColumn)
+        : item_(std::move(item)), graphicColumn_(std::max(0.0, graphicColumn)) {
         setDefaultCursor(Cursor::Pointer);
         setPrefHeight(kRowHeight);
         setPadding(Insets::axes(0, kRowPadX));
@@ -193,6 +195,9 @@ public:
         text_ = std::make_shared<Label>(item_->getText());
         text_->setMouseTransparent(true);
         text_->setAlignment(Pos::CenterLeft);
+        if (!item_->getText().empty()) {
+            text_->setElementId(std::string("menu-label:") + item_->getText());
+        }
         children().add(text_);
 
         const std::string accel = AcceleratorText(*item_);
@@ -201,6 +206,7 @@ public:
             accel_->setMouseTransparent(true);
             accel_->setTextFill(MenuGray());
             accel_->setAlignment(Pos::CenterRight);
+            accel_->setElementId(std::string("menu-accel:") + item_->getText());
             children().add(accel_);
         }
         if (dynamic_cast<Menu*>(item_.get()) != nullptr) {
@@ -209,6 +215,13 @@ public:
             arrow_->setTextFill(MenuGray());
             arrow_->setAlignment(Pos::CenterRight);
             children().add(arrow_);
+        }
+        if (graphicColumn_ > 0) {
+            if (std::shared_ptr<Node> graphic = item_->getGraphic()) {
+                graphic->setMouseTransparent(true);
+                graphic_ = std::move(graphic);
+                children().add(graphic_);
+            }
         }
         if (item_->isDisable()) {
             setDisable(true);
@@ -276,14 +289,26 @@ protected:
             right -= width;
             accel_->performLayout(right, top + (innerHeight - height) * 0.5, width, height);
         }
+        double textLeft = left;
+        if (graphicColumn_ > 0) {
+            if (graphic_ && graphic_->isVisible()) {
+                const double graphicW = std::min(graphicColumn_, std::max(0.0, graphic_->measuredWidth(graphicColumn_)));
+                const double graphicH =
+                    std::min(innerHeight, std::max(0.0, graphic_->measuredHeight(graphicW, innerHeight)));
+                graphic_->performLayout(left, top + (innerHeight - graphicH) * 0.5, graphicW, graphicH);
+            } else if (graphic_) {
+                graphic_->performLayout(0, 0, 0, 0);
+            }
+            textLeft += graphicColumn_ + kGraphicGap;
+        }
         if (text_) {
-            const double available = std::max(0.0, right - left - (accel_ || arrow_ ? 8.0 : 0.0));
+            const double available = std::max(0.0, right - textLeft - (accel_ || arrow_ ? 8.0 : 0.0));
             double width = text_->measuredWidth(available);
             if (width > available) {
                 width = available;
             }
             const double height = std::max(1.0, text_->measuredHeight(width, innerHeight));
-            text_->performLayout(left, top + (innerHeight - height) * 0.5, width, height);
+            text_->performLayout(textLeft, top + (innerHeight - height) * 0.5, width, height);
         }
     }
 
@@ -292,6 +317,8 @@ private:
     std::shared_ptr<Label> text_;
     std::shared_ptr<Label> accel_;
     std::shared_ptr<Label> arrow_;
+    std::shared_ptr<Node> graphic_;
+    double graphicColumn_ = 0;
 };
 
 void HoverRow(MenuItem* item, Node* row) {
@@ -314,8 +341,33 @@ void HoverRow(MenuItem* item, Node* row) {
     }
 }
 
-double RowContentWidth(const MenuItem& item, const Font& font) {
+double GraphicExtent(const Node& node) {
+    if (!node.isVisible()) {
+        return 0;
+    }
+    return std::max(0.0, std::max(node.getPrefWidth(), node.measuredWidth(-1)));
+}
+
+double GraphicColumn(const ObservableList<std::shared_ptr<MenuItem>>& items) {
+    double column = 0;
+    for (const std::shared_ptr<MenuItem>& entry : items.items()) {
+        if (!entry || !entry->isVisible() || dynamic_cast<SeparatorMenuItem*>(entry.get()) != nullptr) {
+            continue;
+        }
+        const std::shared_ptr<Node> graphic = entry->getGraphic();
+        if (!graphic) {
+            continue;
+        }
+        column = std::max(column, GraphicExtent(*graphic));
+    }
+    return column;
+}
+
+double RowContentWidth(const MenuItem& item, const Font& font, double graphicColumn) {
     double width = kRowPadX * 2 + static_cast<double>(font.measureWidth(item.getText()));
+    if (graphicColumn > 0) {
+        width += graphicColumn + kGraphicGap;
+    }
     const std::string accel = AcceleratorText(item);
     if (!accel.empty()) {
         width += kLabelGap + static_cast<double>(font.measureWidth(accel));
@@ -515,12 +567,13 @@ void Menu::rebuildRows() {
     }
     auto* popup = static_cast<MenuPopup*>(popup_.get());
     const Font font = MeasureFont(anchor_);
+    const double graphicColumn = GraphicColumn(items_);
     double widest = 0;
     for (const std::shared_ptr<MenuItem>& entry : items_.items()) {
         if (!entry || !entry->isVisible() || dynamic_cast<SeparatorMenuItem*>(entry.get()) != nullptr) {
             continue;
         }
-        widest = std::max(widest, RowContentWidth(*entry, font));
+        widest = std::max(widest, RowContentWidth(*entry, font, graphicColumn));
     }
     const double popupWidth = std::max(kMinPopupWidth, widest + kPopupPad * 2);
     const double rowWidth = std::max(0.0, popupWidth - kPopupPad * 2);
@@ -536,7 +589,7 @@ void Menu::rebuildRows() {
             popup->getChildren().add(std::move(row));
             continue;
         }
-        auto row = std::make_shared<MenuRow>(entry);
+        auto row = std::make_shared<MenuRow>(entry, graphicColumn);
         row->setPrefWidth(rowWidth);
         popup->getChildren().add(std::move(row));
     }
