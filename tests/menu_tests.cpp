@@ -483,6 +483,41 @@ void TestMenuItemGraphic() {
            "clearing the graphic lines both labels up");
 }
 
+void TestGraphicSurvivesReopen() {
+    auto icon = jadefx::make<jadefx::Pane>();
+    icon->setPrefSize(16, 16);
+    icon->setElementId("new-icon");
+    auto item = jadefx::make<jadefx::MenuItem>("New");
+    item->setGraphic(icon);
+    auto file = jadefx::make<jadefx::Menu>("File");
+    file->getItems().add(item);
+    auto bar = jadefx::make<jadefx::MenuBar>();
+    bar->getMenus().add(file);
+    auto root = FullRoot();
+    root->getChildren().add(bar);
+    auto scene = jadefx::make<jadefx::Scene>(root, 720, 420);
+    scene->layout(720, 420, 0);
+    jadefx::Node* title = scene->getElementById("menu:File");
+    if (title == nullptr) {
+        Expect(false, "the File title exists");
+        return;
+    }
+    // Each open rebuilds the rows. The old row is freed while the item still
+    // owns its graphic, so the next row must not detach it from that row.
+    for (int round = 0; round < 3; ++round) {
+        ClickNode(*scene, *title);
+        scene->layout(720, 420, 0);
+        jadefx::Node* row = scene->getElementById("New");
+        Expect(file->isShowing(), "the menu reopens");
+        Expect(row != nullptr && icon->getParent() == row, "the reopened row owns the graphic");
+        if (row != nullptr) {
+            ClickNode(*scene, *row);
+            scene->layout(720, 420, 0);
+        }
+    }
+    Expect(!file->isShowing(), "the last click hides the menu");
+}
+
 void TestMenuShowAtPoint() {
     auto menu = jadefx::make<jadefx::Menu>();
     int fires = 0;
@@ -534,6 +569,7 @@ int RunMenuTests() {
     TestLeavingScene();
     TestEscapeHidesMenu();
     TestMenuItemGraphic();
+    TestGraphicSurvivesReopen();
     TestMenuShowAtPoint();
     return gFailures;
 }

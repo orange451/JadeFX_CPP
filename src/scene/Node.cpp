@@ -129,6 +129,14 @@ Node::Node() {
 Node::~Node() {
     children_.setAddCallback(nullptr);
     children_.setRemoveCallback(nullptr);
+    // A child can outlive this node, such as a menu item's graphic shared by
+    // each rebuilt row. Drop its back pointer so a later add does not detach
+    // it from freed memory.
+    for (const std::shared_ptr<Node>& child : children_.items()) {
+        if (child && child->parent_ == this) {
+            child->parent_ = nullptr;
+        }
+    }
     children_.clear();
 }
 
