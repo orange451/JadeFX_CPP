@@ -1390,12 +1390,14 @@ void TestTreeView() {
         salesCell = CellNamed(*scene, "Sales");
         jadefx::Node* arrow = ArrowOf(salesCell);
         Expect(arrow != nullptr, "a collapsed branch keeps its arrow");
+        jadefx::TreeItem* before = tree->getSelectedItem();
+        Expect(before != nullptr && before != sales.get(), "another row is selected before the arrow click");
         if (arrow != nullptr) {
             ClickAt(*scene, arrow, arrow->getWidth() * 0.5);
         }
         scene->layout(240, 200, 0);
         Expect(sales->isExpanded(), "clicking the arrow opens the branch");
-        Expect(tree->getSelectedItem() == sales.get(), "clicking the arrow also selects the branch");
+        Expect(tree->getSelectedItem() == before, "clicking the arrow leaves the selection alone");
         Expect(tree->getExpandedItemCount() == 4, "the opened children come back");
     }
 

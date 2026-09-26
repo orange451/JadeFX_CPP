@@ -533,10 +533,7 @@ private:
         if (item == nullptr || view == nullptr || item->isLeaf()) {
             return;
         }
-        // An arrow on a selected row keeps the rest of the selection.
-        if (!view->isSelected(item)) {
-            view->select(item);
-        }
+        // The arrow only opens or closes the row; it never changes the selection.
         item->setExpanded(!item->isExpanded());
         lastClick_ = 0;
     }

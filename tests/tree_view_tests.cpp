@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -162,6 +163,41 @@ void TestShiftArrowExtends() {
     Expect(rig.tree->getSelectedItems() == rig.pick({2}), "a plain arrow selects one row");
 }
 
+void TestArrowDoesNotSelect() {
+    Rig rig(jadefx::SelectionMode::Multiple);
+    rig.rows[1]->getChildren().add(jadefx::make<jadefx::TreeItem>("B1"));
+    rig.click(3);
+    rig.itemChanges = 0;
+    rig.frame();
+    jadefx::Node* cell = rig.tree->getCell(rig.rows[1].get());
+    Expect(cell != nullptr, "the branch row is on screen");
+    if (cell == nullptr) {
+        return;
+    }
+    // Walk across the row until the point lands on the arrow.
+    const double y = cell->getAbsoluteY() + cell->getHeight() * 0.5;
+    double x = -1;
+    for (double at = cell->getAbsoluteX(); at < cell->getAbsoluteX() + cell->getWidth() && x < 0; at += 1) {
+        jadefx::Node* hit = rig.tree->pick(at, y);
+        if (hit != nullptr && std::string_view(hit->getElementType()) == "tree-disclosure-node") {
+            x = at + 2;
+        }
+    }
+    Expect(x >= 0, "the branch row has an arrow");
+    if (x < 0) {
+        return;
+    }
+    rig.scene->noteButton(0, true, x, y, 0);
+    rig.scene->noteButton(0, false, x, y, 0);
+    Expect(rig.rows[1]->isExpanded(), "the arrow expands the row");
+    Expect(rig.tree->getSelectedItems() == rig.pick({3}), "the arrow leaves the selection alone");
+    Expect(rig.itemChanges == 0, "the arrow does not notify a selection change");
+    rig.scene->noteButton(0, true, x, y, 0);
+    rig.scene->noteButton(0, false, x, y, 0);
+    Expect(!rig.rows[1]->isExpanded(), "a second arrow click collapses the row");
+    Expect(rig.tree->getSelectedItems() == rig.pick({3}), "collapsing leaves the selection alone");
+}
+
 void TestSelectItemsAndRemoval() {
     Rig rig(jadefx::SelectionMode::Multiple);
     rig.itemChanges = 0;
@@ -198,6 +234,7 @@ int RunTreeViewTests() {
     TestModifiedClicksDoNotActivate();
     TestRightClickKeepsSelection();
     TestShiftArrowExtends();
+    TestArrowDoesNotSelect();
     TestSelectItemsAndRemoval();
     return gFailures;
 }
