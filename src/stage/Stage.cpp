@@ -1,5 +1,7 @@
 #include "jadefx/stage/Stage.hpp"
 
+#include "jadefx/application/RunLater.hpp"
+
 #include "jadefx/scene/layout/StackPane.hpp"
 #include "gl/UiRenderer.hpp"
 #include "gl/gl.hpp"
@@ -244,6 +246,8 @@ bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int fra
         scene_->setSafeInsets(safe_);
         scene_->layout(pointWidth, pointHeight);
     }
+    // Before input, so a task queued by this frame's click runs after that click has finished.
+    drainRunLater();
     processEvents();
     scene_->setSafeInsets(safe_);
     scene_->layout(pointWidth, pointHeight);

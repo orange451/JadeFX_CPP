@@ -1826,6 +1826,7 @@ int RunSliderTests();
 int RunSpinnerTests();
 int RunSplitPaneTests();
 int RunImageTests();
+int RunRunLaterTests();
 
 int main() {
     TestColors();
@@ -1846,6 +1847,7 @@ int main() {
     TestUtilityWindow();
     TestTreeView();
     gFailures += RunRichTextTests();
+    gFailures += RunRunLaterTests();
     gFailures += RunButtonTests();
     gFailures += RunCursorTests();
     gFailures += RunToggleTests();

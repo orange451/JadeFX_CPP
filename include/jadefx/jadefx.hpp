@@ -1,6 +1,7 @@
 #pragma once
 
 #include "jadefx/application/Application.hpp"
+#include "jadefx/application/RunLater.hpp"
 #include "jadefx/collections/ObservableList.hpp"
 #include "jadefx/event/Events.hpp"
 #include "jadefx/geometry/Geometry.hpp"
@@ -47,6 +48,7 @@
 #include "jadefx/scene/text/StyleSpans.hpp"
 #include "jadefx/scene/text/StyledDocument.hpp"
 #include "jadefx/scene/text/TextStyle.hpp"
+#include "jadefx/stage/FolderDialog.hpp"
 #include "jadefx/stage/Stage.hpp"
 #include "jadefx/stage/UtilityWindow.hpp"
 #include "jadefx/style/Style.hpp"

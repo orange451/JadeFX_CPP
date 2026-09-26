@@ -61,6 +61,7 @@ set(JADEFX_SOURCES
     src/scene/Scene.cpp
     src/stage/Stage.cpp
     src/application/Application.cpp
+    src/application/RunLater.cpp
     src/gl/gl.cpp
     src/gl/Resources.cpp
     src/gl/UiRenderer.cpp
@@ -69,9 +70,9 @@ set(JADEFX_SOURCES
 
 if(APPLE)
     enable_language(OBJCXX)
-    list(APPEND JADEFX_SOURCES src/platform/ErrorDialog_apple.mm)
+    list(APPEND JADEFX_SOURCES src/platform/ErrorDialog_apple.mm src/platform/FolderDialog_apple.mm)
 else()
-    list(APPEND JADEFX_SOURCES src/platform/ErrorDialog.cpp)
+    list(APPEND JADEFX_SOURCES src/platform/ErrorDialog.cpp src/platform/FolderDialog.cpp)
 endif()
 
 if(NOT JADEFX_GLFM)
@@ -86,6 +87,11 @@ target_include_directories(jadefx
     PRIVATE src src/gl
 )
 target_compile_definitions(jadefx PRIVATE "JADEFX_SOURCE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+if(NOT EMSCRIPTEN AND NOT ANDROID)
+    # The Linux folder dialog waits for zenity or kdialog on a thread.
+    find_package(Threads REQUIRED)
+    target_link_libraries(jadefx PUBLIC Threads::Threads)
+endif()
 
 # stb_truetype and stb_image are public-domain headers. Fetch them the same way
 # as GLFW and GLFM, pinned to nothings/stb 2c980bb (the bytes this tree used to vendor).
@@ -182,6 +188,10 @@ else()
         set(JADEFX_GLFW_TARGET glfw)
     endif()
     target_link_libraries(jadefx PUBLIC ${JADEFX_GLFW_TARGET})
+    if(WIN32)
+        # The common item dialog behind showFolderDialog.
+        target_link_libraries(jadefx PUBLIC ole32 shell32 uuid)
+    endif()
     if(APPLE)
         target_link_libraries(jadefx PUBLIC "-framework Cocoa")
     endif()
@@ -251,6 +261,7 @@ if(NOT JADEFX_GLFM)
         tests/spinner_tests.cpp
         tests/split_pane_tests.cpp
         tests/image_tests.cpp
+        tests/run_later_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     foreach(target jadefx-purple jadefx-hello jadefx-border jadefx-tabs jadefx-tree jadefx-split jadefx-rich jadefx-controls jadefx-tests)
