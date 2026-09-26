@@ -1,5 +1,6 @@
 #include "jadefx/application/RunLater.hpp"
 #include "jadefx/stage/FolderDialog.hpp"
+#include "jadefx/stage/Stage.hpp"
 
 #include <cstdio>
 #include <string>
@@ -50,11 +51,31 @@ void TestEmptyHandlerIsIgnored() {
     Expect(true, "an empty task or handler is ignored");
 }
 
+void TestCloseRequest() {
+    jadefx::Stage stage;
+    int closed = 0;
+    stage.setCloseHandler([&] { ++closed; });
+    Expect(stage.closeRequested(), "with no handler a close goes through");
+    bool allow = false;
+    int asked = 0;
+    stage.setOnCloseRequest([&] {
+        ++asked;
+        return allow;
+    });
+    Expect(!stage.closeRequested(), "the handler can keep the window open");
+    allow = true;
+    Expect(stage.closeRequested(), "the handler can let the close through");
+    Expect(asked == 2, "each close request asks the handler");
+    stage.close();
+    Expect(closed == 1 && asked == 2, "close() closes without asking");
+}
+
 }  // namespace
 
 int RunRunLaterTests() {
     TestOrderAndNesting();
     TestOtherThread();
     TestEmptyHandlerIsIgnored();
+    TestCloseRequest();
     return gFailures;
 }

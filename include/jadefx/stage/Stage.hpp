@@ -70,6 +70,17 @@ public:
     using TitleHandler = std::function<void(const std::string&)>;
     using CursorHandler = std::function<void(Cursor)>;
     void setHostHandlers(ResizeHandler resize, ShowHandler show, TitleHandler title);
+
+    // Asked when the user closes the window: the close button, Alt+F4, or Cmd+Q.
+    // Return false to keep it open, for example to ask about unsaved work, then
+    // call close() once the answer allows it. No handler lets every close through.
+    void setOnCloseRequest(std::function<bool()> handler) { onCloseRequest_ = std::move(handler); }
+    // True when the handler lets the window close. The host calls this.
+    bool closeRequested();
+    // Closes the window without asking onCloseRequest.
+    void close();
+    // The host's way to close the window. Application::launch sets it.
+    void setCloseHandler(std::function<void()> handler) { onClose_ = std::move(handler); }
     // Called when the cursor over the window changes. The GLFW host sets the system cursor.
     void setCursorHandler(CursorHandler handler);
 
@@ -92,6 +103,8 @@ private:
     Insets safe_;
     ResizeHandler onResize_;
     ShowHandler onShow_;
+    std::function<bool()> onCloseRequest_;
+    std::function<void()> onClose_;
     TitleHandler onTitle_;
     CursorHandler onCursor_;
     Cursor cursor_ = Cursor::Default;

@@ -235,6 +235,14 @@ void Stage::processEvents() {
     }
 }
 
+bool Stage::closeRequested() { return !onCloseRequest_ || onCloseRequest_(); }
+
+void Stage::close() {
+    if (onClose_) {
+        onClose_();
+    }
+}
+
 bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int framebufferHeight) {
     if (!graphicsReady_ || renderer_ == nullptr || pointWidth <= 0 || pointHeight <= 0 || framebufferWidth <= 0 ||
         framebufferHeight <= 0) {

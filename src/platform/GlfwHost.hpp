@@ -27,7 +27,7 @@ public:
     void setTitle(const char* title);
     void makeCurrent();
     GLFWwindow* handle() const { return window_; }
-    // Return false to keep the window open. The primary window has no hook.
+    // Return false to keep the window open. The primary window asks its Stage.
     void setCloseHook(std::function<bool()> hook);
     // True when the hook wants the window to stay. Used by the GLFW close callback.
     bool closeHookRejects() const;
