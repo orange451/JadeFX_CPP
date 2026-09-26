@@ -63,6 +63,7 @@ private:
     LineLayout measureLine() const;
     void ensureCaretVisible();
     int indexAt(double absoluteX);
+    int characterAt(double absoluteX);
     void moveCaret(int direction, bool extend, bool byWord);
     void moveTo(int index, bool extend);
     void eraseOne(bool forward);
@@ -79,6 +80,15 @@ private:
     int anchor_ = 0;
     float scroll_ = 0.f;
     bool editable_ = true;
+    // Presses close in time and place count up to a triple click.
+    int clickCount_ = 0;
+    double lastPressSeconds_ = 0;
+    double lastPressX_ = 0;
+    double lastPressY_ = 0;
+    // A double-click drag grows by whole words from the word it started on.
+    bool dragWords_ = false;
+    int wordStart_ = 0;
+    int wordEnd_ = 0;
 };
 
 }  // namespace jadefx

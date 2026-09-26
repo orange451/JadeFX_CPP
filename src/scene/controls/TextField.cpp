@@ -5,6 +5,7 @@
 #include "scene/text/Unicode.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -71,6 +72,39 @@ int PreviousWord(const std::u32string& chars, int index) {
         --cursor;
     }
     return cursor;
+}
+
+double Now() {
+    using Clock = std::chrono::steady_clock;
+    return std::chrono::duration<double>(Clock::now().time_since_epoch()).count();
+}
+
+// Matches StyledTextArea: letters, digits, underscore, and anything past ASCII that is not a space.
+bool IsWordChar(char32_t codepoint) {
+    if (codepoint == U'_') {
+        return true;
+    }
+    if (codepoint < 128) {
+        return Classify(codepoint) == UnitKind::Alnum;
+    }
+    return Classify(codepoint) != UnitKind::Space;
+}
+
+// The run of word characters, or of anything else, that holds the character at index.
+void WordAround(const std::u32string& chars, int index, int& start, int& end) {
+    const int length = static_cast<int>(chars.size());
+    start = index;
+    end = index;
+    if (index < 0 || index >= length) {
+        return;
+    }
+    const bool word = IsWordChar(chars[static_cast<std::size_t>(index)]);
+    while (start > 0 && IsWordChar(chars[static_cast<std::size_t>(start - 1)]) == word) {
+        --start;
+    }
+    while (end < length && IsWordChar(chars[static_cast<std::size_t>(end)]) == word) {
+        ++end;
+    }
 }
 
 int ClampIndex(int index, int length) {
@@ -351,6 +385,23 @@ int TextField::indexAt(double absoluteX) {
     return best;
 }
 
+// The character under the pointer, or the one before the end when the pointer is past the text.
+int TextField::characterAt(double absoluteX) {
+    ensureCaretVisible();
+    const LineLayout line = measureLine();
+    const int length = static_cast<int>(line.caretX.size()) - 1;
+    if (length <= 0) {
+        return 0;
+    }
+    const float local = static_cast<float>(absoluteX - getAbsoluteX() - contentLeft()) - line.origin;
+    for (int index = 0; index < length; ++index) {
+        if (local < line.caretX[static_cast<std::size_t>(index + 1)]) {
+            return index;
+        }
+    }
+    return length - 1;
+}
+
 void TextField::moveCaret(int direction, bool extend, bool byWord) {
     const std::u32string chars = Utf32(text_);
     const int length = static_cast<int>(chars.size());
@@ -420,6 +471,29 @@ void TextField::handleMousePressed(const MouseEvent& event) {
     if (isDisabled()) {
         return;
     }
+    const double now = Now();
+    const double dx = event.x - lastPressX_;
+    const double dy = event.y - lastPressY_;
+    if (now - lastPressSeconds_ < 0.4 && dx * dx + dy * dy < 16.0) {
+        clickCount_ = std::min(3, clickCount_ + 1);
+    } else {
+        clickCount_ = 1;
+    }
+    lastPressSeconds_ = now;
+    lastPressX_ = event.x;
+    lastPressY_ = event.y;
+    dragWords_ = false;
+    if (clickCount_ >= 3) {
+        // The field is one line, so the line is the whole text.
+        selectAll();
+        return;
+    }
+    if (clickCount_ == 2) {
+        WordAround(Utf32(text_), characterAt(event.x), wordStart_, wordEnd_);
+        selectRange(wordStart_, wordEnd_);
+        dragWords_ = true;
+        return;
+    }
     const int index = indexAt(event.x);
     anchor_ = index;
     caret_ = index;
@@ -428,6 +502,24 @@ void TextField::handleMousePressed(const MouseEvent& event) {
 
 void TextField::handleMouseDragged(const MouseEvent& event) {
     if (isDisabled()) {
+        return;
+    }
+    // A press that became a drag is never the first half of a double-click.
+    if (!event.stillSincePress) {
+        lastPressSeconds_ = 0;
+    }
+    if (clickCount_ >= 3) {
+        return;
+    }
+    if (dragWords_) {
+        int start = 0;
+        int end = 0;
+        WordAround(Utf32(text_), characterAt(event.x), start, end);
+        if (start < wordStart_) {
+            selectRange(wordEnd_, start);
+        } else {
+            selectRange(wordStart_, std::max(end, wordEnd_));
+        }
         return;
     }
     caret_ = indexAt(event.x);

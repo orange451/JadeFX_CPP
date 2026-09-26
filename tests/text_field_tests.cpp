@@ -368,6 +368,44 @@ void TestHorizontalScroll() {
            "the left edge shows a later character once the line has scrolled");
 }
 
+void TestMultiClickSelection() {
+    auto open = Open("foo 12.5 bar");
+    const auto field = open.field;
+    const jadefx::Font font(field->computedStyle().fontFamily, field->computedStyle().fontSize);
+    const double contentLeft = field->getAbsoluteX() + field->computedStyle().padding.left + field->computedStyle().border.left;
+    const double midY = field->getAbsoluteY() + field->getHeight() * 0.5;
+    // The middle of the character at index, measured from the prefix width.
+    const auto at = [&](int index) {
+        const std::string text = field->getText();
+        return contentLeft + (font.measureWidth(text.substr(0, index)) + font.measureWidth(text.substr(0, index + 1))) * 0.5;
+    };
+    const auto click = [&](double x) {
+        open.scene->noteButton(0, true, x, midY);
+        open.scene->noteButton(0, false, x, midY);
+    };
+
+    click(at(1));
+    click(at(1));
+    Expect(field->getSelectedText() == "foo", "a double-click selects the word under the pointer");
+    click(at(1));
+    Expect(field->getSelectedText() == "foo 12.5 bar", "a triple-click selects the whole line");
+    click(at(1));
+    Expect(field->getSelectedText() == "foo 12.5 bar", "a fourth quick click keeps the line selected");
+
+    field->positionCaret(0);
+    click(at(5));
+    Expect(field->getAnchor() == 5 && field->getCaretPosition() == 5, "a click far from the last one starts over");
+    click(at(5));
+    Expect(field->getSelectedText() == "12", "a double-click on a number selects its digits");
+
+    click(at(10));
+    click(at(10));
+    open.scene->noteButton(0, true, at(10), midY);
+    open.scene->noteMove(at(1), midY);
+    open.scene->noteButton(0, false, at(1), midY);
+    Expect(field->getSelectedText() == "foo 12.5 bar", "a double-click drag extends by whole words");
+}
+
 }  // namespace
 
 int RunTextFieldTests() {
@@ -378,5 +416,6 @@ int RunTextFieldTests() {
     TestDisabledPromptAndPointer();
     TestCaretBounds();
     TestHorizontalScroll();
+    TestMultiClickSelection();
     return gFailures;
 }
