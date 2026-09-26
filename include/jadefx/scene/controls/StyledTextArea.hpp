@@ -11,8 +11,9 @@
 
 namespace jadefx {
 
-// Where a pointer landed in the text. insertionIndex is the caret gap.
-// characterIndex is the code point under the pointer, or -1 past the end of a line.
+// Where a pointer landed in the text. insertionIndex is the caret gap nearest the pointer,
+// and column is that gap's column in paragraph. characterIndex is the code point whose glyph
+// is under the pointer, or -1 past the end of a line. leading is true on the left half of it.
 struct CharacterHit {
     bool valid = false;
     int insertionIndex = 0;

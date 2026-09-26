@@ -1723,41 +1723,21 @@ CharacterHit StyledTextArea::hit(double x, double y) const {
             best = i;
         }
     }
-    bool leading = true;
-    if (best + 1 < static_cast<int>(measured.caret.size())) {
-        const float left = measured.caret[static_cast<std::size_t>(best)];
-        const float right = measured.caret[static_cast<std::size_t>(best + 1)];
-        if (contentX > (left + right) * 0.5f && best < line.end - line.start) {
-            // The nearest caret is still `best`; leading says which side of a glyph we hit.
-        }
-        if (best < static_cast<int>(measured.caret.size()) - 1) {
-            const float mid = (measured.caret[static_cast<std::size_t>(best)] +
-                               (best > 0 ? measured.caret[static_cast<std::size_t>(best - 1)] : 0.f)) *
-                              0.5f;
-            (void)mid;
-        }
-    }
-    if (best > 0) {
-        const float previous = measured.caret[static_cast<std::size_t>(best - 1)];
-        const float here = measured.caret[static_cast<std::size_t>(best)];
-        leading = contentX < (previous + here) * 0.5f ? false : true;
+    // best is the nearest caret gap. The glyph under the pointer is the one whose left and
+    // right carets hold contentX: best itself, or the one before it when the pointer is left of best.
+    int glyph = best;
+    if (best > 0 && contentX < measured.caret[static_cast<std::size_t>(best)]) {
+        glyph = best - 1;
     }
     const int column = line.start + best;
     result.valid = true;
     result.paragraph = paragraph;
     result.column = column;
     result.insertionIndex = content_.offset(paragraph, column);
-    result.leading = leading;
-    if (column > line.start) {
-        result.characterIndex = content_.offset(paragraph, column - (leading ? 0 : 1));
-        if (leading && column < line.end) {
-            result.characterIndex = content_.offset(paragraph, column);
-        }
-        if (!leading) {
-            result.characterIndex = content_.offset(paragraph, column - 1);
-        }
-    } else if (column < line.end) {
-        result.characterIndex = content_.offset(paragraph, column);
+    // Leading is the left half of the glyph, where the nearest gap is the glyph's own start.
+    result.leading = glyph == best;
+    if (line.start + glyph < line.end) {
+        result.characterIndex = content_.offset(paragraph, line.start + glyph);
     } else {
         result.characterIndex = -1;
     }
