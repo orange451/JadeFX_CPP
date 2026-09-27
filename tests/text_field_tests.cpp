@@ -117,6 +117,20 @@ void TestActionAndClipboard() {
     Expect(!open.scene->noteKey(jadefx::Key::Tab, true, false, 0), "Tab is not consumed");
     Expect(!open.scene->noteKey(jadefx::Key::Escape, true, false, 0), "Escape is not consumed");
 
+    // Up and Down go to the ends of the one line, and Shift selects on the way.
+    open.field->setText("hello");
+    open.field->positionCaret(2);
+    Press(*open.scene, jadefx::Key::Up);
+    Expect(open.field->getCaretPosition() == 0 && open.field->getAnchor() == 0, "Up goes to the start");
+    Press(*open.scene, jadefx::Key::Down);
+    Expect(open.field->getCaretPosition() == 5 && open.field->getAnchor() == 5, "Down goes to the end");
+    open.field->positionCaret(2);
+    Press(*open.scene, jadefx::Key::Up, jadefx::Key::ModShift);
+    Expect(open.field->getSelectedText() == "he", "Shift+Up selects to the start");
+    open.field->positionCaret(2);
+    Press(*open.scene, jadefx::Key::Down, jadefx::Key::ModShift, true);
+    Expect(open.field->getSelectedText() == "llo", "a held Shift+Down selects to the end");
+
     open.field->setText("hello");
     open.field->selectAll();
     Expect(open.field->getAnchor() == 0 && open.field->getCaretPosition() == 5, "selectAll anchors at the start");
