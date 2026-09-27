@@ -2,6 +2,7 @@
 
 #include "jadefx/geometry/Geometry.hpp"
 #include "jadefx/stage/Stage.hpp"
+#include "jadefx/style/Theme.hpp"
 
 #include <memory>
 #include <string>
@@ -15,6 +16,14 @@ public:
     virtual ~Application();
 
     static int launch(std::unique_ptr<Application> app, int argc, char** argv);
+
+    // The built-in themes, in the shape of JavaFX's STYLESHEET_MODENA.
+    static constexpr const char* STYLESHEET_LIGHT = Theme::LIGHT;
+    static constexpr const char* STYLESHEET_DARK = Theme::DARK;
+    // The look every scene starts from: STYLESHEET_LIGHT (the default),
+    // STYLESHEET_DARK, or CSS text of your own. Scenes restyle at their next layout.
+    static void setUserAgentStylesheet(std::string cssOrTheme) { Theme::setUserAgentStylesheet(std::move(cssOrTheme)); }
+    static const std::string& getUserAgentStylesheet() { return Theme::getUserAgentStylesheet(); }
 
     virtual void start(Stage& stage, int argc, char** argv) = 0;
 

@@ -1,6 +1,7 @@
 #include "jadefx/scene/controls/StyledTextArea.hpp"
 
 #include "jadefx/scene/Scene.hpp"
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 #include "scene/text/Unicode.hpp"
 
@@ -94,18 +95,23 @@ void Fill(UiRenderer& renderer, float x, float y, float width, float height, con
     renderer.fillRounded(x, y, width, height, radius, &color, &at, 1, 0.f);
 }
 
-Color MarkColor(TextMarkSeverity severity) {
+Color MarkColor(const Node& area, TextMarkSeverity severity, float opacity) {
+    ThemeColor color = ThemeColor::Error;
     switch (severity) {
     case TextMarkSeverity::Error:
-        return Color::rgb8(209, 36, 47);
+        color = ThemeColor::Error;
+        break;
     case TextMarkSeverity::Warning:
-        return Color::rgb8(191, 135, 0);
+        color = ThemeColor::Warning;
+        break;
     case TextMarkSeverity::Information:
-        return Color::rgb8(26, 115, 232);
+        color = ThemeColor::Info;
+        break;
     case TextMarkSeverity::Hint:
-        return Color::rgb8(110, 119, 129);
+        color = ThemeColor::Faint;
+        break;
     }
-    return Color::rgb8(209, 36, 47);
+    return chrome::Themed(area, color, opacity);
 }
 
 int MarkRank(TextMarkSeverity severity) {
@@ -189,7 +195,7 @@ float CaretX(const MeasuredLine& measured, int lineStart, int absolute) {
     return measured.caret[static_cast<std::size_t>(local)];
 }
 
-void DrawLineMarks(UiRenderer& renderer, float originX, float scrollX, float lineY, float lineHeight, float ascent,
+void DrawLineMarks(UiRenderer& renderer, const Node& area, float originX, float scrollX, float lineY, float lineHeight, float ascent,
                    int lineStart, int lineEnd, const MeasuredLine& measured, const std::vector<TextMark>& marks,
                    float opacity) {
     if (marks.empty()) {
@@ -216,8 +222,7 @@ void DrawLineMarks(UiRenderer& renderer, float originX, float scrollX, float lin
             if (to < from) {
                 to = from;
             }
-            Color color = MarkColor(mark.severity);
-            color.a *= opacity;
+            const Color color = MarkColor(area, mark.severity, opacity);
             const float x0 = originX + CaretX(measured, lineStart, from) - scrollX;
             const float x1 = originX + CaretX(measured, lineStart, to) - scrollX;
             DrawSquiggle(renderer, x0, x1, baseline, color);
@@ -2190,19 +2195,21 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
     const float boxH = static_cast<float>(contentHeight());
     renderer.pushClip(absX, absY, static_cast<float>(getWidth()), static_cast<float>(getHeight()));
     if (!computedStyle().background.visible) {
-        Fill(renderer, boxX, boxY, boxW, boxH, Color::rgba(1.f, 1.f, 1.f, opacity));
+        Fill(renderer, boxX, boxY, boxW, boxH, chrome::Themed(*this, ThemeColor::Surface, opacity));
     }
     if (view_.gutter > 0.f) {
         Fill(renderer, boxX, boxY, view_.gutter, std::max(0.f, boxH - (view_.horizontalBar ? view_.bar : 0.f)),
-             Color::rgba(0.f, 0.f, 0.f, 0.035f * opacity));
+             chrome::Themed(*this, ThemeColor::Gutter, opacity));
     }
     const Font font = areaFont();
+    const Color selectionFill = chrome::Themed(*this, ThemeColor::TextSelection, opacity);
     const int caretParagraph = content_.position(primary().caret).paragraph;
     if (highlightLine_ && caretParagraph >= 0 && caretParagraph < static_cast<int>(view_.tops.size()) - 1 &&
         !isHidden(caretParagraph)) {
         const float y = absY + view_.textY + view_.tops[static_cast<std::size_t>(caretParagraph)] - static_cast<float>(scrollY_);
         const float height = view_.tops[static_cast<std::size_t>(caretParagraph + 1)] - view_.tops[static_cast<std::size_t>(caretParagraph)];
-        Fill(renderer, boxX, y, boxW - (view_.verticalBar ? view_.bar : 0.f), height, Color::rgba(0.f, 0.f, 0.f, 0.045f * opacity));
+        Fill(renderer, boxX, y, boxW - (view_.verticalBar ? view_.bar : 0.f), height,
+             chrome::Themed(*this, ThemeColor::CurrentLine, opacity));
     }
 
     renderer.pushClip(absX + view_.textX, absY + view_.textY, view_.textW, view_.textH);
@@ -2242,7 +2249,7 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
                         const float x = measured.caret[static_cast<std::size_t>(local)];
                         Fill(renderer, absX + view_.textX + x - static_cast<float>(scrollX_), lineY,
                              std::max(0.f, view_.textW - x + static_cast<float>(scrollX_)), line.height,
-                             Color::rgba(0.10f, 0.45f, 0.91f, 0.28f * opacity));
+                             selectionFill);
                     }
                     continue;
                 }
@@ -2252,7 +2259,7 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
                 const int b = std::max(0, std::min(static_cast<int>(measured.caret.size()) - 1, selTo - lineStart));
                 Fill(renderer, absX + view_.textX + measured.caret[static_cast<std::size_t>(a)] - static_cast<float>(scrollX_),
                      lineY, std::max(0.f, measured.caret[static_cast<std::size_t>(b)] - measured.caret[static_cast<std::size_t>(a)]),
-                     line.height, Color::rgba(0.10f, 0.45f, 0.91f, 0.28f * opacity));
+                     line.height, selectionFill);
             }
             for (const MeasuredLine::Piece& piece : measured.pieces) {
                 if (piece.tab || piece.end <= piece.begin) {
@@ -2300,7 +2307,7 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
                 }
             }
             if (!textMarks_.empty()) {
-                DrawLineMarks(renderer, absX + view_.textX, static_cast<float>(scrollX_), lineY, line.height,
+                DrawLineMarks(renderer, *this, absX + view_.textX, static_cast<float>(scrollX_), lineY, line.height,
                               measured.ascent, lineStart, lineEnd, measured, textMarks_, opacity);
             }
         }
@@ -2373,8 +2380,7 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
                 const int lineStart = content_.offset(paragraph, first.start);
                 const int lineEnd = content_.offset(paragraph, last.end);
                 if (const TextMark* mark = WorstMark(textMarks_, lineStart, lineEnd)) {
-                    Color color = MarkColor(mark->severity);
-                    color.a *= opacity;
+                    const Color color = MarkColor(*this, mark->severity, opacity);
                     const float size = 6.f;
                     const float markY = y + std::max(0.f, (bottom - top) - size) * 0.5f;
                     const float radius[4] = {size * 0.5f, size * 0.5f, size * 0.5f, size * 0.5f};
@@ -2386,8 +2392,9 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
         renderer.popClip();
     }
 
-    verticalScroll_.draw(renderer, absX, absY, opacity);
-    horizontalScroll_.draw(renderer, absX, absY, opacity);
+    const Color thumb = themeColor(ThemeColor::Scrollbar);
+    verticalScroll_.draw(renderer, absX, absY, opacity, thumb);
+    horizontalScroll_.draw(renderer, absX, absY, opacity, thumb);
     renderer.popClip();
 }
 

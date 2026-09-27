@@ -1,5 +1,6 @@
 #include "jadefx/scene/controls/ButtonBase.hpp"
 
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 
 namespace jadefx {
@@ -7,7 +8,6 @@ namespace jadefx {
 ButtonBase::ButtonBase(std::string text) : Labeled(std::move(text)) {
     setAlignment(Pos::Center);
     setPadding(Insets::axes(6, 14));
-    setBackground(Color::white());
     setDefaultCursor(Cursor::Pointer);
 }
 
@@ -53,33 +53,12 @@ void ButtonBase::render(UiRenderer& renderer, float opacity) {
 }
 
 void ButtonBase::renderContent(UiRenderer& renderer, float opacity) {
-    const float x = static_cast<float>(getAbsoluteX());
-    const float y = static_cast<float>(getAbsoluteY());
-    const float width = static_cast<float>(getWidth());
-    const float height = static_cast<float>(getHeight());
-    const float radius[4] = {4.f, 4.f, 4.f, 4.f};
-    if (width > 0.f && height > 0.f) {
-        const ComputedStyle& style = computedStyle();
-        const bool cssBorder = style.borderStyle == BorderStyle::Solid &&
-                               (style.border.top > 0 || style.border.right > 0 || style.border.bottom > 0 || style.border.left > 0);
-        if (!cssBorder) {
-            const float sides[4] = {1.f, 1.f, 1.f, 1.f};
-            Color line = Color::rgb8(218, 220, 224);
-            line.a *= opacity;
-            renderer.strokeRounded(x, y, width, height, radius, sides, line);
-        }
-        if (!isDisabled() && (isPressed() || isHovered())) {
-            Color wash = Color::rgba(0.f, 0.f, 0.f, isPressed() ? 0.08f : 0.04f);
-            wash.a *= opacity;
-            const float at = 0.f;
-            renderer.fillRounded(x, y, width, height, radius, &wash, &at, 1, 0.f);
-        }
-        if (isFocused()) {
-            const float sides[4] = {2.f, 2.f, 2.f, 2.f};
-            Color ring = Color::rgb8(26, 115, 232);
-            ring.a *= opacity;
-            renderer.strokeRounded(x, y, width, height, radius, sides, ring);
-        }
+    chrome::DrawBorder(renderer, *this, opacity);
+    if (!isDisabled() && (isPressed() || isHovered())) {
+        chrome::DrawWash(renderer, *this, opacity, isPressed());
+    }
+    if (isFocused()) {
+        chrome::DrawFocusRing(renderer, *this, opacity);
     }
     Labeled::renderContent(renderer, opacity);
 }

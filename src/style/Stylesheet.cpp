@@ -38,7 +38,18 @@ struct Selector {
     std::vector<Compound> compounds;
     std::vector<Combinator> combinators;
     bool valid = false;
+    // Ids count 10000, classes and pseudo-classes 100, and types 1.
+    int specificity = 0;
 };
+
+int SpecificityOf(const Compound& compound) {
+    int classes = static_cast<int>(compound.classes.size() + compound.states.size() + compound.nthChild.size());
+    for (const bool pseudo : {compound.hover, compound.active, compound.focus, compound.focusWithin,
+                              compound.selected, compound.disabled}) {
+        classes += pseudo ? 1 : 0;
+    }
+    return (compound.id.empty() ? 0 : 10000) + classes * 100 + (compound.type.empty() ? 0 : 1);
+}
 
 struct Rule {
     std::vector<Selector> selectors;
@@ -466,6 +477,9 @@ Selector ParseSelector(std::string_view text) {
     }
     SkipSpace(text, index);
     selector.valid = index == text.size();
+    for (const Compound& part : selector.compounds) {
+        selector.specificity += SpecificityOf(part);
+    }
     return selector;
 }
 
@@ -481,8 +495,17 @@ std::vector<Declaration> ParseDeclarations(std::string_view body) {
             continue;
         }
         Declaration declaration;
-        declaration.property = lowerCopy(trimCopy(item.substr(0, colon)));
+        // Custom property names are case-sensitive, as in CSS.
+        declaration.property = trimCopy(item.substr(0, colon));
+        if (declaration.property.rfind("--", 0) != 0) {
+            declaration.property = lowerCopy(declaration.property);
+        }
         declaration.value = trimCopy(item.substr(colon + 1));
+        const std::size_t bang = declaration.value.rfind('!');
+        if (bang != std::string::npos && lowerCopy(trimCopy(declaration.value.substr(bang + 1))) == "important") {
+            declaration.important = true;
+            declaration.value = trimCopy(declaration.value.substr(0, bang));
+        }
         if (!declaration.property.empty() && !declaration.value.empty()) {
             declarations.push_back(std::move(declaration));
         }
@@ -1013,22 +1036,71 @@ Stylesheet Stylesheet::parse(const std::string& css) {
     return sheet;
 }
 
-void Stylesheet::collectMatching(Node& node, std::vector<Declaration>& out) const {
+void Stylesheet::collectMatching(Node& node, std::vector<MatchedDeclaration>& out) const {
     if (!data_) {
         return;
     }
     for (const Rule& rule : data_->rules) {
-        bool matched = false;
+        // A rule with several selectors counts the most specific one that matches.
+        int specificity = -1;
         for (const Selector& selector : rule.selectors) {
-            if (Matches(selector, node)) {
-                matched = true;
+            if (selector.specificity > specificity && Matches(selector, node)) {
+                specificity = selector.specificity;
+            }
+        }
+        if (specificity < 0) {
+            continue;
+        }
+        for (const Declaration& declaration : rule.declarations) {
+            out.push_back({&declaration, specificity});
+        }
+    }
+}
+
+std::string resolveCssVariables(std::string_view value, const CssVariables* variables) {
+    // Bounded, so a variable that names itself cannot loop.
+    std::string text(value);
+    for (int depth = 0; depth < 16; ++depth) {
+        const std::size_t start = text.find("var(");
+        if (start == std::string::npos) {
+            return text;
+        }
+        // The matching parenthesis, past any nested var() in a fallback.
+        int level = 0;
+        std::size_t end = start + 3;
+        for (; end < text.size(); ++end) {
+            if (text[end] == '(') {
+                ++level;
+            } else if (text[end] == ')' && --level == 0) {
                 break;
             }
         }
-        if (matched) {
-            out.insert(out.end(), rule.declarations.begin(), rule.declarations.end());
+        if (end >= text.size()) {
+            return {};
         }
+        const std::string inside = text.substr(start + 4, end - start - 4);
+        const std::size_t comma = inside.find(',');
+        const std::string name = trimCopy(inside.substr(0, comma));
+        std::string replacement;
+        const auto found = variables != nullptr ? variables->find(name) : CssVariables::const_iterator{};
+        if (variables != nullptr && found != variables->end()) {
+            replacement = found->second;
+        } else if (comma != std::string::npos) {
+            replacement = trimCopy(inside.substr(comma + 1));
+        } else {
+            return {};
+        }
+        text.replace(start, end - start + 1, replacement);
     }
+    return text.find("var(") == std::string::npos ? text : std::string();
+}
+
+std::string ComputedStyle::variable(std::string_view name) const {
+    if (!variables) {
+        return {};
+    }
+    const auto found = variables->find(std::string(name));
+    return found == variables->end() ? std::string() : resolveCssVariables(found->second, variables.get());
 }
 
 bool Stylesheet::empty() const { return !data_ || data_->rules.empty(); }
@@ -1123,11 +1195,62 @@ bool parseCursor(std::string_view text, Cursor& cursor) {
 
 std::vector<Declaration> parseInlineDeclarations(const std::string& css) { return ParseDeclarations(css); }
 
-void applyDeclarations(ComputedStyle& style, const std::vector<Declaration>& declarations, StylePass pass,
+void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration*>& declarations, StylePass pass,
                        float inheritedFontSize, float emFontSize) {
-    for (const Declaration& declaration : declarations) {
+    // The web's accent-color, caret-color, and outline-color are read by
+    // controls as custom properties, so they inherit like one.
+    auto isCustom = [](const std::string& property) {
+        return property.rfind("--", 0) == 0 || property == "accent-color" || property == "caret-color" ||
+               property == "outline-color";
+    };
+    if (pass == StylePass::Variables) {
+        // The inherited set is shared; this node copies it once, if it declares any.
+        std::shared_ptr<CssVariables> own;
+        std::vector<std::string> declared;
+        for (const Declaration* each : declarations) {
+            const Declaration& declaration = *each;
+            const std::string& property = declaration.property;
+            if (!isCustom(property)) {
+                continue;
+            }
+            if (!own) {
+                own = style.variables ? std::make_shared<CssVariables>(*style.variables) : std::make_shared<CssVariables>();
+            }
+            const std::string name = property[0] == '-' ? property : "--" + property;
+            (*own)[name] = declaration.value;
+            declared.push_back(name);
+        }
+        if (!own) {
+            return;
+        }
+        // As in CSS, a var() in a custom property is resolved on the node that
+        // declares it, and its children inherit the result. The inherited ones
+        // were resolved on their own nodes already.
+        const CssVariables raw = *own;
+        for (const std::string& name : declared) {
+            std::string& value = (*own)[name];
+            if (value.find("var(") != std::string::npos) {
+                value = resolveCssVariables(value, &raw);
+            }
+        }
+        style.variables = std::move(own);
+        return;
+    }
+    for (const Declaration* each : declarations) {
+        const Declaration& declaration = *each;
         const std::string& property = declaration.property;
-        const std::string& value = declaration.value;
+        if (isCustom(property)) {
+            continue;
+        }
+        // A var() is resolved now, against the custom properties this node has.
+        std::string resolvedValue;
+        if (declaration.value.find("var(") != std::string::npos) {
+            resolvedValue = resolveCssVariables(declaration.value, style.variables.get());
+            if (resolvedValue.empty()) {
+                continue;
+            }
+        }
+        const std::string& value = resolvedValue.empty() ? declaration.value : resolvedValue;
         const bool fontProperty = property == "font-size" || property == "font-family";
         if (pass == StylePass::Fonts && !fontProperty) {
             continue;

@@ -77,8 +77,8 @@ void ToggleButton::renderContent(UiRenderer& renderer, float opacity) {
         const float height = static_cast<float>(getHeight());
         const float radius[4] = {4.f, 4.f, 4.f, 4.f};
         if (width > 0.f && height > 0.f) {
-            Color wash = Color::rgb8(26, 115, 232);
-            wash.a = 0.18f * opacity;
+            Color wash = themeColor(ThemeColor::Accent);
+            wash.a *= 0.18f * opacity;
             const float at = 0.f;
             renderer.fillRounded(x, y, width, height, radius, &wash, &at, 1, 0.f);
         }

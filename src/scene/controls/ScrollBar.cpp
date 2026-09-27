@@ -179,7 +179,7 @@ double ScrollBar::preferredContentHeight(double) const {
 
 void ScrollBar::renderContent(UiRenderer& renderer, float opacity) {
     track().draw(renderer, static_cast<float>(getAbsoluteX() + contentLeft()),
-                 static_cast<float>(getAbsoluteY() + contentTop()), opacity);
+                 static_cast<float>(getAbsoluteY() + contentTop()), opacity, themeColor(ThemeColor::Scrollbar));
 }
 
 }  // namespace jadefx

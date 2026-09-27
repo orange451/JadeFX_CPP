@@ -156,6 +156,10 @@ struct Background {
     bool visible = false;
 };
 
+// CSS custom properties (--name: value), which every node inherits from its
+// parent. Shared between nodes until one declares its own.
+using CssVariables = std::unordered_map<std::string, std::string>;
+
 struct TransitionTiming {
     double duration = 0;
     double delay = 0;
@@ -201,20 +205,41 @@ struct ComputedStyle {
     double indeterminateBarAnimationTime = 2;
     // Property name, or "all", to duration and delay.
     std::unordered_map<std::string, TransitionTiming> transitions;
+    // Custom properties in effect here, including the ones inherited.
+    std::shared_ptr<const CssVariables> variables;
+
+    // A custom property's value with any var() in it resolved. Empty when unset.
+    std::string variable(std::string_view name) const;
 };
 
 struct Declaration {
     std::string property;
     std::string value;
+    // Declared with !important, which wins over normal declarations of any origin.
+    bool important = false;
 };
+
+// A declaration a stylesheet matched, with the specificity of the selector that
+// matched it: ids, then classes and pseudo-classes, then types.
+struct MatchedDeclaration {
+    const Declaration* declaration = nullptr;
+    int specificity = 0;
+};
+
+// Replaces each var(--name) or var(--name, fallback) in a value. An unset name
+// with no fallback leaves the value unusable, as in CSS, and returns empty.
+std::string resolveCssVariables(std::string_view value, const CssVariables* variables);
 
 class Node;
 
-enum class StylePass { Fonts, Rest };
+enum class StylePass { Variables, Fonts, Rest };
 
-// Fonts are applied first so `em` on later properties sees the cascaded font size.
+// Custom properties come first so every later value can use them. Fonts are next
+// so `em` on later properties sees the cascaded font size. accent-color,
+// caret-color, and outline-color are stored as the custom properties
+// --accent-color, --caret-color, and --outline-color, which controls read.
 // `inheritedFontSize` resolves `font-size` in em. `emFontSize` resolves every other em.
-void applyDeclarations(ComputedStyle& style, const std::vector<Declaration>& declarations, StylePass pass,
+void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration*>& declarations, StylePass pass,
                        float inheritedFontSize, float emFontSize);
 std::vector<Declaration> parseInlineDeclarations(const std::string& css);
 
@@ -229,7 +254,8 @@ public:
     ~Stylesheet();
 
     static Stylesheet parse(const std::string& css);
-    void collectMatching(Node& node, std::vector<Declaration>& out) const;
+    // Adds each declaration whose rule matches node, in source order.
+    void collectMatching(Node& node, std::vector<MatchedDeclaration>& out) const;
     bool empty() const;
 
 private:

@@ -127,9 +127,6 @@ public:
     void handleMousePressed(const MouseEvent& event) override;
 
 protected:
-    // The row paints the hover and the selection, not the cell.
-    void handleHoverChanged() override {}
-
     bool canEdit() const override;
     void requestEdit(bool editing) override;
     void editEvent(CellEdit kind, std::optional<T> value) override;

@@ -18,7 +18,6 @@ constexpr double kResizeGrip = 4;
 constexpr double kMinHeaderHeight = 24;
 // Room a header keeps on its right for the sort arrow.
 constexpr double kArrowRoom = 16;
-const Color kHeaderFill = Color::rgb8(248, 249, 250);
 // JavaFX's TableView asks for this much height unless told otherwise.
 constexpr double kPrefHeight = 400;
 
@@ -148,11 +147,9 @@ private:
 // The header row: the column headers, clipped, moving sideways with the rows.
 class TableHeaderRow : public scroll::ClipRegion {
 public:
-    // The row's own background fills past the last column, over the scroll bar.
-    TableHeaderRow() : ClipRegion("column-header-background") {
-        setBackground(kHeaderFill);
-        setBorder(Insets{0, 0, 1, 0});
-    }
+    // Its background, like each header's, comes from the user-agent stylesheet
+    // and fills past the last column, over the scroll bar.
+    TableHeaderRow() : ClipRegion("column-header-background") { setBorder(Insets{0, 0, 1, 0}); }
 
     const char* getElementType() const override { return "thead"; }
 };
@@ -163,7 +160,6 @@ public:
     TableDropMarker() {
         getClassList().add("column-drag-marker");
         setMouseTransparent(true);
-        setBackground(Color::rgb8(26, 115, 232));
     }
 
     const char* getElementType() const override { return "column-drag-marker"; }
@@ -182,7 +178,6 @@ public:
         setAlignment(Pos::CenterLeft);
         setPadding(Insets{IndexedCell::kPaddingY, IndexedCell::kPaddingX + kArrowRoom, IndexedCell::kPaddingY,
                           IndexedCell::kPaddingX});
-        setBackground(kHeaderFill);
         setBorder(Insets{0, 1, 1, 0});
         setFocusTraversable(false);
         refresh();

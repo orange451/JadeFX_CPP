@@ -4,6 +4,7 @@
 #include "jadefx/scene/Scene.hpp"
 #include "jadefx/scene/controls/Label.hpp"
 #include "jadefx/scene/text/Font.hpp"
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 
 #include <algorithm>
@@ -68,8 +69,8 @@ public:
         if (menu_ && !menu_->isDisable() && (isHovered() || menu_->isShowing())) {
             const float radius[4] = {0.f, 0.f, 0.f, 0.f};
             const float at = 0.f;
-            Color wash = menu_->isShowing() ? Color::rgb8(232, 240, 254) : Color::rgb8(232, 234, 237);
-            wash.a *= opacity;
+            const Color wash =
+                chrome::Themed(*this, menu_->isShowing() ? ThemeColor::Selection : ThemeColor::Hover, opacity);
             renderer.fillRounded(static_cast<float>(getAbsoluteX()), static_cast<float>(getAbsoluteY()),
                                  static_cast<float>(getWidth()), static_cast<float>(getHeight()), radius, &wash, &at, 1,
                                  0.f);
@@ -108,7 +109,6 @@ private:
 };
 
 MenuBar::MenuBar() {
-    setBackground(Color::rgb8(255, 255, 255));
     menus_.setIndexedAddCallback([this](std::shared_ptr<Menu> menu, std::size_t index) {
         adoptMenu(std::move(menu), index);
     });

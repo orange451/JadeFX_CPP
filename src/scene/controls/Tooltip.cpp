@@ -15,11 +15,8 @@ Tooltip* tooltipContent(const HoverPopup* popup) {
 Tooltip::Tooltip() : Tooltip("") {}
 
 Tooltip::Tooltip(std::string text) : Labeled(std::move(text)) {
-    setTextFill(Color::white());
-    setBackground(Color::rgb8(60, 64, 67));
     setPadding(Insets::axes(6, 8));
     setAlignment(Pos::Center);
-    setStyle("border-radius: 4px;");
 }
 
 Tooltip::~Tooltip() {

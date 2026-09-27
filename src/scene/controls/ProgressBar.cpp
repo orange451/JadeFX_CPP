@@ -10,10 +10,6 @@
 namespace jadefx {
 namespace {
 
-const Color kAccent = Color::rgb8(26, 115, 232);
-const Color kTrackFill = Color::rgb8(241, 243, 244);
-const Color kTrackBorder = Color::rgb8(218, 220, 224);
-
 // JavaFX Transition uses Interpolator.EASE_BOTH: SMIL ease with acceleration
 // and deceleration of 0.2.
 double EaseBoth(double t) {
@@ -107,10 +103,7 @@ bool InsetsEmpty(const Insets& insets) {
 
 class ProgressTrack : public Region {
 public:
-    ProgressTrack() {
-        setBackground(kTrackFill);
-        setBorder(Insets::uniform(1));
-    }
+    ProgressTrack() { setBorder(Insets::uniform(1)); }
 
     const char* getElementType() const override { return "track"; }
 
@@ -121,7 +114,7 @@ protected:
         if (style.borderStyle == BorderStyle::None && !InsetsEmpty(style.border)) {
             style.borderStyle = BorderStyle::Solid;
             if (style.borderColor.a <= 0.f) {
-                style.borderColor = kTrackBorder;
+                style.borderColor = themeColor(ThemeColor::Border);
             }
         }
         if (RadiusUnset(style)) {
@@ -146,7 +139,7 @@ public:
         style.background.visible = true;
         style.background.stopCount = 2;
         style.background.stops[0] = Color::transparent();
-        style.background.stops[1] = kAccent;
+        style.background.stops[1] = themeColor(ThemeColor::Accent);
         style.background.stopAt[0] = 0;
         style.background.stopAt[1] = 1;
         // to right when mirrored (bright end leads on the way forward), else to left.
@@ -158,7 +151,7 @@ protected:
         ComputedStyle& style = computed();
         owner_.barUsesDefaultFill_ = !style.background.visible;
         if (owner_.barUsesDefaultFill_) {
-            style.background.color = kAccent;
+            style.background.color = themeColor(ThemeColor::Accent);
             style.background.hasColor = true;
             style.background.gradient = false;
             style.background.stopCount = 0;

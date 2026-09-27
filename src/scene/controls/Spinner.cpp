@@ -1,5 +1,6 @@
 #include "jadefx/scene/controls/Spinner.hpp"
 
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 #include "jadefx/scene/Scene.hpp"
 
@@ -175,14 +176,12 @@ protected:
         if ((isHovered() || isPressed()) && !computedStyle().background.visible) {
             const float radius[4] = {3.f, 3.f, 3.f, 3.f};
             const float at = 0.f;
-            Color fill = isPressed() ? Color::rgb8(232, 234, 237) : Color::rgb8(241, 243, 244);
-            fill.a *= opacity;
+            const Color fill = chrome::Themed(*this, isPressed() ? ThemeColor::Hover : ThemeColor::Track, opacity);
             renderer.fillRounded(x + 1.f, y + 1.f, std::max(0.f, width - 2.f), std::max(0.f, height - 2.f), radius, &fill,
                                  &at, 1, 0.f);
         }
         const bool vertical = owner_->arrowsAreVertical();
-        Color mark = Color::rgb8(95, 99, 104);
-        mark.a *= opacity;
+        const Color mark = chrome::Themed(*this, ThemeColor::Muted, opacity);
         DrawTriangle(renderer, x + width * 0.5f, y + height * 0.5f, vertical, increment_, mark);
     }
 
@@ -509,7 +508,6 @@ int ListSpinnerValueFactory::indexOf(const std::string& value) const {
 
 Spinner::Spinner() {
     setPadding(Insets::axes(6, 8));
-    setBackground(Color::white());
     editor_ = std::make_shared<SpinnerEditor>(this);
     editor_->setPrefColumnCount(8);
     editor_->setBackground(Color::transparent());
@@ -845,28 +843,9 @@ void Spinner::render(UiRenderer& renderer, float opacity) {
 }
 
 void Spinner::renderContent(UiRenderer& renderer, float opacity) {
-    const float x = static_cast<float>(getAbsoluteX());
-    const float y = static_cast<float>(getAbsoluteY());
-    const float width = static_cast<float>(getWidth());
-    const float height = static_cast<float>(getHeight());
-    if (width <= 0.f || height <= 0.f) {
-        return;
-    }
-    const float radii[4] = {kCorner, kCorner, kCorner, kCorner};
-    const ComputedStyle& style = computedStyle();
-    const bool cssBorder = style.borderStyle == BorderStyle::Solid &&
-                           (style.border.top > 0 || style.border.right > 0 || style.border.bottom > 0 || style.border.left > 0);
-    if (!cssBorder) {
-        const float sides[4] = {1.f, 1.f, 1.f, 1.f};
-        Color line = Color::rgb8(218, 220, 224);
-        line.a *= opacity;
-        renderer.strokeRounded(x, y, width, height, radii, sides, line);
-    }
+    chrome::DrawBorder(renderer, *this, opacity, kCorner);
     if (!isDisabled() && isFocusWithin()) {
-        const float ring[4] = {2.f, 2.f, 2.f, 2.f};
-        Color color = Color::rgb8(26, 115, 232);
-        color.a *= opacity;
-        renderer.strokeRounded(x, y, width, height, radii, ring, color);
+        chrome::DrawFocusRing(renderer, *this, opacity, kCorner);
     }
 }
 

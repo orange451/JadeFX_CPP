@@ -13,8 +13,9 @@ namespace jadefx {
 //   :focus-visible    the view's focused row, while the view has the focus
 //   :nth-child(...)   matched against the row's index, so odd rows stay odd
 //   :editing          the row is being edited
-// A cell's default look follows the TreeView rows: a light blue selection, a
-// grey hover, and a thin ring on the focused row.
+// The user-agent stylesheet colors a hovered or selected list-cell and tr with
+// the theme's --row-hover-color and --selection-color, as TreeView's rows are,
+// and the cell draws a thin --outline-color ring on the focused row.
 class IndexedCell : public Labeled {
 public:
     // Default padding: 4 points above and below, 10 at the sides. A table's
@@ -45,11 +46,9 @@ protected:
     void updateEmpty(bool empty);
     // Ends the edit without asking the view, after a commit or a cancel.
     void finishEdit();
-    void handleHoverChanged() override;
     void renderContent(UiRenderer& renderer, float opacity) override;
 
 private:
-    void updateChrome();
 
     int index_ = -1;
     bool empty_ = true;

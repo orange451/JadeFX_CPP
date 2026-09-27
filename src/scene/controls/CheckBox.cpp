@@ -1,5 +1,6 @@
 #include "jadefx/scene/controls/CheckBox.hpp"
 
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 
 #include <algorithm>
@@ -51,14 +52,12 @@ void DrawDash(UiRenderer& renderer, float left, float top, const Color& color) {
 CheckBox::CheckBox() : ButtonBase("") {
     setPadding(Insets{6, 14, 6, 30});
     setAlignment(Pos::CenterLeft);
-    setBackground(Color::transparent());
     setPseudoState("determinate", true);
 }
 
 CheckBox::CheckBox(std::string text) : ButtonBase(std::move(text)) {
     setPadding(Insets{6, 14, 6, 30});
     setAlignment(Pos::CenterLeft);
-    setBackground(Color::transparent());
     setPseudoState("determinate", true);
 }
 
@@ -105,24 +104,22 @@ void CheckBox::renderContent(UiRenderer& renderer, float opacity) {
         const float top = y + (height - kBox) * 0.5f;
         const float radius[4] = {3.f, 3.f, 3.f, 3.f};
         const bool marked = isSelected() || isIndeterminate();
-        Color fill = Color::white();
+        ThemeColor fillColor = ThemeColor::Surface;
         if (marked) {
-            fill = Color::rgb8(232, 240, 254);
+            fillColor = ThemeColor::Selection;
         } else if (isPressed()) {
-            fill = Color::rgb8(232, 234, 237);
+            fillColor = ThemeColor::Hover;
         } else if (isHovered()) {
-            fill = Color::rgb8(248, 249, 250);
+            fillColor = ThemeColor::Subtle;
         }
-        fill.a *= opacity;
+        const Color fill = chrome::Themed(*this, fillColor, opacity);
         const float at = 0.f;
         renderer.fillRounded(left, top, kBox, kBox, radius, &fill, &at, 1, 0.f);
         const float sides[4] = {2.f, 2.f, 2.f, 2.f};
-        Color stroke = (marked || isFocused()) ? Color::rgb8(26, 115, 232) : Color::rgb8(95, 99, 104);
-        stroke.a *= opacity;
+        const Color stroke = chrome::Themed(*this, marked || isFocused() ? ThemeColor::Accent : ThemeColor::Muted, opacity);
         renderer.strokeRounded(left, top, kBox, kBox, radius, sides, stroke);
         if (marked) {
-            Color mark = Color::rgb8(26, 115, 232);
-            mark.a *= opacity;
+            const Color mark = chrome::Themed(*this, ThemeColor::Accent, opacity);
             if (isIndeterminate()) {
                 DrawDash(renderer, left, top, mark);
             } else {

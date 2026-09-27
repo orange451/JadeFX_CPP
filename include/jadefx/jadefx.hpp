@@ -56,6 +56,7 @@
 #include "jadefx/stage/Stage.hpp"
 #include "jadefx/stage/UtilityWindow.hpp"
 #include "jadefx/style/Style.hpp"
+#include "jadefx/style/Theme.hpp"
 
 #include <memory>
 #include <utility>

@@ -67,14 +67,14 @@ Cursor ResolveCursor(Cursor specified, Cursor inheritedCursor, Cursor controlCur
     return specified;
 }
 
-bool LastCursor(const std::vector<Declaration>& declarations, Cursor& cursor) {
+bool LastCursor(const std::vector<const Declaration*>& declarations, Cursor& cursor) {
     bool found = false;
-    for (const Declaration& declaration : declarations) {
-        if (declaration.property != "cursor") {
+    for (const Declaration* declaration : declarations) {
+        if (declaration->property != "cursor") {
             continue;
         }
         Cursor parsed = Cursor::Default;
-        if (parseCursor(declaration.value, parsed)) {
+        if (parseCursor(declaration->value, parsed)) {
             cursor = parsed;
             found = true;
         }
@@ -82,15 +82,19 @@ bool LastCursor(const std::vector<Declaration>& declarations, Cursor& cursor) {
     return found;
 }
 
-Cursor ResolvedNodeCursor(const std::vector<Declaration>& declarations, Cursor inherited, Cursor controlCursor,
-                          bool explicitCursor, Cursor cursor, bool disabled) {
+// agent is the user-agent layer and author everything above code-set values.
+Cursor ResolvedNodeCursor(const std::vector<const Declaration*>& agent, const std::vector<const Declaration*>& author,
+                          Cursor inherited, Cursor controlCursor, bool explicitCursor, Cursor cursor, bool disabled) {
     const Cursor inheritedCursor = ConcreteCursor(inherited);
     Cursor specified = Cursor::Inherit;
-    if (LastCursor(declarations, specified)) {
+    if (LastCursor(author, specified)) {
         return ResolveCursor(specified, inheritedCursor, controlCursor, disabled);
     }
     if (explicitCursor) {
         return ResolveCursor(cursor, inheritedCursor, controlCursor, disabled);
+    }
+    if (LastCursor(agent, specified)) {
+        return ResolveCursor(specified, inheritedCursor, controlCursor, disabled);
     }
     if (!disabled && HasControlCursor(controlCursor)) {
         return controlCursor;
@@ -498,6 +502,60 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     style.minHeight = minHeight_;
     style.maxWidth = maxWidth_;
     style.maxHeight = maxHeight_;
+    style.variables = inherited.variables;
+
+    // The cascade, lowest first, as in CSS and JavaFX: the user-agent stylesheet,
+    // then values set from code, then author stylesheets from the root down,
+    // then inline declarations. Within a stylesheet the more specific selector
+    // wins, and among equals the later one. !important declarations come after
+    // every normal one: author, then inline, then user agent.
+    std::vector<MatchedDeclaration> agentMatches;
+    if (scene_ != nullptr) {
+        scene_->userAgentStylesheet().collectMatching(*this, agentMatches);
+    }
+    std::vector<MatchedDeclaration> authorMatches;
+    std::vector<const Node*> chain;
+    for (const Node* node = this; node != nullptr; node = node->parent_) {
+        chain.push_back(node);
+    }
+    for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+        if (!(*it)->stylesheet_.empty()) {
+            (*it)->stylesheet_.collectMatching(*this, authorMatches);
+        }
+    }
+    const auto bySpecificity = [](const MatchedDeclaration& a, const MatchedDeclaration& b) {
+        return a.specificity < b.specificity;
+    };
+    std::stable_sort(agentMatches.begin(), agentMatches.end(), bySpecificity);
+    std::stable_sort(authorMatches.begin(), authorMatches.end(), bySpecificity);
+    std::vector<const Declaration*> agent;
+    std::vector<const Declaration*> author;
+    std::vector<const Declaration*> agentImportant;
+    std::vector<const Declaration*> authorImportant;
+    for (const MatchedDeclaration& match : agentMatches) {
+        (match.declaration->important ? agentImportant : agent).push_back(match.declaration);
+    }
+    for (const MatchedDeclaration& match : authorMatches) {
+        (match.declaration->important ? authorImportant : author).push_back(match.declaration);
+    }
+    std::vector<const Declaration*> inlineImportant;
+    for (const Declaration& declaration : inline_) {
+        (declaration.important ? inlineImportant : author).push_back(&declaration);
+    }
+    author.insert(author.end(), authorImportant.begin(), authorImportant.end());
+    author.insert(author.end(), inlineImportant.begin(), inlineImportant.end());
+    author.insert(author.end(), agentImportant.begin(), agentImportant.end());
+
+    const float inheritedFont = inherited.fontSize > 0.f ? inherited.fontSize : 16.f;
+    applyDeclarations(style, agent, StylePass::Variables, inheritedFont, inheritedFont);
+    applyDeclarations(style, author, StylePass::Variables, inheritedFont, inheritedFont);
+    applyDeclarations(style, agent, StylePass::Fonts, inheritedFont, inheritedFont);
+    if (fontExplicit_) {
+        style.fontSize = font_.size();
+        style.fontFamily = font_.family();
+    }
+    applyDeclarations(style, author, StylePass::Fonts, inheritedFont, inheritedFont);
+    applyDeclarations(style, agent, StylePass::Rest, inheritedFont, style.fontSize);
     if (backgroundExplicit_) {
         style.background.color = background_;
         style.background.hasColor = true;
@@ -505,32 +563,15 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
         style.background.stopCount = 0;
         style.background.visible = background_.a > 0.f;
     }
-    if (fontExplicit_) {
-        style.fontSize = font_.size();
-        style.fontFamily = font_.family();
-    }
     if (fillExplicit_) {
         style.color = textFill_;
     }
     if (subpixelExplicit_) {
         style.subpixel = subpixel_;
     }
-
-    std::vector<const Node*> chain;
-    for (const Node* node = this; node != nullptr; node = node->parent_) {
-        chain.push_back(node);
-    }
-    std::vector<Declaration> matched;
-    for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
-        if (!(*it)->stylesheet_.empty()) {
-            (*it)->stylesheet_.collectMatching(*this, matched);
-        }
-    }
-    matched.insert(matched.end(), inline_.begin(), inline_.end());
-    const float inheritedFont = inherited.fontSize > 0.f ? inherited.fontSize : 16.f;
-    applyDeclarations(style, matched, StylePass::Fonts, inheritedFont, inheritedFont);
-    applyDeclarations(style, matched, StylePass::Rest, inheritedFont, style.fontSize);
-    style.cursor = ResolvedNodeCursor(matched, inherited.cursor, defaultCursor_, cursorExplicit_, cursor_, isDisabled());
+    applyDeclarations(style, author, StylePass::Rest, inheritedFont, style.fontSize);
+    style.cursor =
+        ResolvedNodeCursor(agent, author, inherited.cursor, defaultCursor_, cursorExplicit_, cursor_, isDisabled());
 
     const ComputedStyle target = style;
     const TransitionTiming backgroundTiming = TimingOf(target, "background-color");
@@ -605,6 +646,13 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     }
 }
 
+Color Node::themeColor(ThemeColor color) const {
+    const std::string value = computed_.variable(Theme::variableName(color));
+    bool ok = false;
+    const Color parsed = value.empty() ? Color() : Color::parse(value, &ok);
+    return ok ? parsed : Theme::defaultColor(color);
+}
+
 ComputedStyle Node::inheritableStyle() const {
     ComputedStyle pass;
     pass.color = computed_.color;
@@ -612,6 +660,7 @@ ComputedStyle Node::inheritableStyle() const {
     pass.fontFamily = computed_.fontFamily.empty() ? "Open Sans" : computed_.fontFamily;
     pass.subpixel = computed_.subpixel;
     pass.cursor = computed_.cursor;
+    pass.variables = computed_.variables;
     return pass;
 }
 

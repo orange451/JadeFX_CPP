@@ -6,6 +6,7 @@
 #include "jadefx/paint/Color.hpp"
 #include "jadefx/scene/text/Font.hpp"
 #include "jadefx/style/Style.hpp"
+#include "jadefx/style/Theme.hpp"
 
 #include <functional>
 #include <memory>
@@ -189,6 +190,9 @@ public:
     std::vector<Node*> getElementsByClassName(const std::string& className);
 
     const ComputedStyle& computedStyle() const { return computed_; }
+    // A theme color as this node's style sets it, through the custom property
+    // Theme::variableName names, or the light theme's value when nothing sets it.
+    Color themeColor(ThemeColor color) const;
 
     // Reparents the node. Adding it to a child list does this on its own.
     void setParent(Node* parent);

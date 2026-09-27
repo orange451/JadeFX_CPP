@@ -31,6 +31,14 @@ public:
 
     const char* getElementType() const override { return "scene"; }
 
+    // The lowest layer of this scene's cascade: light, dark, or CSS text, as
+    // Theme::setUserAgentStylesheet takes. Empty uses the application's.
+    // Switching it restyles the scene at the next layout.
+    void setUserAgentStylesheet(std::string cssOrTheme);
+    const std::string& getUserAgentStylesheet() const { return userAgentSource_; }
+    // The user-agent stylesheet this scene's nodes are styled with.
+    const Stylesheet& userAgentStylesheet() const;
+
     void setRoot(std::shared_ptr<Node> root);
     Node* getRoot() const { return root_.get(); }
 
@@ -106,6 +114,8 @@ private:
     double lastHeight_ = 0;
     double lastTime_ = 0;
     Insets safe_;
+    std::string userAgentSource_;
+    Stylesheet userAgent_;
     Node* pressedTarget_ = nullptr;
     double pressX_ = 0;
     double pressY_ = 0;

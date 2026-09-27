@@ -5,7 +5,7 @@
 
 namespace jadefx {
 
-void ScrollTrack::draw(UiRenderer& renderer, float absoluteX, float absoluteY, float opacity) const {
+void ScrollTrack::draw(UiRenderer& renderer, float absoluteX, float absoluteY, float opacity, Color color) const {
     if (!visible || thumbLength <= 0.f || thickness <= 0.f) {
         return;
     }
@@ -15,7 +15,7 @@ void ScrollTrack::draw(UiRenderer& renderer, float absoluteX, float absoluteY, f
     const float height = sideways ? thickness : thumbLength;
     const float radius[4] = {};
     const float at = 0.f;
-    const Color color = Color::rgba(0.f, 0.f, 0.f, 0.35f * opacity);
+    color.a *= opacity;
     renderer.fillRounded(x, y, width, height, radius, &color, &at, 1, 0.f);
 }
 

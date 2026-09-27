@@ -148,6 +148,23 @@ Keywords: `auto`, `default`, `pointer` (`hand`), `text` (`vertical-text`), `cros
 
 `setStyle("color: white;")` sets inline declarations on one node. Inline declarations win over the stylesheet.
 
+The cascade follows CSS and JavaFX. Lowest first: the user-agent stylesheet (the theme), then colors and fonts set from code (`setBackground`, `setTextFill`, `setFont`), then application stylesheets from the scene down to the node, then inline declarations. Within one layer the more specific selector wins (ids over classes and pseudo-classes over types), and among equals the later rule. `!important` lifts a declaration over every normal one.
+
+Custom properties work as in CSS: `--name: value` declares one, every node inherits it, and `var(--name)` or `var(--name, fallback)` uses it in any value. A `var()` inside a custom property is resolved on the node that declares it. `:root` matches the scene.
+
+## Themes
+
+The look of every control comes from a user-agent stylesheet, as JavaFX's Modena does. Two are built in, light (the default) and dark, and they differ only in the custom properties they set on `:root`, so a theme is a set of colors: `--background-color`, `--surface-color`, `--text-color`, `--muted-color`, `--faint-color`, `--border-color`, `--accent-color`, `--outline-color` (the focus ring), `--hover-color`, `--track-color`, `--subtle-color`, `--selection-color`, `--selection-hover-color`, `--row-hover-color`, `--tab-color`, `--tooltip-color`, `--tooltip-text-color`, `--dimmer-color`, `--wash-color`, `--text-selection-color`, `--current-line-color`, `--gutter-color`, `--scrollbar-color`, `--divider-color`, `--grip-color`, `--info-color`, `--warning-color`, `--error-color`, and `--success-color`. `ThemeColor` names each one in C++.
+
+```cpp
+jadefx::Application::setUserAgentStylesheet(jadefx::Application::STYLESHEET_DARK);  // every scene
+scene->setUserAgentStylesheet(jadefx::Theme::DARK);  // one scene; "" follows the application
+scene->setStylesheet(":root { --accent-color: #7b1fa2; }");  // retint the theme
+scene->setStylesheet("checkbox { accent-color: #188038; }");  // one kind of control
+```
+
+`setUserAgentStylesheet` also takes CSS text, to replace the theme outright; `Theme::stylesheet("light")` is the built-in one to start from. The web's `accent-color`, `caret-color`, and `outline-color` set the matching custom properties. A switch restyles the scene at its next layout. Application stylesheets that use the variables, such as `background-color: var(--surface-color)`, follow the theme too; the samples do, and `make controls` has a Dark theme box. A control that draws its own shapes reads a color with `themeColor(ThemeColor::Accent)`.
+
 ## Drawing into an existing OpenGL program
 
 Create the context yourself, then drive a stage from the frame loop. Coordinates passed to `pushMove` and `pushButton` are window points, not framebuffer pixels.

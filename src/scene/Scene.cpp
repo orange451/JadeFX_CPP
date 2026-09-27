@@ -1,6 +1,7 @@
 #include "jadefx/scene/Scene.hpp"
 
 #include "jadefx/scene/layout/StackPane.hpp"
+#include "jadefx/style/Theme.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -39,10 +40,20 @@ bool Related(Node* a, Node* b) {
 
 Scene::Scene(std::shared_ptr<Node> root) : Scene(std::move(root), 0, 0) {}
 
+void Scene::setUserAgentStylesheet(std::string cssOrTheme) {
+    userAgent_ = cssOrTheme.empty() ? Stylesheet() : Stylesheet::parse(Theme::expand(cssOrTheme));
+    userAgentSource_ = std::move(cssOrTheme);
+}
+
+const Stylesheet& Scene::userAgentStylesheet() const {
+    return userAgentSource_.empty() ? Theme::userAgentStylesheet() : userAgent_;
+}
+
 Scene::Scene(std::shared_ptr<Node> root, double prefWidth, double prefHeight)
     : requestedWidth_(prefWidth), requestedHeight_(prefHeight) {
     scene_ = this;
-    setBackground(Color::rgb8(248, 248, 248));
+    // The scene is the document root, so :root rules and their variables start here.
+    setPseudoState("root", true);
     internal_ = std::make_shared<StackPane>();
     // StackPane's default Center would stop the root from inheriting the scene alignment.
     internal_->setAlignment(Pos::Ancestor);
@@ -81,7 +92,7 @@ void Scene::layout(double width, double height) {
 
 void Scene::layout(double width, double height, double timeSeconds) {
     ComputedStyle inherited;
-    inherited.color = Color::black();
+    inherited.color = Theme::defaultColor(ThemeColor::Text);
     inherited.fontSize = 16.f;
     inherited.fontFamily = "Open Sans";
     inherited.cursor = Cursor::Default;

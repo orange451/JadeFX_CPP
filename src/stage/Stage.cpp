@@ -263,7 +263,7 @@ bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int fra
     syncCursor();
 
     const float scale = static_cast<float>(framebufferWidth) / static_cast<float>(pointWidth);
-    renderer_->begin(framebufferWidth, framebufferHeight, scale, Color::rgb8(248, 248, 248), clearColor_);
+    renderer_->begin(framebufferWidth, framebufferHeight, scale, scene_->themeColor(ThemeColor::Background), clearColor_);
     scene_->render(*renderer_, 1.f);
     if (afterUi_) {
         afterUi_(framebufferWidth, framebufferHeight);

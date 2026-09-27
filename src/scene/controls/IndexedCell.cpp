@@ -18,13 +18,7 @@ void IndexedCell::updateEmpty(bool empty) {
     setPseudoState("empty", empty);
 }
 
-void IndexedCell::updateSelected(bool selected) {
-    if (selected == isSelected()) {
-        return;
-    }
-    setSelected(selected);
-    updateChrome();
-}
+void IndexedCell::updateSelected(bool selected) { setSelected(selected); }
 
 void IndexedCell::updateFocused(bool focused) {
     rowFocused_ = focused;
@@ -46,17 +40,6 @@ void IndexedCell::finishEdit() {
     setPseudoState("editing", false);
 }
 
-void IndexedCell::handleHoverChanged() { updateChrome(); }
-
-void IndexedCell::updateChrome() {
-    const bool hovered = isHovered() && !empty_;
-    if (isSelected()) {
-        setBackground(hovered ? Color::rgb8(210, 227, 252) : Color::rgb8(232, 240, 254));
-    } else {
-        setBackground(hovered ? Color::rgb8(245, 245, 245) : Color::transparent());
-    }
-}
-
 void IndexedCell::renderContent(UiRenderer& renderer, float opacity) {
     Labeled::renderContent(renderer, opacity);
     if (!rowFocused_) {
@@ -65,7 +48,7 @@ void IndexedCell::renderContent(UiRenderer& renderer, float opacity) {
     // The ring sits inside the cell, so neighbouring rows do not cover it.
     const float radius[4] = {};
     const float sides[4] = {1.f, 1.f, 1.f, 1.f};
-    Color ring = Color::rgb8(26, 115, 232);
+    Color ring = themeColor(ThemeColor::Outline);
     ring.a *= opacity;
     renderer.strokeRounded(static_cast<float>(getAbsoluteX()), static_cast<float>(getAbsoluteY()),
                            static_cast<float>(getWidth()), static_cast<float>(getHeight()), radius, sides, ring);

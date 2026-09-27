@@ -1,5 +1,8 @@
 #pragma once
 
+#include "jadefx/paint/Color.hpp"
+#include "jadefx/style/Theme.hpp"
+
 #include <algorithm>
 
 namespace jadefx {
@@ -79,7 +82,9 @@ struct ScrollTrack {
         return next;
     }
 
-    void draw(UiRenderer& renderer, float absoluteX, float absoluteY, float opacity) const;
+    // color is the thumb's, normally the owner's themeColor(ThemeColor::Scrollbar).
+    void draw(UiRenderer& renderer, float absoluteX, float absoluteY, float opacity,
+              Color color = Theme::defaultColor(ThemeColor::Scrollbar)) const;
 
 private:
     static ScrollTrack make(bool horizontal, float cross, float origin, float trackLength, float content, float viewport,

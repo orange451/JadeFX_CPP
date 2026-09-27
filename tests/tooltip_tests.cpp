@@ -29,10 +29,15 @@ void TestTooltipChrome() {
     Expect(plain->getShowDelay() == 1 && plain->getHideDelay() == 0.2 && plain->getShowDuration() == 5,
            "tooltip delays match a hover popup");
     Expect(plain->getAlignment() == jadefx::Pos::Center, "tooltip text is centered");
-    Expect(plain->getStyle() == "border-radius: 4px;", "tooltip corner radius is inline");
     const jadefx::Insets pad = named->getPadding();
     Expect(pad.top == 6 && pad.bottom == 6 && pad.left == 8 && pad.right == 8, "tooltip padding is 6 by 8");
-    Expect(jadefx::near(named->getTextFill(), jadefx::Color::white()), "tooltip text is white");
+    // Its colors and corners come from the theme, once a scene styles it.
+    auto styled = jadefx::make<jadefx::Scene>(named, 200, 100);
+    styled->layout(200, 100, 0);
+    Expect(named->computedStyle().radius[0].pixels == 4, "tooltip corners are rounded by the stylesheet");
+    Expect(jadefx::near(named->computedStyle().color, jadefx::Color::white()), "tooltip text is white");
+    Expect(jadefx::near(named->computedStyle().background.color, jadefx::Color::rgb8(60, 64, 67)),
+           "tooltip background is the theme's tooltip color");
     named->setShowDelay(0.25);
     named->setHideDelay(0);
     named->setShowDuration(0);

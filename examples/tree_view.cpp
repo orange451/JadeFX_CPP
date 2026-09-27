@@ -7,43 +7,27 @@
 
 namespace {
 
+// Row hover and selection colors come from the theme. This sheet adds the frame.
 constexpr const char* kStylesheet = R"CSS(
 scene {
-    background-color: #eceff1;
     font-family: "Open Sans";
     font-size: 14px;
-    color: #202124;
 }
 .frame {
-    background-color: white;
+    background-color: var(--surface-color);
     width: calc(100% - 48px);
     height: calc(100% - 48px);
     border-radius: 8px;
     border-width: 1px;
-    border-color: #dadce0;
+    border-color: var(--border-color);
     box-shadow: 8px 16px 32px 0px rgba(0, 0, 0, 0.18);
     padding: 8px 8px 12px 8px;
 }
-.tree-view {
-    background-color: white;
-}
-tree-cell:hover {
-    background-color: #f5f5f5;
-}
-tree-cell:selected {
-    background-color: #e8f0fe;
-}
-tree-cell:selected:hover {
-    background-color: #d2e3fc;
-}
-.selection-bar {
-    background-color: #1a73e8;
-}
 tree-disclosure-node {
-    color: #757575;
+    color: var(--muted-color);
 }
 .tree-path {
-    color: #5f6368;
+    color: var(--muted-color);
     font-size: 13px;
     padding: 4px 12px 0 12px;
 }

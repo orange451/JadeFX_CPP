@@ -5,6 +5,7 @@
 #include "jadefx/scene/controls/Label.hpp"
 #include "jadefx/scene/layout/VBox.hpp"
 #include "jadefx/scene/text/Font.hpp"
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 
 #include <algorithm>
@@ -21,12 +22,6 @@ constexpr double kSeparatorHeight = 9;
 constexpr double kMinPopupWidth = 160;
 constexpr double kLabelGap = 16;
 constexpr double kGraphicGap = 8;
-
-Color MenuGray() { return Color::rgb8(95, 99, 104); }
-
-Color MenuHover() { return Color::rgb8(232, 240, 254); }
-
-Color MenuLine() { return Color::rgb8(218, 220, 224); }
 
 std::string KeyName(int key) {
     if (key >= Key::A && key <= Key::Z) {
@@ -120,10 +115,9 @@ public:
         // StackPane centers its children. Menu rows pack from the top left.
         setAlignment(Pos::TopLeft);
         setPadding(Insets::uniform(kPopupPad));
-        setBackground(Color::white());
+        // The user-agent stylesheet rounds it to match the outline drawn in
+        // render, with a soft shadow that lifts it off the content below.
         getClassList().add("menu-popup");
-        // Rounded to match the outline drawn in render, with a soft shadow that lifts it off the content below.
-        setStyle("border-radius: 4px; box-shadow: 0px 3px 10px 0px rgba(0, 0, 0, 0.14)");
         setPrefWidth(kMinPopupWidth);
     }
 
@@ -138,8 +132,7 @@ public:
         }
         const float radius[4] = {4.f, 4.f, 4.f, 4.f};
         const float sides[4] = {1.f, 1.f, 1.f, 1.f};
-        Color line = MenuLine();
-        line.a *= opacity;
+        const Color line = chrome::Themed(*this, ThemeColor::Border, opacity);
         renderer.strokeRounded(static_cast<float>(getAbsoluteX()), static_cast<float>(getAbsoluteY()), width, height,
                                radius, sides, line);
     }
@@ -162,8 +155,7 @@ public:
         }
         const float radius[4] = {0.f, 0.f, 0.f, 0.f};
         const float at = 0.f;
-        Color color = MenuLine();
-        color.a *= opacity;
+        const Color color = chrome::Themed(*this, ThemeColor::Border, opacity);
         const float y = static_cast<float>(getAbsoluteY() + getHeight() * 0.5);
         renderer.fillRounded(static_cast<float>(getAbsoluteX()) + 8.f, y, width - 16.f, 1.f, radius, &color, &at, 1,
                              0.f);
@@ -206,7 +198,7 @@ public:
         if (!accel.empty()) {
             accel_ = std::make_shared<Label>(accel);
             accel_->setMouseTransparent(true);
-            accel_->setTextFill(MenuGray());
+            accel_->getClassList().add("menu-accelerator");
             accel_->setAlignment(Pos::CenterRight);
             accel_->setElementId(std::string("menu-accel:") + item_->getText());
             children().add(accel_);
@@ -214,7 +206,7 @@ public:
         if (dynamic_cast<Menu*>(item_.get()) != nullptr) {
             arrow_ = std::make_shared<Label>(">");
             arrow_->setMouseTransparent(true);
-            arrow_->setTextFill(MenuGray());
+            arrow_->getClassList().add("menu-arrow");
             arrow_->setAlignment(Pos::CenterRight);
             children().add(arrow_);
         }
@@ -262,8 +254,7 @@ public:
         if (isHovered() && !isDisabled()) {
             const float radius[4] = {2.f, 2.f, 2.f, 2.f};
             const float at = 0.f;
-            Color wash = MenuHover();
-            wash.a *= opacity;
+            const Color wash = chrome::Themed(*this, ThemeColor::Selection, opacity);
             renderer.fillRounded(static_cast<float>(getAbsoluteX()), static_cast<float>(getAbsoluteY()),
                                  static_cast<float>(getWidth()), static_cast<float>(getHeight()), radius, &wash, &at, 1,
                                  0.f);

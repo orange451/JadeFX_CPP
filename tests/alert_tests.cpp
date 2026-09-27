@@ -151,7 +151,7 @@ void TestConfirmation() {
     Expect(HasLabel(panel, "Confirmation", 18.f), "title label uses 18px");
     if (auto* title = dynamic_cast<jadefx::Label*>(panel != nullptr ? dynamic_cast<jadefx::Pane*>(panel)->getChildren()[0].get()
                                                                    : nullptr)) {
-        Expect(jadefx::near(title->getTextFill(), jadefx::Color::rgb8(0x18, 0x80, 0x38)), "confirmation title color");
+        Expect(jadefx::near(title->computedStyle().color, jadefx::Color::rgb8(0x18, 0x80, 0x38)), "confirmation title color");
     } else {
         Expect(false, "title label is the first panel child");
     }
@@ -224,7 +224,7 @@ void TestInformationNoneAndCustom() {
     Expect(HasLabel(panel, "Information", 18.f), "information title");
     if (panel != nullptr) {
         if (auto* title = dynamic_cast<jadefx::Label*>(dynamic_cast<jadefx::Pane*>(panel)->getChildren()[0].get())) {
-            Expect(jadefx::near(title->getTextFill(), jadefx::Color::rgb8(0x1a, 0x73, 0xe8)), "information title color");
+            Expect(jadefx::near(title->computedStyle().color, jadefx::Color::rgb8(0x1a, 0x73, 0xe8)), "information title color");
         }
     }
     scene->noteKey(jadefx::Key::Escape, true, false, 0);
@@ -362,7 +362,7 @@ void TestShowAndWait() {
     Expect(ok != nullptr && dimmer != nullptr && scene->isPopupShowing(dimmer), "the dialog stays up without a pump");
     if (panel != nullptr) {
         if (auto* title = dynamic_cast<jadefx::Label*>(dynamic_cast<jadefx::Pane*>(panel)->getChildren()[0].get())) {
-            Expect(jadefx::near(title->getTextFill(), jadefx::Color::rgb8(0xd9, 0x30, 0x25)), "error title color");
+            Expect(jadefx::near(title->computedStyle().color, jadefx::Color::rgb8(0xd9, 0x30, 0x25)), "error title color");
         }
     }
     Click(*scene, 6, 6);
@@ -383,10 +383,11 @@ void TestShowAndWait() {
     Expect(waiting.showAndWait(*scene) == nullptr, "a pump turn of 0 returns nullptr");
     Expect(turns == 1, "showAndWait stops on the first turn that is not 1");
     Expect(waiting.lookupButton(jadefx::ButtonType::Ok()) != nullptr, "a refused pump leaves the dialog showing");
+    scene->layout(800, 400, 0);
     jadefx::Node* waitingPanel = AlertPanelOf(waiting.lookupButton(jadefx::ButtonType::Ok()));
     if (waitingPanel != nullptr) {
         if (auto* title = dynamic_cast<jadefx::Label*>(dynamic_cast<jadefx::Pane*>(waitingPanel)->getChildren()[0].get())) {
-            Expect(jadefx::near(title->getTextFill(), jadefx::Color::rgb8(0xe3, 0x74, 0x00)), "warning title color");
+            Expect(jadefx::near(title->computedStyle().color, jadefx::Color::rgb8(0xe3, 0x74, 0x00)), "warning title color");
         }
     }
     waiting.setResult(jadefx::ButtonType::Ok());

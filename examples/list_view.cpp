@@ -9,33 +9,31 @@ namespace {
 
 constexpr const char* kStylesheet = R"CSS(
 scene {
-    background-color: #eceff1;
     font-family: "Open Sans";
     font-size: 14px;
-    color: #202124;
 }
 .frame {
-    background-color: white;
+    background-color: var(--surface-color);
     width: calc(100% - 48px);
     height: calc(100% - 48px);
     border-radius: 8px;
     border-width: 1px;
-    border-color: #dadce0;
+    border-color: var(--border-color);
     box-shadow: 8px 16px 32px 0px rgba(0, 0, 0, 0.18);
     padding: 12px;
 }
 .list-view {
     border-width: 1px;
-    border-color: #dadce0;
+    border-color: var(--border-color);
 }
 list-cell:nth-child(even) {
-    background-color: #fafafa;
+    background-color: var(--subtle-color);
 }
 list-cell:selected {
-    background-color: #e8f0fe;
+    background-color: var(--selection-color);
 }
 .status {
-    color: #5f6368;
+    color: var(--muted-color);
     font-size: 13px;
 }
 .bar {
@@ -44,23 +42,22 @@ list-cell:selected {
     padding: 0 0 8px 0;
 }
 button {
-    background-color: white;
     border-width: 1px;
-    border-color: #dadce0;
+    border-color: var(--border-color);
     border-radius: 6px;
     padding: 4px 12px;
 }
 button:hover {
-    background-color: #f1f3f4;
+    background-color: var(--track-color);
 }
 tr:nth-child(even) {
-    background-color: #fafafa;
+    background-color: var(--subtle-color);
 }
 tr:selected {
-    background-color: #e8f0fe;
+    background-color: var(--selection-color);
 }
 th {
-    color: #5f6368;
+    color: var(--muted-color);
     font-size: 13px;
 }
 )CSS";

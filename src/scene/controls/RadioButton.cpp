@@ -1,5 +1,6 @@
 #include "jadefx/scene/controls/RadioButton.hpp"
 
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 
 namespace jadefx {
@@ -39,15 +40,14 @@ void RadioButton::renderContent(UiRenderer& renderer, float opacity) {
         const float top = y + (height - kIndicator) * 0.5f;
         const float outerRadius[4] = {kIndicator * 0.5f, kIndicator * 0.5f, kIndicator * 0.5f, kIndicator * 0.5f};
         const float sides[4] = {2.f, 2.f, 2.f, 2.f};
-        Color stroke = (isSelected() || isFocused()) ? Color::rgb8(26, 115, 232) : Color::rgb8(95, 99, 104);
-        stroke.a *= opacity;
+        const Color stroke =
+            chrome::Themed(*this, isSelected() || isFocused() ? ThemeColor::Accent : ThemeColor::Muted, opacity);
         renderer.strokeRounded(left, top, kIndicator, kIndicator, outerRadius, sides, stroke);
         if (isSelected()) {
             const float inset = (kIndicator - kDot) * 0.5f;
             const float dotRadius[4] = {kDot * 0.5f, kDot * 0.5f, kDot * 0.5f, kDot * 0.5f};
             const float at = 0.f;
-            Color fill = Color::rgb8(26, 115, 232);
-            fill.a *= opacity;
+            const Color fill = chrome::Themed(*this, ThemeColor::Accent, opacity);
             renderer.fillRounded(left + inset, top + inset, kDot, kDot, dotRadius, &fill, &at, 1, 0.f);
         }
     }

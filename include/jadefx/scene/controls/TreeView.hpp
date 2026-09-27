@@ -60,8 +60,10 @@ public:
     double getFixedCellSize() const;
 
     // The selected row's left bar. JFXTreeCell starts this at red.
+    // Without one, the bar takes the theme's accent color.
     void setSelectionBarColor(const Color& color);
     Color getSelectionBarColor() const;
+    bool hasSelectionBarColor() const;
 
     int getExpandedItemCount() const;
     TreeItem* getTreeItem(int row) const;

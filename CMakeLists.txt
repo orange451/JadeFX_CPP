@@ -17,6 +17,7 @@ endif()
 set(JADEFX_SOURCES
     src/paint/Color.cpp
     src/style/Stylesheet.cpp
+    src/style/Theme.cpp
     src/scene/Node.cpp
     src/scene/layout/Region.cpp
     src/scene/layout/Pane.cpp
@@ -56,6 +57,7 @@ set(JADEFX_SOURCES
     src/scene/controls/ScrollBar.cpp
     src/scene/controls/ScrollPane.cpp
     src/scene/controls/ScrollSupport.cpp
+    src/scene/controls/ControlChrome.cpp
     src/scene/controls/SelectionModel.cpp
     src/scene/controls/IndexedCell.cpp
     src/scene/controls/VirtualFlow.cpp
@@ -310,6 +312,7 @@ if(NOT JADEFX_GLFM)
         tests/list_view_tests.cpp
         tests/core_tests.cpp
         tests/table_view_tests.cpp
+        tests/theme_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

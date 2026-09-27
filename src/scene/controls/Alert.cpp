@@ -39,20 +39,21 @@ std::string ChromeText(AlertType type) {
     return {};
 }
 
-Color TitleColor(AlertType type) {
+// The title's class beside alert-title. The user-agent stylesheet colors each one.
+const char* TitleClass(AlertType type) {
     switch (type) {
         case AlertType::Information:
-            return Color::rgb8(0x1a, 0x73, 0xe8);
+            return "information";
         case AlertType::Warning:
-            return Color::rgb8(0xe3, 0x74, 0x00);
+            return "warning";
         case AlertType::Error:
-            return Color::rgb8(0xd9, 0x30, 0x25);
+            return "error";
         case AlertType::Confirmation:
-            return Color::rgb8(0x18, 0x80, 0x38);
+            return "confirmation";
         case AlertType::None:
-            return Color::rgb8(0x20, 0x21, 0x24);
+            return "none";
     }
-    return Color::rgb8(0x20, 0x21, 0x24);
+    return "none";
 }
 
 // CancelClose, Other, Left, Right, OkDone. Equal roles keep their list order.
@@ -214,20 +215,19 @@ void Alert::show(Scene& scene) {
     impl_->scene = &scene;
 
     auto dimmer = std::make_shared<StackPane>();
-    dimmer->setBackground(Color::rgba(0.f, 0.f, 0.f, 0.35f));
+    dimmer->getClassList().add("alert-dimmer");
 
     auto panel = std::make_shared<AlertPanel>();
     panel->setPrefWidth(420);
     panel->setPadding(Insets::uniform(20));
     panel->setSpacing(8);
-    panel->setBackground(Color::white());
-    panel->setStyle("border-radius: 8px; box-shadow: 8px 16px 32px 0px rgba(0, 0, 0, 0.3)");
 
     const std::string& title = impl_->shownTitle();
     if (!title.empty()) {
         auto label = std::make_shared<Label>(title);
         label->setFont(Font("Open Sans", 18.f));
-        label->setTextFill(TitleColor(impl_->type));
+        label->getClassList().add("alert-title");
+        label->getClassList().add(TitleClass(impl_->type));
         panel->getChildren().add(label);
     }
     const std::string& header = impl_->shownHeader();

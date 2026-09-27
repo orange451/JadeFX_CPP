@@ -1,5 +1,6 @@
 #include "jadefx/scene/controls/ComboBox.hpp"
 
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 #include "jadefx/scene/Scene.hpp"
 
@@ -117,8 +118,8 @@ protected:
         }
         const bool armed = combo_ != nullptr && combo_->rowIsArmed(index_);
         if (armed || isHovered()) {
-            Color fill = armed ? Color::rgb8(210, 227, 252) : Color::rgb8(232, 240, 254);
-            fill.a *= opacity;
+            const Color fill =
+                chrome::Themed(*this, armed ? ThemeColor::SelectionHover : ThemeColor::Selection, opacity);
             const float radii[4] = {0.f, 0.f, 0.f, 0.f};
             const float at = 0.f;
             renderer.fillRounded(x, y, width, height, radii, &fill, &at, 1, 0.f);
@@ -137,10 +138,7 @@ private:
 
 class ComboPopup : public Controls {
 public:
-    ComboPopup() {
-        setBackground(Color::white());
-        setStyle("border-radius: 4px;");
-    }
+    ComboPopup() = default;
 
     const char* getElementType() const override { return "combo-popup"; }
 
@@ -201,18 +199,7 @@ protected:
     }
 
     void renderContent(UiRenderer& renderer, float opacity) override {
-        const float x = static_cast<float>(getAbsoluteX());
-        const float y = static_cast<float>(getAbsoluteY());
-        const float width = static_cast<float>(getWidth());
-        const float height = static_cast<float>(getHeight());
-        if (width <= 0.f || height <= 0.f) {
-            return;
-        }
-        const float radii[4] = {kCorner, kCorner, kCorner, kCorner};
-        const float sides[4] = {1.f, 1.f, 1.f, 1.f};
-        Color line = Color::rgb8(218, 220, 224);
-        line.a *= opacity;
-        renderer.strokeRounded(x, y, width, height, radii, sides, line);
+        chrome::DrawBorder(renderer, *this, opacity, kCorner);
     }
 
     void handleScroll(ScrollEvent& event) override {
@@ -231,10 +218,8 @@ private:
 
 ComboBox::ComboBox() {
     setDefaultCursor(Cursor::Pointer);
-    setBackground(Color::white());
     setPadding(Insets::axes(4, 8));
     setPrefHeight(kPreferredHeight);
-    setStyle("border-radius: 4px;");
     items_.setIndexedAddCallback([this](std::string, std::size_t) { onItemsChanged(); });
     items_.setIndexedRemoveCallback([this](std::string, std::size_t) { onItemsChanged(); });
 }
@@ -395,21 +380,10 @@ void ComboBox::renderContent(UiRenderer& renderer, float opacity) {
     if (width <= 0.f || height <= 0.f) {
         return;
     }
-    const float radii[4] = {kCorner, kCorner, kCorner, kCorner};
     const ComputedStyle& style = computedStyle();
-    const bool cssBorder = style.borderStyle == BorderStyle::Solid &&
-                           (style.border.top > 0 || style.border.right > 0 || style.border.bottom > 0 || style.border.left > 0);
-    if (!cssBorder) {
-        const float sides[4] = {1.f, 1.f, 1.f, 1.f};
-        Color line = Color::rgb8(218, 220, 224);
-        line.a *= opacity;
-        renderer.strokeRounded(x, y, width, height, radii, sides, line);
-    }
+    chrome::DrawBorder(renderer, *this, opacity, kCorner);
     if (!isDisabled() && isFocusWithin()) {
-        const float ringSides[4] = {2.f, 2.f, 2.f, 2.f};
-        Color ring = Color::rgb8(26, 115, 232);
-        ring.a *= opacity;
-        renderer.strokeRounded(x, y, width, height, radii, ringSides, ring);
+        chrome::DrawFocusRing(renderer, *this, opacity, kCorner);
     }
 
     if (!editable_) {
@@ -425,8 +399,7 @@ void ComboBox::renderContent(UiRenderer& renderer, float opacity) {
         DrawLine(renderer, textX, y, textW, height, shown, style, color);
     }
 
-    Color mark = Color::rgb8(95, 99, 104);
-    mark.a *= opacity;
+    const Color mark = chrome::Themed(*this, ThemeColor::Muted, opacity);
     const float center = x + width - static_cast<float>(kArrowWidth) * 0.5f;
     DrawDownArrow(renderer, center, y + height * 0.5f, mark);
 }

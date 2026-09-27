@@ -61,7 +61,6 @@ class Grip : public Region {
 public:
     Grip() {
         setMouseTransparent(true);
-        setBackground(Color::rgb8(110, 110, 110));
         setHorizontal(true);
     }
 
@@ -177,7 +176,6 @@ public:
     DividerHost(SplitPane& owner, std::size_t index) : owner_(&owner), index_(index) {
         getClassList().add("split-pane-divider");
         setPadding(Insets{0, kDividerPad, 0, kDividerPad});
-        setBackground(Color::rgb8(176, 176, 176));
         grip_ = std::make_shared<Grip>();
         children().add(grip_);
         sync(owner.horizontalSplit());
@@ -764,7 +762,6 @@ void SplitPane::Divider::setPosition(double value) {
 
 SplitPane::SplitPane() : impl_(std::make_unique<Impl>()) {
     getClassList().add("split-pane");
-    setBackground(Color::rgb8(244, 244, 244));
     setPseudoState("horizontal", true);
     impl_->items.setIndexedAddCallback([this](std::shared_ptr<Node> item, std::size_t index) {
         onAdded(std::move(item), index);

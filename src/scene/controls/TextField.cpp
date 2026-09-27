@@ -1,5 +1,6 @@
 #include "jadefx/scene/controls/TextField.hpp"
 
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 #include "jadefx/scene/Scene.hpp"
 #include "scene/text/Unicode.hpp"
@@ -156,7 +157,6 @@ TextField::TextField() : TextField(std::string()) {}
 TextField::TextField(std::string text) {
     setAlignment(Pos::CenterLeft);
     setPadding(Insets::axes(6, 8));
-    setBackground(Color::white());
     setDefaultCursor(Cursor::Text);
     setText(std::move(text));
 }
@@ -591,28 +591,14 @@ void TextField::render(UiRenderer& renderer, float opacity) {
 void TextField::renderContent(UiRenderer& renderer, float opacity) {
     const float x = static_cast<float>(getAbsoluteX());
     const float y = static_cast<float>(getAbsoluteY());
-    const float width = static_cast<float>(getWidth());
-    const float height = static_cast<float>(getHeight());
-    const float radius[4] = {4.f, 4.f, 4.f, 4.f};
     // A combo or spinner draws the box and the focus ring. A second stroke would cover them.
     const Node* parent = getParent();
     const bool hosted = parent != nullptr && (std::strcmp(parent->getElementType(), "combobox") == 0 ||
                                                std::strcmp(parent->getElementType(), "spinner") == 0);
-    if (!hosted && width > 0.f && height > 0.f) {
-        const ComputedStyle& style = computedStyle();
-        const bool cssBorder = style.borderStyle == BorderStyle::Solid &&
-                               (style.border.top > 0 || style.border.right > 0 || style.border.bottom > 0 || style.border.left > 0);
-        if (!cssBorder) {
-            const float sides[4] = {1.f, 1.f, 1.f, 1.f};
-            Color line = Color::rgb8(218, 220, 224);
-            line.a *= opacity;
-            renderer.strokeRounded(x, y, width, height, radius, sides, line);
-        }
+    if (!hosted) {
+        chrome::DrawBorder(renderer, *this, opacity);
         if (isFocused()) {
-            const float sides[4] = {2.f, 2.f, 2.f, 2.f};
-            Color ring = Color::rgb8(26, 115, 232);
-            ring.a *= opacity;
-            renderer.strokeRounded(x, y, width, height, radius, sides, ring);
+            chrome::DrawFocusRing(renderer, *this, opacity);
         }
     }
 
@@ -638,8 +624,7 @@ void TextField::renderContent(UiRenderer& renderer, float opacity) {
         const float left = textX + line.caretX[static_cast<std::size_t>(from)];
         const float right = textX + line.caretX[static_cast<std::size_t>(to)];
         if (right > left) {
-            Color fill = Color::rgb8(26, 115, 232);
-            fill.a = 0.35f * opacity;
+            const Color fill = chrome::Themed(*this, ThemeColor::TextSelection, opacity);
             renderer.fillRounded(left, textY, right - left, line.lineHeight, square, &fill, &at, 1, 0.f);
         }
     }

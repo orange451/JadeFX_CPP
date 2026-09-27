@@ -5,6 +5,7 @@
 #include "jadefx/scene/controls/Label.hpp"
 #include "jadefx/scene/controls/Menu.hpp"
 #include "jadefx/scene/text/Font.hpp"
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 #include "../layout/LayoutDetail.hpp"
 
@@ -140,7 +141,6 @@ public:
     HeaderBar() {
         getClassList().add("tab-header-area");
         setMouseTransparent(true);
-        setBackground(Color::rgb8(241, 243, 244));
     }
 
     const char* getElementType() const override { return "tab-header-area"; }
@@ -154,8 +154,7 @@ protected:
         if (width <= 0.f || height <= 0.f) {
             return;
         }
-        Color color = Color::rgb8(218, 220, 224);
-        color.a *= opacity;
+        const Color color = chrome::Themed(*this, ThemeColor::Border, opacity);
         const float x = static_cast<float>(getAbsoluteX());
         const float y = static_cast<float>(getAbsoluteY());
         const float radius[4] = {};
@@ -418,7 +417,6 @@ void TabPane::TabHeader::apply(HeaderState state) {
     }
     setSelected(state.selected);
     setOpacity(state.disabled ? 0.45f : 1.f);
-    setBackground(state.selected ? Color::white() : Color::rgb8(218, 220, 224));
 }
 
 void TabPane::TabHeader::detachChild(Node* child) {
@@ -548,7 +546,6 @@ void TabPane::TabHeader::layoutChildren() {
 
 TabPane::TabPane() : impl_(std::make_unique<Impl>()) {
     getClassList().add("tab-pane");
-    setBackground(Color::white());
     impl_->bar = std::make_shared<HeaderBar>();
     impl_->bar->setParent(this);
     impl_->tabs.setIndexedAddCallback([this](std::shared_ptr<Tab> tab, std::size_t index) {

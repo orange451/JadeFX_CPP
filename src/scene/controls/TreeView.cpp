@@ -11,6 +11,7 @@
 #include <cmath>
 #include <unordered_map>
 #include <unordered_set>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -244,8 +245,6 @@ public:
         setOnMouseReleased([this](const MouseEvent&) { released(); });
         setOnMouseClicked([this](const MouseEvent& event) { clickedRow(event); });
         setOnContextMenuRequested([this](const MouseEvent& event) { contextMenu(event); });
-        setOnMouseEntered([this](const MouseEvent&) { updateChrome(); });
-        setOnMouseExited([this](const MouseEvent&) { updateChrome(); });
     }
 
     ~TreeCell() override {
@@ -305,23 +304,17 @@ public:
         trail_ = trail;
     }
 
+    // The row's hover and selection colors come from the stylesheet's
+    // tree-cell:hover and tree-cell:selected. The bar takes the accent color,
+    // unless the view was given its own.
     void updateChrome() {
         const bool selected = view_ != nullptr && item_ != nullptr && view_->isSelected(item_);
         setSelected(selected);
         if (bar_) {
-            if (view_ != nullptr) {
+            if (view_ != nullptr && view_->hasSelectionBarColor()) {
                 bar_->setBackground(view_->getSelectionBarColor());
             }
             bar_->setVisible(selected);
-        }
-        if (selected && isHovered()) {
-            setBackground(Color::rgb8(210, 227, 252));
-        } else if (selected) {
-            setBackground(Color::rgb8(232, 240, 254));
-        } else if (isHovered()) {
-            setBackground(Color::rgb8(245, 245, 245));
-        } else {
-            setBackground(Color::transparent());
         }
     }
 
@@ -350,7 +343,8 @@ public:
         const float box = radius * 2.f;
         const float corner[4] = {radius, radius, radius, radius};
         const float at = 0.f;
-        Color color = Color::rgba(0.f, 0.f, 0.f, alpha * opacity);
+        Color color = themeColor(ThemeColor::Text);
+        color.a *= alpha * opacity;
         const float absX = static_cast<float>(getAbsoluteX());
         const float absY = static_cast<float>(getAbsoluteY());
         renderer.pushClip(absX, absY, width, height);
@@ -637,7 +631,8 @@ struct TreeView::Impl {
     bool showRoot = true;
     double indent = kDefaultIndent;
     double cellSize = kDefaultRow;
-    Color barColor = Color::rgb8(26, 115, 232);
+    // Set by setSelectionBarColor. Unset follows the theme's accent color.
+    std::optional<Color> barColor;
     std::shared_ptr<Node> accessory;
     TreeItem* hoverItem = nullptr;
     std::shared_ptr<ScrollBar> vbar;
@@ -666,7 +661,6 @@ struct TreeView::Impl {
 
 TreeView::TreeView() : impl_(std::make_unique<Impl>()) {
     getClassList().add("tree-view");
-    setBackground(Color::white());
     impl_->vbar = scroll::MakeOwnedBar(Orientation::Vertical, [this](double value) { impl_->scroll = value; });
     impl_->vbar->setParent(this);
 }
@@ -775,8 +769,10 @@ void TreeView::setSelectionBarColor(const Color& color) {
     refreshChrome();
 }
 
+bool TreeView::hasSelectionBarColor() const { return impl_ && impl_->barColor.has_value(); }
+
 Color TreeView::getSelectionBarColor() const {
-    return impl_ ? impl_->barColor : Color::rgb8(26, 115, 232);
+    return impl_ && impl_->barColor ? *impl_->barColor : themeColor(ThemeColor::Accent);
 }
 
 int TreeView::getExpandedItemCount() const {
@@ -1968,7 +1964,7 @@ void TreeView::renderDropMarker(UiRenderer& renderer, float opacity) {
     const float top = static_cast<float>(getAbsoluteY() + contentTop() - impl_->scroll);
     const float width = static_cast<float>(std::max(0.0, contentWidth() - gutter));
     const int level = shownLevel(target);
-    Color accent = impl_->barColor;
+    Color accent = getSelectionBarColor();
     accent.a *= opacity;
 
     if (impl_->dropPosition == TreeDropPosition::Into) {
@@ -2004,7 +2000,7 @@ void TreeView::renderDropMarker(UiRenderer& renderer, float opacity) {
     const float round[4] = {ring, ring, ring, ring};
     const float sides[4] = {2.f, 2.f, 2.f, 2.f};
     const Background& fill = computedStyle().background;
-    Color hole = fill.hasColor && fill.color.a > 0.f ? fill.color : Color::white();
+    Color hole = fill.hasColor && fill.color.a > 0.f ? fill.color : themeColor(ThemeColor::Surface);
     hole.a *= opacity;
     renderer.fillRounded(ringX - ring, lineY - ring, ring * 2.f, ring * 2.f, round, &hole, &at, 1, 0.f);
     renderer.strokeRounded(ringX - ring, lineY - ring, ring * 2.f, ring * 2.f, round, sides, accent);

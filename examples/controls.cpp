@@ -24,18 +24,18 @@
 
 namespace {
 
+// Colors come from the theme's custom properties, so the Dark theme box
+// restyles the whole window.
 constexpr const char* kStylesheet = R"CSS(
 scene {
-    background-color: #e8eaed;
     font-family: "Open Sans";
     font-size: 15px;
-    color: #202124;
 }
 .sheet {
-    background-color: white;
+    background-color: var(--surface-color);
     border-radius: 12px;
     border-width: 1px;
-    border-color: #dadce0;
+    border-color: var(--border-color);
     padding: 20px;
     spacing: 14px;
 }
@@ -44,31 +44,29 @@ scene {
     alignment: center-left;
 }
 .hint {
-    color: #5f6368;
+    color: var(--muted-color);
     font-size: 13px;
 }
 button, menubutton, togglebutton {
-    background-color: white;
     border-width: 1px;
-    border-color: #dadce0;
+    border-color: var(--border-color);
     border-radius: 6px;
     padding: 6px 14px;
 }
 button:hover, menubutton:hover, togglebutton:hover {
-    background-color: #f8f9fa;
+    background-color: var(--subtle-color);
 }
 togglebutton:selected {
-    background-color: #e8f0fe;
-    border-color: #1a73e8;
-    color: #174ea6;
+    background-color: var(--selection-color);
+    border-color: var(--accent-color);
+    color: var(--accent-color);
 }
 checkbox:selected, checkbox:indeterminate {
-    color: #174ea6;
+    color: var(--accent-color);
 }
 textfield, combobox, spinner {
-    background-color: white;
     border-width: 1px;
-    border-color: #dadce0;
+    border-color: var(--border-color);
     border-radius: 6px;
     padding: 6px 8px;
 }
@@ -78,20 +76,19 @@ combobox textfield, spinner textfield {
     background-color: transparent;
 }
 textfield:focus, combobox:focus, combobox:focus-within, spinner:focus, spinner:focus-within {
-    border-color: #1a73e8;
+    border-color: var(--accent-color);
     border-width: 2px;
 }
 increment-arrow-button:hover, decrement-arrow-button:hover {
-    background-color: #f1f3f4;
+    background-color: var(--track-color);
 }
 menubar {
-    background-color: white;
     border-width: 0 0 1px 0;
-    border-color: #dadce0;
+    border-color: var(--border-color);
     padding: 0 8px;
 }
 menu:hover, menu-item:hover, combo-row:hover {
-    background-color: #e8f0fe;
+    background-color: var(--selection-color);
 }
 )CSS";
 
@@ -190,6 +187,12 @@ public:
         auto email = jadefx::make<jadefx::CheckBox>("Email");
         auto push = jadefx::make<jadefx::CheckBox>("Push");
         auto pages = jadefx::make<jadefx::CheckBox>("All pages");
+        auto dark = jadefx::make<jadefx::CheckBox>("Dark theme");
+        dark->setOnAction([this, dark](jadefx::ActionEvent&) {
+            if (auto scene = scene_.lock()) {
+                scene->setUserAgentStylesheet(dark->isSelected() ? jadefx::Theme::DARK : jadefx::Theme::LIGHT);
+            }
+        });
         email->setSelected(true);
         pages->setAllowIndeterminate(true);
         pages->setIndeterminate(true);
@@ -328,6 +331,7 @@ public:
         notifyRow->getChildren().add(email);
         notifyRow->getChildren().add(push);
         notifyRow->getChildren().add(pages);
+        notifyRow->getChildren().add(dark);
         auto dialogRow = jadefx::make<jadefx::HBox>();
         dialogRow->getClassList().add("row");
         dialogRow->setSpacing(10);
@@ -379,12 +383,14 @@ public:
 
         auto scene = jadefx::make<jadefx::Scene>(root, 720, 780);
         scene->setStylesheet(kStylesheet);
+        scene_ = scene;
         stage.setTitle("Controls");
         stage.setScene(scene);
     }
 
 private:
     std::shared_ptr<jadefx::ToggleGroup> sizes_;
+    std::weak_ptr<jadefx::Scene> scene_;
     std::shared_ptr<std::vector<std::shared_ptr<jadefx::Alert>>> alerts_;
 };
 

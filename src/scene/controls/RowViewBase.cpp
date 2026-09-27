@@ -9,7 +9,6 @@ namespace jadefx {
 
 RowViewBase::RowViewBase(std::unique_ptr<MultipleSelectionModel> selection, Orientation orientation)
     : selection_(std::move(selection)) {
-    setBackground(Color::white());
     flow_ = std::make_shared<VirtualFlow>();
     flow_->setFocusTraversable(false);
     installRowFactory();

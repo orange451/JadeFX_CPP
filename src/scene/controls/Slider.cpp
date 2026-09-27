@@ -1,5 +1,6 @@
 #include "jadefx/scene/controls/Slider.hpp"
 
+#include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 
 #include <algorithm>
@@ -461,8 +462,7 @@ void Slider::renderContent(UiRenderer& renderer, float opacity) {
     const float along1 = static_cast<float>(metrics.alongStart + metrics.alongLength);
     const float cross = static_cast<float>(metrics.crossCenter);
     if (metrics.alongLength > 0) {
-        Color groove = Color::rgb8(218, 220, 224);
-        groove.a *= opacity;
+        const Color groove = chrome::Themed(*this, ThemeColor::Border, opacity);
         if (metrics.horizontal) {
             renderer.fillRounded(along0, cross - trackRadius, along1 - along0, static_cast<float>(kTrack), pill, &groove,
                                  &at, 1, 0.f);
@@ -474,10 +474,8 @@ void Slider::renderContent(UiRenderer& renderer, float opacity) {
 
     if ((showMarks_ || showLabels_) && major_ > 0 && max_ >= min_) {
         const Font face = FaceOf(*this);
-        Color mark = Color::rgb8(95, 99, 104);
-        mark.a *= opacity;
-        Color minorMark = Color::rgb8(128, 134, 139);
-        minorMark.a *= opacity;
+        const Color mark = chrome::Themed(*this, ThemeColor::Muted, opacity);
+        const Color minorMark = chrome::Themed(*this, ThemeColor::Faint, opacity);
         Color text = computedStyle().color;
         text.a *= opacity;
         const float square[4] = {};
@@ -541,13 +539,10 @@ void Slider::renderContent(UiRenderer& renderer, float opacity) {
         }
     }
 
-    Color fill = Color::white();
-    Color line = (isFocused() || isHovered() || isPressed()) ? Color::rgb8(26, 115, 232) : Color::rgb8(95, 99, 104);
-    if (isPressed() && draggingThumb_) {
-        fill = Color::rgb8(232, 240, 254);
-    }
-    fill.a *= opacity;
-    line.a *= opacity;
+    const Color fill =
+        chrome::Themed(*this, isPressed() && draggingThumb_ ? ThemeColor::Selection : ThemeColor::Surface, opacity);
+    const Color line = chrome::Themed(
+        *this, isFocused() || isHovered() || isPressed() ? ThemeColor::Accent : ThemeColor::Muted, opacity);
     const float thumbRadius[4] = {radius, radius, radius, radius};
     const float sides[4] = {2.f, 2.f, 2.f, 2.f};
     const float thumbX = metrics.horizontal ? static_cast<float>(metrics.thumbAlong - radius)
