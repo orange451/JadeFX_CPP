@@ -560,6 +560,35 @@ void ColorChooser::commitEdits() {
     }
 }
 
+void ColorChooser::handleKey(KeyEvent& event) {
+    if (!event.pressed || event.key != Key::Tab || event.control || event.alt || event.meta) {
+        return;
+    }
+    // The fields top to bottom: red, green, blue, the hex code, hue, saturation, value, and alpha when shown.
+    std::vector<TextField*> fields;
+    for (const Parts::Row& row : parts_->rows) {
+        if (row.spinner->isVisible()) {
+            fields.push_back(row.spinner->getEditor());
+        }
+        if (row.channel == Channel::Blue) {
+            fields.push_back(parts_->hex.get());
+        }
+    }
+    const auto current = std::find_if(fields.begin(), fields.end(), [](TextField* field) { return field->isFocused(); });
+    std::size_t next = 0;
+    if (current != fields.end()) {
+        const std::size_t at = static_cast<std::size_t>(current - fields.begin());
+        next = (at + (event.shift ? fields.size() - 1 : 1)) % fields.size();
+    } else if (event.shift) {
+        next = fields.size() - 1;
+    }
+    // The field left is applied first, so the text selected next already has that edit in.
+    commitEdits();
+    fields[next]->requestFocus();
+    fields[next]->selectAll();
+    event.consume();
+}
+
 void ColorChooser::applyColor(Color color, bool notify) {
     // Without alpha the chooser picks opaque colors only, as an RGB value has no transparency.
     if (!showAlpha_) {

@@ -422,6 +422,11 @@ bool Scene::noteText(const std::string& text) {
 void Scene::moveFocus(Node* next) {
     Node* const previous = focused_;
     clearFocus();
+    // previous may already be out of the tree, as a field in a popup that just
+    // closed, where clearing the scene's nodes does not reach it.
+    if (previous != nullptr) {
+        previous->focused_ = false;
+    }
     focused_ = next;
     // In a window without the system focus only the owner changes. Nothing is
     // focused, and the owner already heard it lost the focus when the window did.

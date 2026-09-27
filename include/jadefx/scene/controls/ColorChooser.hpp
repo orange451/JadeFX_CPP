@@ -16,7 +16,8 @@ namespace jadefx {
 // number box beside it. Every part follows the others as any one changes.
 // ColorPicker shows one in its popup; it also works on its own, in a dialog or
 // a panel. Hue is kept while the color is a gray, so dragging saturation back
-// up returns to the same hue.
+// up returns to the same hue. Tab goes down the fields on the right, R to A,
+// selecting each one's text, and Shift+Tab goes back up.
 class ColorChooser : public Controls {
 public:
     // The most recent colors kept.
@@ -59,6 +60,8 @@ public:
 
 protected:
     void layoutChildren() override;
+    // Tab and Shift+Tab move between the number boxes and the hex field, top to bottom.
+    void handleKey(KeyEvent& event) override;
     double preferredContentWidth(double innerAvailable) const override;
     double preferredContentHeight(double innerWidth) const override;
 

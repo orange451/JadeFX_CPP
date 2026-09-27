@@ -126,6 +126,49 @@ void TestChooser() {
     Expect(chooser->getElementsByClassName("caption").size() == 5, "they come back");
 }
 
+// Tab goes down the fields, R to A with the hex code after B, and Shift+Tab back up.
+void TestTabOrder() {
+    auto chooser = jadefx::make<jadefx::ColorChooser>(jadefx::Color::parse("#336699"));
+    auto scene = jadefx::make<jadefx::Scene>(chooser, 700, 500);
+    scene->layout(700, 500, 0);
+    jadefx::TextField* red = Find<jadefx::Spinner>(*chooser, "red")->getEditor();
+    jadefx::TextField* green = Find<jadefx::Spinner>(*chooser, "green")->getEditor();
+    jadefx::TextField* blue = Find<jadefx::Spinner>(*chooser, "blue")->getEditor();
+    jadefx::TextField* value = Find<jadefx::Spinner>(*chooser, "brightness")->getEditor();
+    jadefx::TextField* alpha = Find<jadefx::Spinner>(*chooser, "alpha")->getEditor();
+    auto* hex = Find<jadefx::TextField>(*chooser, "hex");
+    auto tab = [&](bool shift) { scene->noteKey(jadefx::Key::Tab, true, false, shift ? jadefx::Key::ModShift : 0); };
+
+    red->requestFocus();
+    tab(false);
+    Expect(green->isFocused() && green->getSelectedText() == "102", "Tab moves to the next field and selects its text");
+    tab(true);
+    Expect(red->isFocused(), "Shift+Tab moves back up");
+    blue->requestFocus();
+    tab(false);
+    Expect(hex->isFocused() && hex->getSelectedText() == "#336699", "the hex code comes after blue");
+    alpha->requestFocus();
+    tab(false);
+    Expect(red->isFocused(), "Tab from the last field wraps to the first");
+    tab(true);
+    Expect(alpha->isFocused(), "and Shift+Tab from the first wraps to the last");
+
+    chooser->setShowAlpha(false);
+    scene->layout(700, 500, 1);
+    value->requestFocus();
+    tab(false);
+    Expect(red->isFocused(), "a hidden alpha field is skipped");
+
+    // A typed value is applied on the way out.
+    red->selectAll();
+    scene->noteText("200");
+    tab(false);
+    Expect(SpinnerValue(*chooser, "red") == 200 && green->isFocused() && green->getSelectedText() == "102",
+           "Tab commits the field it leaves and selects the next");
+    scene->layout(700, 500, 2);
+    Expect(green->getSelectedText() == "102", "and the selection stays after the next layout");
+}
+
 void TestPicker() {
     auto picker = jadefx::make<jadefx::ColorPicker>(jadefx::Color::parse("#1a73e8"));
     auto root = jadefx::make<jadefx::Pane>();
@@ -152,6 +195,16 @@ void TestPicker() {
     Expect(!picker->isShowing() && picker->getValue().toHex() == "#1a73e8" && actions == 0,
            "Escape closes and restores the color without an action");
     Expect(chooser.getRecentColors().empty(), "a cancelled color is not recent");
+
+    // A field focused in the popup lets go of the focus when the popup closes.
+    picker->show();
+    scene->layout(900, 700, 0.25);
+    jadefx::TextField* red = Find<jadefx::Spinner>(chooser, "red")->getEditor();
+    red->requestFocus();
+    red->selectAll();
+    picker->hide();
+    Expect(!red->isFocused() && !red->isFocusWithin() && red->getSelectedText().empty(),
+           "a field in a closed popup is neither focused nor selected");
 
     // Enter keeps the new color.
     picker->show();
@@ -185,6 +238,7 @@ int RunColorPickerTests() {
     gFailures = 0;
     TestColorModel();
     TestChooser();
+    TestTabOrder();
     TestPicker();
     if (gFailures == 0) {
         std::printf("color picker tests passed\n");
