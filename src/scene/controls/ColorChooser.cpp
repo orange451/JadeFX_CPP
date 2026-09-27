@@ -331,6 +331,11 @@ struct ColorChooser::Parts {
     std::vector<std::shared_ptr<Swatch>> recentSwatches;
     std::vector<Row> rows;
     std::shared_ptr<TextField> hex;
+    // The transparency caption and the alpha row, hidden without alpha.
+    std::vector<std::shared_ptr<Node>> alphaNodes;
+    std::shared_ptr<VBox> left;
+    // The recent caption and swatches, taken out of the left column when hidden.
+    std::shared_ptr<VBox> recentBox;
 };
 
 ColorChooser::ColorChooser() : ColorChooser(Color::white()) {}
@@ -375,14 +380,18 @@ void ColorChooser::build() {
     parts.recentGrid = std::make_shared<GridPane>();
     parts.recentGrid->setHgap(kSwatchGap);
 
-    auto left = std::make_shared<VBox>();
-    left->setSpacing(6);
-    left->getChildren().add(parts.wheel);
-    left->getChildren().add(compare);
-    left->getChildren().add(Caption("Presets"));
-    left->getChildren().add(parts.presetGrid);
-    left->getChildren().add(Caption("Recent"));
-    left->getChildren().add(parts.recentGrid);
+    parts.recentBox = std::make_shared<VBox>();
+    parts.recentBox->setSpacing(6);
+    parts.recentBox->getChildren().add(Caption("Recent"));
+    parts.recentBox->getChildren().add(parts.recentGrid);
+    parts.left = std::make_shared<VBox>();
+    VBox& left = *parts.left;
+    left.setSpacing(6);
+    left.getChildren().add(parts.wheel);
+    left.getChildren().add(compare);
+    left.getChildren().add(Caption("Presets"));
+    left.getChildren().add(parts.presetGrid);
+    left.getChildren().add(parts.recentBox);
 
     auto grid = std::make_shared<GridPane>();
     grid->setHgap(6);
@@ -396,7 +405,11 @@ void ColorChooser::build() {
     grid->getColumnConstraints() = {labels, sliders, ColumnConstraints()};
 
     int row = 0;
-    auto header = [&](const char* text) { grid->add(Caption(text), 0, row++, GridPane::REMAINING, 1); };
+    auto header = [&](const char* text) {
+        auto caption = Caption(text);
+        grid->add(caption, 0, row++, GridPane::REMAINING, 1);
+        return caption;
+    };
     // Each channel's slider and number box carry its name as a style class, such as .red or .alpha.
     auto channel = [&](Channel kind, const char* name, const char* styleClass) {
         Parts::Row entry;
@@ -424,10 +437,14 @@ void ColorChooser::build() {
                 applyChannel(changed.channel, changed.factory->getValue());
             }
         });
-        grid->add(std::make_shared<Label>(name), 0, row);
+        auto label = std::make_shared<Label>(name);
+        grid->add(label, 0, row);
         grid->add(entry.slider, 1, row);
         grid->add(entry.spinner, 2, row);
         ++row;
+        if (kind == Channel::Alpha) {
+            parts_->alphaNodes = {label, entry.slider, entry.spinner};
+        }
         parts_->rows.push_back(std::move(entry));
     };
 
@@ -456,8 +473,9 @@ void ColorChooser::build() {
     channel(Channel::Hue, "H", "hue");
     channel(Channel::Saturation, "S", "saturation");
     channel(Channel::Brightness, "V", "brightness");
-    header("Transparency");
+    auto transparency = header("Transparency");
     channel(Channel::Alpha, "A", "alpha");
+    parts.alphaNodes.push_back(transparency);
 
     for (std::size_t i = 0; i < kRecentLimit; ++i) {
         auto swatch = std::make_shared<Swatch>(kSwatch, kSwatch);
@@ -468,7 +486,7 @@ void ColorChooser::build() {
 
     parts.root = std::make_shared<HBox>();
     parts.root->setSpacing(14);
-    parts.root->getChildren().add(left);
+    parts.root->getChildren().add(parts.left);
     parts.root->getChildren().add(grid);
     children().add(parts.root);
     rebuildPresets();
@@ -489,6 +507,33 @@ void ColorChooser::rebuildPresets() {
 }
 
 void ColorChooser::setValue(Color color) { applyColor(color, false); }
+
+void ColorChooser::setShowAlpha(bool show) {
+    showAlpha_ = show;
+    for (const std::shared_ptr<Node>& node : parts_->alphaNodes) {
+        node->setVisible(show);
+    }
+    if (!show && value_.a < 1.f) {
+        value_.a = 1.f;
+    }
+    if (!show) {
+        original_.a = 1.f;
+    }
+    refresh();
+}
+
+void ColorChooser::setShowRecentColors(bool show) {
+    if (show == showRecent_) {
+        return;
+    }
+    showRecent_ = show;
+    ObservableList<std::shared_ptr<Node>>& column = parts_->left->getChildren();
+    if (show) {
+        column.add(parts_->recentBox);
+    } else {
+        column.removeIf([&](const std::shared_ptr<Node>& node) { return node == parts_->recentBox; });
+    }
+}
 
 void ColorChooser::setOriginalValue(Color color) {
     original_ = color;
@@ -514,6 +559,10 @@ void ColorChooser::commitEdits() {
 }
 
 void ColorChooser::applyColor(Color color, bool notify) {
+    // Without alpha the chooser picks opaque colors only, as an RGB value has no transparency.
+    if (!showAlpha_) {
+        color.a = 1.f;
+    }
     value_ = color;
     const double brightness = color.getBrightness();
     const double saturation = color.getSaturation();
@@ -583,7 +632,7 @@ bool ColorChooser::applyHex(const std::string& text) {
     if (!ok) {
         return false;
     }
-    // Without an alpha digit the color keeps its transparency.
+    // Without an alpha digit the color keeps its transparency. Without alpha, applyColor makes it opaque.
     if (digits == 3 || digits == 6) {
         color.a = value_.a;
     }

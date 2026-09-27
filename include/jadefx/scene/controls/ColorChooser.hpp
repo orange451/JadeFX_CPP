@@ -42,6 +42,16 @@ public:
     // Moves color to the front of the recent colors.
     void addRecentColor(Color color);
 
+    // The transparency slider and alpha in the hex code, on by default. Off, the
+    // chooser picks opaque colors only, as for an RGB value such as a Color3, and
+    // makes its value opaque; the web's color input works the same way without
+    // its alpha attribute.
+    void setShowAlpha(bool show);
+    bool isShowAlpha() const { return showAlpha_; }
+    // The recent colors under the palette, on by default.
+    void setShowRecentColors(bool show);
+    bool isShowRecentColors() const { return showRecent_; }
+
     // Runs after the value changes from the chooser's own parts.
     void setOnValueChanged(std::function<void()> handler) { onChanged_ = std::move(handler); }
     // Applies text typed but not yet entered in the hex field or a number box.
@@ -78,6 +88,8 @@ private:
     std::function<void()> onChanged_;
     std::unique_ptr<Parts> parts_;
     bool syncing_ = false;
+    bool showAlpha_ = true;
+    bool showRecent_ = true;
 };
 
 }  // namespace jadefx

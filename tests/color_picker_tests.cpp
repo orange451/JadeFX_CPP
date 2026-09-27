@@ -101,6 +101,29 @@ void TestChooser() {
     }
     Expect(chooser->getRecentColors().size() == jadefx::ColorChooser::kRecentLimit, "recent colors are capped");
     Expect(chooser->getPresets().size() == 72, "the default palette is twelve grays and sixty hues");
+
+    // Without alpha the chooser is RGB only.
+    chooser->setValue(jadefx::Color::rgba(1, 0, 0, 0.5f));
+    chooser->setShowAlpha(false);
+    scene->layout(700, 500, 1);
+    Expect(!chooser->isShowAlpha() && jadefx::near(chooser->getValue(), jadefx::Color::rgba(1, 0, 0, 1)),
+           "hiding alpha makes the value opaque");
+    Expect(!Find<jadefx::Slider>(*chooser, "alpha")->isVisible() && hex->getText() == "#ff0000",
+           "and hides the alpha row, and alpha in the hex code");
+    hex->setText("#00ff0080");
+    hex->fire();
+    Expect(jadefx::near(chooser->getValue(), jadefx::Color::rgba(0, 1, 0, 1)), "typed alpha is dropped");
+    chooser->setShowAlpha(true);
+    Expect(Find<jadefx::Slider>(*chooser, "alpha")->isVisible(), "alpha comes back");
+
+    const double tall = chooser->measuredHeight(700, -1);
+    chooser->setShowRecentColors(false);
+    scene->layout(700, 500, 2);
+    Expect(!chooser->isShowRecentColors() && chooser->getElementsByClassName("caption").size() == 4,
+           "hiding recent colors takes their caption and swatches out");
+    Expect(chooser->measuredHeight(700, -1) < tall, "and the chooser is shorter for it");
+    chooser->setShowRecentColors(true);
+    Expect(chooser->getElementsByClassName("caption").size() == 5, "they come back");
 }
 
 void TestPicker() {

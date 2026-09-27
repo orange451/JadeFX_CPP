@@ -26,8 +26,9 @@ ColorPicker::ColorPicker(Color value) : value_(value), original_(value), chooser
 ColorPicker::~ColorPicker() = default;
 
 void ColorPicker::setValue(Color value) {
-    value_ = value;
+    // The chooser may refuse part of it, such as alpha when it shows none.
     chooser_->setValue(value);
+    value_ = chooser_->getValue();
     if (onChanged_) {
         onChanged_();
     }
