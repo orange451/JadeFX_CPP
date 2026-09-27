@@ -1,7 +1,10 @@
 #pragma once
 
+#include "jadefx/collections/ObservableList.hpp"
+
 #include <cstddef>
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace jadefx {
@@ -78,6 +81,59 @@ private:
     };
     std::vector<Entry> listeners_;
     ListenerId lastListener_ = 0;
+};
+
+// A view's selection, with the items the selected rows hold. ListView and
+// TableView hand one out from getSelectionModel.
+template <typename T>
+class ItemSelectionModel : public MultipleSelectionModel {
+public:
+    // items returns the view's current list, which setItems can swap.
+    explicit ItemSelectionModel(std::function<const ObservableList<T>*()> items) : items_(std::move(items)) {}
+
+    // The item at selectedIndex, or nothing when no row is selected.
+    std::optional<T> getSelectedItem() const {
+        const int index = getSelectedIndex();
+        if (!valid(index)) {
+            return std::nullopt;
+        }
+        return (*items_())[static_cast<std::size_t>(index)];
+    }
+
+    // In the order they were selected.
+    std::vector<T> getSelectedItems() const {
+        std::vector<T> out;
+        for (const int index : getSelectedIndices()) {
+            if (valid(index)) {
+                out.push_back((*items_())[static_cast<std::size_t>(index)]);
+            }
+        }
+        return out;
+    }
+
+    using MultipleSelectionModel::select;
+    // Selects the first row whose item equals this one.
+    void select(const T& item) {
+        const ObservableList<T>* list = items_();
+        if (list == nullptr) {
+            return;
+        }
+        const std::vector<T>& all = list->items();
+        for (std::size_t i = 0; i < all.size(); ++i) {
+            if (all[i] == item) {
+                select(static_cast<int>(i));
+                return;
+            }
+        }
+    }
+
+private:
+    bool valid(int index) const {
+        const ObservableList<T>* list = items_();
+        return list != nullptr && index >= 0 && index < static_cast<int>(list->size());
+    }
+
+    std::function<const ObservableList<T>*()> items_;
 };
 
 // The row the keyboard acts on, in the shape of OpenJFX FocusModel. In

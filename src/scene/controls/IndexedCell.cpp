@@ -7,7 +7,7 @@ namespace jadefx {
 IndexedCell::IndexedCell() : Labeled("") {
     setDefaultCursor(Cursor::Default);
     setAlignment(Pos::CenterLeft);
-    setPadding(Insets::axes(4, 10));
+    setPadding(Insets::axes(kPaddingY, kPaddingX));
     updateEmpty(true);
 }
 

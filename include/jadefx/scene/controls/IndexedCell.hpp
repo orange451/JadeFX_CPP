@@ -17,6 +17,11 @@ namespace jadefx {
 // grey hover, and a thin ring on the focused row.
 class IndexedCell : public Labeled {
 public:
+    // Default padding: 4 points above and below, 10 at the sides. A table's
+    // headers use the same sides so their text lines up with the cells'.
+    static constexpr double kPaddingY = 4;
+    static constexpr double kPaddingX = 10;
+
     int getIndex() const { return index_; }
     bool isEmpty() const { return empty_; }
     bool isEditing() const { return editing_; }

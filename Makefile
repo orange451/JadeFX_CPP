@@ -7,7 +7,7 @@
 # border — a BorderPane with top, left, center, right, and bottom
 # tabs   — a TabPane with three closable pages
 # tree   — a material TreeView with disclosure arrows and a selection bar
-# lists  — a ListView of ten thousand rows, with editing and multiple selection
+# lists  — a ListView of ten thousand rows and a sortable, editable TableView
 # split  — a SplitPane with draggable dividers
 # rich     — a code editor and a styled text area
 # controls — fields, slider, spinner, progress bars, radios, check boxes, menus, tooltips, and alerts

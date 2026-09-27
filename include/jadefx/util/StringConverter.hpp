@@ -1,5 +1,7 @@
 #pragma once
 
+#include "jadefx/util/TypeTraits.hpp"
+
 #include <functional>
 #include <optional>
 #include <sstream>
@@ -7,21 +9,6 @@
 #include <type_traits>
 
 namespace jadefx {
-
-namespace detail {
-
-template <typename T, typename = void>
-struct Streamable : std::false_type {};
-template <typename T>
-struct Streamable<T, std::void_t<decltype(std::declval<std::ostream&>() << std::declval<const T&>())>>
-    : std::true_type {};
-
-template <typename T, typename = void>
-struct Parsable : std::false_type {};
-template <typename T>
-struct Parsable<T, std::void_t<decltype(std::declval<std::istream&>() >> std::declval<T&>())>> : std::true_type {};
-
-}  // namespace detail
 
 // Text for a value, the way a cell shows it. A string is itself, a bool is true
 // or false, and a number or any other type with operator<< is what that writes.

@@ -60,12 +60,15 @@ public:
     double getPosition() const { return position_; }
     // How far the cells have scrolled across the scroll axis, in points.
     double getBreadthOffset() const { return breadthOffset_; }
+    // Moves across the scroll axis the least distance that shows start to end.
+    void showBreadth(double start, double end);
     // Runs after getBreadthOffset changes, so a table header can follow the rows.
     void setOnBreadthOffsetChanged(std::function<void()> handler) { onBreadth_ = std::move(handler); }
 
     // The row length and the viewport's length as of the last layout.
     double getCellLength() const { return cellLength_; }
     double getViewportLength() const { return viewportLength_; }
+    double getViewportBreadth() const { return viewportBreadth_; }
     // Rows at least partly on screen as of the last layout. -1 when there are none.
     int getFirstVisibleIndex() const;
     int getLastVisibleIndex() const;

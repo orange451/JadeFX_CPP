@@ -53,7 +53,59 @@ button {
 button:hover {
     background-color: #f1f3f4;
 }
+tr:nth-child(even) {
+    background-color: #fafafa;
+}
+tr:selected {
+    background-color: #e8f0fe;
+}
+th {
+    color: #5f6368;
+    font-size: 13px;
+}
 )CSS";
+
+struct Employee {
+    std::string name;
+    std::string team;
+    int age = 0;
+    double rating = 0;
+};
+
+// Two thousand people, made up from a few names and teams.
+std::shared_ptr<jadefx::TableView<Employee>> MakeTable() {
+    static const char* const kFirst[] = {"Ada", "Ben", "Cleo", "Dev", "Emil", "Fay", "Gus", "Hana", "Ivo", "Jun"};
+    static const char* const kLast[] = {"Park", "Nolan", "Silva", "Okafor", "Berg", "Ito", "Moreau"};
+    static const char* const kTeams[] = {"Design", "Engine", "Support", "Sales", "Tools"};
+    auto table = jadefx::make<jadefx::TableView<Employee>>();
+    std::vector<Employee> people;
+    for (int i = 0; i < 2000; ++i) {
+        people.push_back({std::string(kFirst[i % 10]) + " " + kLast[(i / 10) % 7], kTeams[(i * 7) % 5], 22 + (i * 13) % 40,
+                          static_cast<double>((i * 37) % 50) / 10.0});
+    }
+    table->getItems().setAll(std::move(people));
+
+    auto name = jadefx::make<jadefx::TableColumn<Employee, std::string>>("Name");
+    name->setCellValueFactory([](const Employee& person) { return person.name; });
+    name->setCellValueSetter([](Employee& person, const std::string& value) { person.name = value; });
+    name->setCellFactory(jadefx::TextFieldTableCell<Employee, std::string>::forTableColumn());
+    name->setPrefWidth(150);
+    auto team = jadefx::make<jadefx::TableColumn<Employee, std::string>>("Team");
+    team->setCellValueFactory([](const Employee& person) { return person.team; });
+    auto age = jadefx::make<jadefx::TableColumn<Employee, int>>("Age");
+    age->setCellValueFactory([](const Employee& person) { return person.age; });
+    age->setPrefWidth(60);
+    auto rating = jadefx::make<jadefx::TableColumn<Employee, double>>("Rating");
+    rating->setCellValueFactory([](const Employee& person) { return person.rating; });
+    table->getColumns().add(name);
+    table->getColumns().add(team);
+    table->getColumns().add(age);
+    table->getColumns().add(rating);
+    table->setColumnResizePolicy(jadefx::ColumnResizePolicy::Constrained);
+    table->setEditable(true);
+    table->getSelectionModel().setSelectionMode(jadefx::SelectionMode::Multiple);
+    return table;
+}
 
 class ListsApp : public jadefx::Application {
 public:
@@ -101,13 +153,21 @@ public:
         bar->getChildren().add(add);
         bar->getChildren().add(remove);
 
+        auto listPage = jadefx::make<jadefx::BorderPane>();
+        listPage->setTop(bar);
+        listPage->setCenter(list);
+        listPage->setBottom(status);
+
+        auto tabs = jadefx::make<jadefx::TabPane>();
+        tabs->setTabClosingPolicy(jadefx::TabPane::TabClosingPolicy::Unavailable);
+        tabs->getTabs().add(jadefx::make<jadefx::Tab>("List", listPage));
+        tabs->getTabs().add(jadefx::make<jadefx::Tab>("Table", MakeTable()));
+
         auto frame = jadefx::make<jadefx::BorderPane>();
         frame->getClassList().add("frame");
-        frame->setTop(bar);
-        frame->setCenter(list);
-        frame->setBottom(status);
+        frame->setCenter(tabs);
 
-        auto scene = jadefx::make<jadefx::Scene>(frame, 440, 520);
+        auto scene = jadefx::make<jadefx::Scene>(frame, 520, 560);
         scene->setStylesheet(kStylesheet);
         stage.setTitle("Lists");
         stage.setScene(scene);

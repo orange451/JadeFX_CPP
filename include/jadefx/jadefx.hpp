@@ -38,6 +38,7 @@
 #include "jadefx/scene/controls/StyledTextArea.hpp"
 #include "jadefx/scene/controls/Tab.hpp"
 #include "jadefx/scene/controls/TextField.hpp"
+#include "jadefx/scene/controls/TableView.hpp"
 #include "jadefx/scene/controls/TabPane.hpp"
 #include "jadefx/scene/controls/TreeItem.hpp"
 #include "jadefx/scene/controls/TreeView.hpp"

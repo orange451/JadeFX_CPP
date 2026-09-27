@@ -59,7 +59,9 @@ set(JADEFX_SOURCES
     src/scene/controls/SelectionModel.cpp
     src/scene/controls/IndexedCell.cpp
     src/scene/controls/VirtualFlow.cpp
+    src/scene/controls/RowViewBase.cpp
     src/scene/controls/ListView.cpp
+    src/scene/controls/TableView.cpp
     src/scene/controls/Slider.cpp
     src/scene/controls/Spinner.cpp
     src/scene/controls/SplitPane.cpp
@@ -307,6 +309,7 @@ if(NOT JADEFX_GLFM)
         tests/scroll_pane_tests.cpp
         tests/list_view_tests.cpp
         tests/core_tests.cpp
+        tests/table_view_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

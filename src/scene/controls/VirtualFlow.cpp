@@ -87,6 +87,17 @@ void VirtualFlow::setBreadthOffset(double offset) {
     }
 }
 
+void VirtualFlow::showBreadth(double start, double end) {
+    double offset = breadthOffset_;
+    if (end > offset + viewportBreadth_) {
+        offset = end - viewportBreadth_;
+    }
+    if (start < offset) {
+        offset = start;
+    }
+    setBreadthOffset(std::clamp(offset, 0.0, std::max(0.0, contentBreadth_ - viewportBreadth_)));
+}
+
 int VirtualFlow::getFirstVisibleIndex() const { return active_.empty() ? -1 : active_.front().index; }
 
 int VirtualFlow::getLastVisibleIndex() const { return active_.empty() ? -1 : active_.back().index; }
