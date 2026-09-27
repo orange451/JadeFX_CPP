@@ -16,6 +16,7 @@ endif()
 
 set(JADEFX_SOURCES
     src/paint/Color.cpp
+    src/time/LocalDate.cpp
     src/style/Stylesheet.cpp
     src/style/Theme.cpp
     src/scene/Node.cpp
@@ -48,6 +49,7 @@ set(JADEFX_SOURCES
     src/scene/controls/ColorPicker.cpp
     src/scene/controls/ComboBox.cpp
     src/scene/controls/ComboBoxBase.cpp
+    src/scene/controls/DatePicker.cpp
     src/scene/controls/Tab.cpp
     src/scene/controls/TabPane.cpp
     src/scene/image/Image.cpp
@@ -320,6 +322,7 @@ if(NOT JADEFX_GLFM)
         tests/theme_tests.cpp
         tests/layout_pane_tests.cpp
         tests/color_picker_tests.cpp
+        tests/date_picker_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

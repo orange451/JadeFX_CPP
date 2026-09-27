@@ -18,6 +18,7 @@
 #include "jadefx/scene/controls/ColorPicker.hpp"
 #include "jadefx/scene/controls/ComboBox.hpp"
 #include "jadefx/scene/controls/ComboBoxBase.hpp"
+#include "jadefx/scene/controls/DatePicker.hpp"
 #include "jadefx/scene/controls/CheckBox.hpp"
 #include "jadefx/scene/controls/RadioButton.hpp"
 #include "jadefx/scene/controls/ScrollBar.hpp"

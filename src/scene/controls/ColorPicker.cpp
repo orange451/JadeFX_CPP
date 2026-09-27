@@ -23,7 +23,7 @@ ColorPicker::ColorPicker(Color value) : value_(value), original_(value), chooser
     });
 }
 
-ColorPicker::~ColorPicker() { releaseKeys(); }
+ColorPicker::~ColorPicker() = default;
 
 void ColorPicker::setValue(Color value) {
     value_ = value;
@@ -43,28 +43,23 @@ void ColorPicker::popupShowing() {
     cancelled_ = false;
     chooser_->setOriginalValue(value_);
     chooser_->setValue(value_);
-    releaseKeys();
-    keyScene_ = getScene();
-    if (keyScene_ == nullptr) {
-        return;
-    }
+}
+
+bool ColorPicker::handlePopupKey(KeyEvent& event) {
     // Ahead of the scene's own Escape, which would close the popup without telling it apart from a press outside.
-    keyHook_ = keyScene_->addKeyHook([this](KeyEvent& event) {
-        if (!event.pressed || !isShowing()) {
-            return;
-        }
-        if (event.key == Key::Escape) {
-            cancelled_ = true;
-        } else if (event.key != Key::Enter && event.key != Key::KpEnter) {
-            return;
-        }
-        event.consume();
-        hide();
-    });
+    if (!event.pressed) {
+        return false;
+    }
+    if (event.key == Key::Escape) {
+        cancelled_ = true;
+    } else if (event.key != Key::Enter && event.key != Key::KpEnter) {
+        return false;
+    }
+    hide();
+    return true;
 }
 
 void ColorPicker::popupHidden() {
-    releaseKeys();
     if (cancelled_) {
         cancelled_ = false;
         setValue(original_);
@@ -75,14 +70,6 @@ void ColorPicker::popupHidden() {
         chooser_->addRecentColor(value_);
         fireAction();
     }
-}
-
-void ColorPicker::releaseKeys() {
-    if (keyScene_ != nullptr && keyHook_ != 0) {
-        keyScene_->removeKeyHook(keyHook_);
-    }
-    keyScene_ = nullptr;
-    keyHook_ = 0;
 }
 
 void ColorPicker::renderValue(UiRenderer& renderer, float opacity, float x, float y, float width, float height) {

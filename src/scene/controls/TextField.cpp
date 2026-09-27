@@ -3,13 +3,14 @@
 #include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 #include "jadefx/scene/Scene.hpp"
+#include "jadefx/scene/controls/ComboBoxBase.hpp"
+#include "jadefx/scene/controls/Spinner.hpp"
 #include "scene/text/Unicode.hpp"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
-#include <cstring>
 #include <string>
 #include <vector>
 
@@ -591,10 +592,9 @@ void TextField::render(UiRenderer& renderer, float opacity) {
 void TextField::renderContent(UiRenderer& renderer, float opacity) {
     const float x = static_cast<float>(getAbsoluteX());
     const float y = static_cast<float>(getAbsoluteY());
-    // A combo or spinner draws the box and the focus ring. A second stroke would cover them.
+    // A combo box, picker, or spinner draws the box and the focus ring. A second stroke would cover them.
     const Node* parent = getParent();
-    const bool hosted = parent != nullptr && (std::strcmp(parent->getElementType(), "combobox") == 0 ||
-                                               std::strcmp(parent->getElementType(), "spinner") == 0);
+    const bool hosted = dynamic_cast<const ComboBoxBase*>(parent) != nullptr || dynamic_cast<const Spinner*>(parent) != nullptr;
     if (!hosted) {
         chrome::DrawBorder(renderer, *this, opacity);
         if (isFocused()) {

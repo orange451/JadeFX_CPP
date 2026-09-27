@@ -55,27 +55,52 @@ scene {
     color: var(--text-color);
 }
 button, togglebutton, radiobutton, menubutton, textfield, combobox, spinner, treeview, listview, table,
-tabpane, menubar, combo-popup, menu-popup, alert, color-picker, color-chooser {
+tabpane, menubar, combo-popup, menu-popup, alert, color-picker, color-chooser, date-picker, date-picker-popup {
     background-color: var(--surface-color);
 }
 checkbox {
     background-color: transparent;
 }
-combobox, combo-popup, tooltip, color-picker {
+combobox, combo-popup, tooltip, color-picker, date-picker {
     border-radius: 4px;
 }
 color-chooser {
     padding: 12px;
 }
-color-chooser:popover-open {
+date-picker-popup {
+    padding: 8px;
+}
+color-chooser:popover-open, date-picker-popup:popover-open {
     border-radius: 6px;
     border-width: 1px;
     border-color: var(--border-color);
     box-shadow: 0px 3px 10px 0px rgba(0, 0, 0, 0.14);
 }
-color-chooser .caption {
+color-chooser .caption, date-picker-popup .day-name, date-picker-popup .week-number {
     color: var(--muted-color);
     font-size: 12px;
+}
+date-cell {
+    border-radius: 4px;
+}
+date-cell:hover {
+    background-color: var(--row-hover-color);
+}
+date-cell.today {
+    color: var(--accent-color);
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--accent-color);
+}
+date-cell.previous-month, date-cell.next-month, date-cell:disabled {
+    color: var(--faint-color);
+}
+date-cell:focus-visible {
+    background-color: var(--selection-color);
+}
+date-cell:selected {
+    background-color: var(--accent-color);
+    color: var(--surface-color);
 }
 menu-popup {
     border-radius: 4px;

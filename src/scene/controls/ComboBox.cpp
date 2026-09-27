@@ -195,9 +195,6 @@ ComboBox::~ComboBox() {
     commitSuppressed_ = true;
     items_.setIndexedAddCallback(nullptr);
     items_.setIndexedRemoveCallback(nullptr);
-    if (editor_ != nullptr) {
-        editor_->setOnAction(nullptr);
-    }
     if (popup_ != nullptr) {
         popup_->unbind();
     }
@@ -221,56 +218,11 @@ void ComboBox::select(int index) {
     syncEditor();
 }
 
-void ComboBox::setPromptText(std::string text) {
-    prompt_ = std::move(text);
-    if (editor_ != nullptr) {
-        editor_->setPromptText(prompt_);
-    }
-}
-
 void ComboBox::setVisibleRowCount(int rows) {
     visibleRowCount_ = std::max(1, rows);
     if (isShowing()) {
         show();
     }
-}
-
-void ComboBox::setEditable(bool editable) {
-    if (editable_ == editable) {
-        if (editor_ != nullptr) {
-            editor_->setEditable(true);
-            editor_->setDisable(isDisable());
-            syncEditor();
-        }
-        return;
-    }
-    editable_ = editable;
-    if (!editable_) {
-        if (editor_ != nullptr) {
-            editor_->setOnAction(nullptr);
-            detachChild(editor_.get());
-            editor_.reset();
-        }
-        return;
-    }
-    editor_ = std::make_shared<TextField>(value_);
-    editor_->setEditable(true);
-    editor_->setPromptText(prompt_);
-    editor_->setBackground(Color::transparent());
-    editor_->setPadding(Insets::axes(0, 2));
-    // This sheet is the editor's, so it follows ancestor rules. A shared textfield
-    // padding or border cannot shrink the line below the combo.
-    editor_->setStylesheet("textfield { padding: 0 2px; border-width: 0; background-color: transparent; }");
-    editor_->setDisable(isDisable());
-    editor_->setOnAction([this](ActionEvent&) { commitEditor(); });
-    children().add(editor_);
-}
-
-void ComboBox::setDisable(bool value) {
-    if (editor_ != nullptr) {
-        editor_->setDisable(value);
-    }
-    ComboBoxBase::setDisable(value);
 }
 
 std::shared_ptr<Node> ComboBox::createPopupContent() {
@@ -305,54 +257,20 @@ void ComboBox::closeCommitted() {
 }
 
 void ComboBox::layoutChildren() {
-    layoutEditor();
     ComboBoxBase::layoutChildren();
     if (popup_ != nullptr && isShowing()) {
         popup_->setPrefSize(popupWidth(), viewportHeight());
     }
 }
 
-void ComboBox::renderValue(UiRenderer& renderer, float opacity, float x, float y, float width, float height) {
-    if (editable_) {
-        return;
-    }
-    const ComputedStyle& style = computedStyle();
-    const bool prompt = value_.empty();
-    Color color = style.color;
-    if (prompt) {
-        color.a *= 0.45f;
-    }
-    color.a *= opacity;
-    DrawLine(renderer, x, y, width, height, prompt ? prompt_ : value_, style, color);
-}
-
 double ComboBox::preferredContentWidth(double) const {
     const Font face = chrome::FontOf(*this);
-    double widest = static_cast<double>(face.measureWidth(prompt_));
+    double widest = static_cast<double>(face.measureWidth(getPromptText()));
     for (const std::string& item : items_.items()) {
         widest = std::max(widest, static_cast<double>(face.measureWidth(item)));
     }
     const double total = std::max(kMinimumWidth, widest + kArrowGap);
     return std::max(0.0, total - computedStyle().padding.width());
-}
-
-void ComboBox::handleMousePressed(const MouseEvent& event) {
-    if (isDisabled()) {
-        return;
-    }
-    const double localX = event.x - getAbsoluteX();
-    if (editable_) {
-        if (localX < getWidth() - kArrowWidth) {
-            if (editor_ != nullptr) {
-                editor_->requestFocus();
-            }
-            return;
-        }
-    }
-    ComboBoxBase::handleMousePressed(event);
-    if (editable_ && editor_ != nullptr) {
-        editor_->requestFocus();
-    }
 }
 
 void ComboBox::handleKey(KeyEvent& event) {
@@ -363,7 +281,7 @@ void ComboBox::handleKey(KeyEvent& event) {
     if (event.repeat && !arrow) {
         return;
     }
-    const bool editorFocused = editor_ != nullptr && editor_->isFocused();
+    const bool editorFocused = getEditor() != nullptr && getEditor()->isFocused();
     const bool enter = event.key == Key::Enter || event.key == Key::KpEnter;
     const bool editorAlreadyCommitted = editorActionDuringKey_;
     if (editorFocused && enter) {
@@ -396,10 +314,7 @@ void ComboBox::handleKey(KeyEvent& event) {
         event.consume();
         return;
     }
-    // Space is a character in an editable combo's field.
-    if (!editable_ || event.key != Key::Space) {
-        ComboBoxBase::handleKey(event);
-    }
+    ComboBoxBase::handleKey(event);
 }
 
 void ComboBox::onItemsChanged() {
@@ -419,19 +334,6 @@ void ComboBox::onItemsChanged() {
     show();
 }
 
-void ComboBox::syncEditor() {
-    if (editor_ == nullptr) {
-        return;
-    }
-    Raise guard(syncingEditor_);
-    if (editor_->getPromptText() != prompt_) {
-        editor_->setPromptText(prompt_);
-    }
-    if (editor_->getText() != value_) {
-        editor_->setText(value_);
-    }
-}
-
 void ComboBox::fire() {
     if (!closing_) {
         fireAction();
@@ -439,21 +341,23 @@ void ComboBox::fire() {
 }
 
 void ComboBox::commitEditor() {
-    if (closing_ || syncingEditor_ || committingEditor_ || !editable_ || editor_ == nullptr) {
+    TextField* editor = getEditor();
+    if (closing_ || isSyncingEditor() || committingEditor_ || editor == nullptr) {
         return;
     }
     Raise guard(committingEditor_);
     editorActionDuringKey_ = true;
-    setValue(editor_->getText());
+    setValue(editor->getText());
     fire();
     closeCommitted();
 }
 
 void ComboBox::commitEditorIfDirty() {
-    if (closing_ || !editable_ || editor_ == nullptr || editor_->getText() == value_) {
+    TextField* editor = getEditor();
+    if (closing_ || editor == nullptr || editor->getText() == value_) {
         return;
     }
-    setValue(editor_->getText());
+    setValue(editor->getText());
     fire();
 }
 
@@ -464,8 +368,8 @@ void ComboBox::activateRow(int index) {
     highlight_ = index;
     select(index);
     fire();
-    if (editable_ && editor_ != nullptr) {
-        editor_->requestFocus();
+    if (TextField* editor = getEditor()) {
+        editor->requestFocus();
     } else {
         requestFocus();
     }
@@ -538,19 +442,6 @@ void ComboBox::relayoutPopup() {
         return;
     }
     popup_->performLayout(popup_->getX(), popup_->getY(), popup_->getWidth(), popup_->getHeight());
-}
-
-void ComboBox::layoutEditor() {
-    if (editor_ == nullptr) {
-        return;
-    }
-    if (editor_->isDisable() != isDisable()) {
-        editor_->setDisable(isDisable());
-    }
-    const double left = contentLeft();
-    const double right = std::min(left + contentWidth(), getWidth() - kArrowWidth);
-    // The text box is the combo's full height. Width still stops at the arrow.
-    editor_->performLayout(left, 0.0, std::max(0.0, right - left), std::max(0.0, getHeight()));
 }
 
 int ComboBox::indexOf(const std::string& value) const {

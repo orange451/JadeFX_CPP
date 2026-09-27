@@ -36,18 +36,15 @@ protected:
     std::shared_ptr<Node> createPopupContent() override;
     void popupShowing() override;
     void popupHidden() override;
+    bool handlePopupKey(KeyEvent& event) override;
     void renderValue(UiRenderer& renderer, float opacity, float x, float y, float width, float height) override;
     double preferredContentWidth(double innerAvailable) const override;
 
 private:
-    void releaseKeys();
-
     Color value_ = Color::white();
     Color original_ = Color::white();
     std::shared_ptr<ColorChooser> chooser_;
     std::function<void()> onChanged_;
-    Scene* keyScene_ = nullptr;
-    int keyHook_ = 0;
     bool cancelled_ = false;
 };
 

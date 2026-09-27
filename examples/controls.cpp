@@ -5,6 +5,7 @@
 #include "jadefx/scene/controls/CheckBox.hpp"
 #include "jadefx/scene/controls/ColorPicker.hpp"
 #include "jadefx/scene/controls/ComboBox.hpp"
+#include "jadefx/scene/controls/DatePicker.hpp"
 #include "jadefx/scene/controls/Menu.hpp"
 #include "jadefx/scene/controls/MenuBar.hpp"
 #include "jadefx/scene/controls/MenuButton.hpp"
@@ -156,6 +157,13 @@ public:
         auto accent = jadefx::make<jadefx::ColorPicker>(jadefx::Color::parse("#1a73e8"));
         accent->setOnAction([accent, status](jadefx::ActionEvent&) {
             status->setText("Color: " + accent->getValue().toHex(accent->getValue().a < 1.f));
+        });
+
+        auto due = jadefx::make<jadefx::DatePicker>();
+        due->setPromptText("Due date");
+        due->setShowWeekNumbers(true);
+        due->setOnAction([due, status](jadefx::ActionEvent&) {
+            status->setText(due->getValue() ? "Due: " + due->getValue()->toString() : "No due date");
         });
 
         auto small = jadefx::make<jadefx::RadioButton>("Small");
@@ -319,7 +327,11 @@ public:
         cityRow->setSpacing(10);
         cityRow->getChildren().add(city);
         cityRow->getChildren().add(custom);
-        cityRow->getChildren().add(accent);
+        auto pickRow = jadefx::make<jadefx::HBox>();
+        pickRow->getClassList().add("row");
+        pickRow->setSpacing(10);
+        pickRow->getChildren().add(accent);
+        pickRow->getChildren().add(due);
         auto sizeRow = jadefx::make<jadefx::HBox>();
         sizeRow->getClassList().add("row");
         sizeRow->setSpacing(16);
@@ -370,6 +382,7 @@ public:
         sheet->setSpacing(14);
         sheet->getChildren().add(nameRow);
         sheet->getChildren().add(cityRow);
+        sheet->getChildren().add(pickRow);
         sheet->getChildren().add(sizeRow);
         sheet->getChildren().add(styleRow);
         sheet->getChildren().add(notifyRow);
