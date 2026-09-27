@@ -50,6 +50,7 @@ set(JADEFX_SOURCES
     src/scene/controls/ComboBox.cpp
     src/scene/controls/ComboBoxBase.cpp
     src/scene/controls/DatePicker.cpp
+    src/scene/controls/Notifications.cpp
     src/scene/controls/Tab.cpp
     src/scene/controls/TabPane.cpp
     src/scene/image/Image.cpp
@@ -325,6 +326,7 @@ if(NOT JADEFX_GLFM)
         tests/color_picker_tests.cpp
         tests/date_picker_tests.cpp
         tests/drag_drop_tests.cpp
+        tests/notification_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

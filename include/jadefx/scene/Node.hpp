@@ -85,6 +85,7 @@ public:
     void setMouseTransparent(bool value) { mouseTransparent_ = value; }
     bool isMouseTransparent() const { return mouseTransparent_; }
     void setOpacity(float opacity) { opacity_ = opacity; }
+    float getOpacity() const { return opacity_; }
 
     Node* getParent() const { return parent_; }
     Scene* getScene() const { return scene_; }

@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace jadefx {
@@ -106,6 +107,12 @@ public:
     // The returned id is passed to removeKeyHook.
     int addKeyHook(std::function<void(KeyEvent&)> hook);
     void removeKeyHook(int id);
+
+    // Runs after every layout, popups included, as JavaFX's post-layout pulse
+    // listeners do. A listener may move, show, or hide popups, and add or remove
+    // listeners; those take effect for the next pulse. The id removes it.
+    int addPostLayoutPulseListener(std::function<void()> listener);
+    void removePostLayoutPulseListener(int id);
 
     // One turn of the window loop. 1 advanced, 0 means a frame is already running
     // (do not nest), -1 means there is no pump or the window is closing.
@@ -213,6 +220,7 @@ private:
 
     std::vector<PopupRecord> popups_;
     std::vector<HookRecord> keyHooks_;
+    std::vector<std::pair<int, std::function<void()>>> pulseListeners_;
     int nextHookId_ = 1;
     HoverState hover_;
     double pointerX_ = 0;

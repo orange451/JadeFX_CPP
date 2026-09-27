@@ -83,6 +83,45 @@ color-chooser .caption, date-picker-popup .day-name, date-picker-popup .week-num
 date-cell {
     border-radius: 4px;
 }
+.notification {
+    background-color: var(--surface-color);
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0px 4px 16px 0px rgba(0, 0, 0, 0.18);
+    padding: 12px;
+    spacing: 12px;
+    min-width: 260px;
+}
+.notification .body {
+    spacing: 2px;
+}
+.notification .title {
+    font-size: 15px;
+}
+.notification .text {
+    color: var(--muted-color);
+    font-size: 13px;
+}
+.notification .actions {
+    spacing: 8px;
+    padding: 6px 0 0 0;
+}
+.notification .close-button {
+    background-color: transparent;
+    border-width: 1px;
+    border-style: solid;
+    border-color: transparent;
+    color: var(--muted-color);
+    padding: 0 6px;
+}
+.toast {
+    background-color: var(--tooltip-color);
+    color: var(--tooltip-text-color);
+    border-radius: 18px;
+    padding: 8px 18px;
+}
 date-cell:hover {
     background-color: var(--row-hover-color);
 }

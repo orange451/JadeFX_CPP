@@ -6,6 +6,7 @@
 #include "jadefx/scene/controls/ColorPicker.hpp"
 #include "jadefx/scene/controls/ComboBox.hpp"
 #include "jadefx/scene/controls/DatePicker.hpp"
+#include "jadefx/scene/controls/Notifications.hpp"
 #include "jadefx/scene/controls/Menu.hpp"
 #include "jadefx/scene/controls/MenuBar.hpp"
 #include "jadefx/scene/controls/MenuButton.hpp"
@@ -154,7 +155,11 @@ public:
             status->setText(name->getText().empty() ? "The field is empty" : "Hello, " + name->getText());
         });
         auto greet = jadefx::make<jadefx::Button>("Greet");
-        greet->setOnAction([name](jadefx::ActionEvent&) { name->fire(); });
+        jadefx::Button* greetButton = greet.get();
+        greet->setOnAction([name, greetButton](jadefx::ActionEvent&) {
+            name->fire();
+            jadefx::Toast::show(*greetButton, name->getText().empty() ? "Type a name first" : "Hello, " + name->getText());
+        });
 
         auto city = jadefx::make<jadefx::ComboBox>();
         city->setPromptText("City");
@@ -412,6 +417,18 @@ public:
         dialogRow->getChildren().add(info);
         dialogRow->getChildren().add(warn);
         dialogRow->getChildren().add(confirm);
+        auto notify = jadefx::make<jadefx::Button>("Notify");
+        jadefx::Button* notifyButton = notify.get();
+        notify->setOnAction([notifyButton, status](jadefx::ActionEvent&) {
+            jadefx::Notifications::create()
+                .title("Export finished")
+                .text("scene.json was written.\nIt took 1.2 seconds.")
+                .owner(*notifyButton)
+                .action("Show", [status](jadefx::ActionEvent&) { status->setText("Showing scene.json"); })
+                .onAction([status](jadefx::ActionEvent&) { status->setText("Notification clicked"); })
+                .showInformation();
+        });
+        dialogRow->getChildren().add(notify);
         auto saveRow = jadefx::make<jadefx::HBox>();
         saveRow->getClassList().add("row");
         saveRow->setSpacing(10);

@@ -1850,6 +1850,7 @@ int RunLayoutPaneTests();
 int RunColorPickerTests();
 int RunDatePickerTests();
 int RunDragDropTests();
+int RunNotificationTests();
 
 int main() {
     TestColors();
@@ -1896,6 +1897,7 @@ int main() {
     gFailures += RunColorPickerTests();
     gFailures += RunDatePickerTests();
     gFailures += RunDragDropTests();
+    gFailures += RunNotificationTests();
     if (gFailures == 0) {
         std::printf("layout tests passed\n");
         return 0;

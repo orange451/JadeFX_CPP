@@ -143,6 +143,13 @@ void Scene::layout(double width, double height, double timeSeconds) {
     if (pointerValid_) {
         updateHoverPopup(pick(pointerX_, pointerY_));
     }
+    // A copy, since a listener may add or remove listeners.
+    const auto listeners = pulseListeners_;
+    for (const auto& listener : listeners) {
+        if (listener.second) {
+            listener.second();
+        }
+    }
 }
 
 void Scene::notePointerExit() {
@@ -780,6 +787,18 @@ void Scene::removeKeyHook(int id) {
     keyHooks_.erase(std::remove_if(keyHooks_.begin(), keyHooks_.end(),
                                    [id](const HookRecord& hook) { return hook.id == id; }),
                     keyHooks_.end());
+}
+
+int Scene::addPostLayoutPulseListener(std::function<void()> listener) {
+    const int id = nextHookId_++;
+    pulseListeners_.emplace_back(id, std::move(listener));
+    return id;
+}
+
+void Scene::removePostLayoutPulseListener(int id) {
+    pulseListeners_.erase(std::remove_if(pulseListeners_.begin(), pulseListeners_.end(),
+                                         [id](const auto& listener) { return listener.first == id; }),
+                          pulseListeners_.end());
 }
 
 void Scene::setEventPump(std::function<int()> pump) { eventPump_ = std::move(pump); }
