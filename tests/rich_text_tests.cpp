@@ -514,7 +514,13 @@ void TestInlineNodes() {
     scene->noteButton(0, false, x, y, 0);
     Expect(clicks == 1 && area->caretPosition() == 4, "a click on the node goes to the node, not the caret");
 
+    auto owned = jadefx::make<jadefx::Pane>();
+    jadefx::PopupOptions options;
+    options.owner = box.get();
+    scene->showPopup(owned, 0, 0, 20, 20, options);
     area->setInlineNodes({{10, box}});
+    Expect(scene->isPopupShowing(owned.get()), "a node that stays keeps a popup it owns open");
+    scene->hidePopup(owned.get());
     scene->layout(300, 120, 0.2);
     area->moveTo(10);
     Expect(std::fabs(box->getAbsoluteX() - area->caretBounds().x) < 0.5, "setting the nodes again moves it to the second line");

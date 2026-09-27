@@ -1673,17 +1673,21 @@ const StyledTextArea::InlineBoxes& StyledTextArea::inlineBoxesOf(int paragraph) 
 }
 
 void StyledTextArea::setInlineNodes(std::vector<InlineNode> nodes) {
+    // A node that stays keeps its place in the scene, so a popup it owns stays open.
+    auto listed = [](const std::vector<InlineNode>& list, const Node* node) {
+        return std::any_of(list.begin(), list.end(), [node](const InlineNode& entry) { return entry.node.get() == node; });
+    };
     for (const InlineNode& old : inlineNodes_) {
-        if (old.node != nullptr && old.node->getParent() == this) {
+        if (old.node != nullptr && old.node->getParent() == this && !listed(nodes, old.node.get())) {
             detachChild(old.node.get());
         }
     }
-    inlineNodes_ = std::move(nodes);
-    for (const InlineNode& inline_ : inlineNodes_) {
-        if (inline_.node != nullptr) {
+    for (const InlineNode& inline_ : nodes) {
+        if (inline_.node != nullptr && inline_.node->getParent() != this) {
             children().add(inline_.node);
         }
     }
+    inlineNodes_ = std::move(nodes);
     markDirty();
 }
 
