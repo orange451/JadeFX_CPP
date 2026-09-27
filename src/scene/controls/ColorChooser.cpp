@@ -28,6 +28,8 @@ constexpr double kSwatchGap = 2;
 constexpr double kWheel = 200;
 constexpr int kWheelPixels = 384;
 constexpr float kGrooveThickness = 12.f;
+// The number boxes and the hex field are a line of text with a little room, so the rows stay close.
+const Insets kFieldPadding = Insets::axes(3, 6);
 
 std::vector<Color> DefaultPresets() {
     std::vector<Color> colors;
@@ -374,7 +376,7 @@ void ColorChooser::build() {
     parts.recentGrid->setHgap(kSwatchGap);
 
     auto left = std::make_shared<VBox>();
-    left->setSpacing(8);
+    left->setSpacing(6);
     left->getChildren().add(parts.wheel);
     left->getChildren().add(compare);
     left->getChildren().add(Caption("Presets"));
@@ -383,8 +385,8 @@ void ColorChooser::build() {
     left->getChildren().add(parts.recentGrid);
 
     auto grid = std::make_shared<GridPane>();
-    grid->setHgap(8);
-    grid->setVgap(6);
+    grid->setHgap(6);
+    grid->setVgap(4);
     ColumnConstraints labels;
     labels.minWidth = 28;
     ColumnConstraints sliders;
@@ -413,7 +415,8 @@ void ColorChooser::build() {
         entry.factory = std::make_shared<IntegerSpinnerValueFactory>(0, max, 0);
         entry.spinner = std::make_shared<Spinner>(entry.factory);
         entry.spinner->setEditable(true);
-        entry.spinner->setPrefWidth(84);
+        entry.spinner->setPrefWidth(64);
+        entry.spinner->setPadding(kFieldPadding);
         entry.spinner->getClassList().add(styleClass);
         entry.spinner->setOnValueChanged([this, index] {
             if (!syncing_) {
@@ -434,6 +437,7 @@ void ColorChooser::build() {
     channel(Channel::Blue, "B", "blue");
     parts.hex = std::make_shared<TextField>();
     parts.hex->setPrefColumnCount(9);
+    parts.hex->setPadding(kFieldPadding);
     parts.hex->getClassList().add("hex");
     parts.hex->setOnAction([this](ActionEvent&) {
         if (!applyHex(parts_->hex->getText())) {
@@ -463,7 +467,7 @@ void ColorChooser::build() {
     }
 
     parts.root = std::make_shared<HBox>();
-    parts.root->setSpacing(16);
+    parts.root->setSpacing(14);
     parts.root->getChildren().add(left);
     parts.root->getChildren().add(grid);
     children().add(parts.root);

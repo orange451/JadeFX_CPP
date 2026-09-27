@@ -65,7 +65,8 @@ combobox, combo-popup, tooltip, color-picker, date-picker {
     border-radius: 4px;
 }
 color-chooser {
-    padding: 12px;
+    padding: 10px;
+    font-size: 13px;
 }
 date-picker-popup {
     padding: 8px;
