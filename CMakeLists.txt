@@ -24,6 +24,8 @@ set(JADEFX_SOURCES
     src/scene/layout/StackPane.cpp
     src/scene/layout/DirectionalBox.cpp
     src/scene/layout/VBox.cpp
+    src/scene/layout/GridPane.cpp
+    src/scene/layout/FlowPane.cpp
     src/scene/layout/HBox.cpp
     src/scene/layout/BorderPane.cpp
     src/scene/controls/Labeled.cpp
@@ -313,6 +315,7 @@ if(NOT JADEFX_GLFM)
         tests/core_tests.cpp
         tests/table_view_tests.cpp
         tests/theme_tests.cpp
+        tests/layout_pane_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

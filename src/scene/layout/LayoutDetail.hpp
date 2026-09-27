@@ -3,6 +3,7 @@
 #include "jadefx/scene/layout/Pane.hpp"
 
 #include <algorithm>
+#include <optional>
 #include <vector>
 
 namespace jadefx {
@@ -134,6 +135,24 @@ inline void ShareShrink(double& first, double firstFloor, double& second, double
     const double shrink = std::min(overflow, room);
     first = std::max(firstFloor, first - shrink * (firstRoom / room));
     second = std::max(secondFloor, second - shrink * (secondRoom / room));
+}
+
+// A layout constraint a pane keeps on a child, in Node::getProperties under key.
+template <typename T>
+void SetConstraint(Node& node, const char* key, const T& value) {
+    node.getProperties()[key] = value;
+}
+
+template <typename T>
+std::optional<T> GetConstraint(const Node& node, const char* key) {
+    const auto found = node.getProperties().find(key);
+    if (found == node.getProperties().end()) {
+        return std::nullopt;
+    }
+    if (const T* value = std::any_cast<T>(&found->second)) {
+        return *value;
+    }
+    return std::nullopt;
 }
 
 }  // namespace layout_detail

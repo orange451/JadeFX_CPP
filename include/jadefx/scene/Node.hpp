@@ -8,10 +8,12 @@
 #include "jadefx/style/Style.hpp"
 #include "jadefx/style/Theme.hpp"
 
+#include <any>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace jadefx {
@@ -96,6 +98,11 @@ public:
     void setStylesheet(std::string css);
     ObservableList<std::string>& getClassList() { return classList_; }
     const ObservableList<std::string>& getClassList() const { return classList_; }
+    // Values a parent reads about this child, as JavaFX's getProperties. Layout
+    // panes keep constraints here, such as GridPane::setColumnIndex.
+    std::unordered_map<std::string, std::any>& getProperties() { return properties_; }
+    const std::unordered_map<std::string, std::any>& getProperties() const { return properties_; }
+
     void setElementId(std::string id) { id_ = std::move(id); }
     const std::string& getElementId() const { return id_; }
 
@@ -313,6 +320,7 @@ private:
     Cursor defaultCursor_ = Cursor::Inherit;
 
     std::string id_;
+    std::unordered_map<std::string, std::any> properties_;
     std::string styleText_;
     std::vector<Declaration> inline_;
     Stylesheet stylesheet_;

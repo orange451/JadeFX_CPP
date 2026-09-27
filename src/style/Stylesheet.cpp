@@ -1371,10 +1371,32 @@ void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration
             if (LengthsOk(values)) {
                 style.padding = BoxFromLengths(values, emFontSize);
             }
-        } else if (property == "spacing" || property == "gap") {
+        } else if (property == "spacing") {
             const ParsedLength length = ParseLength(value);
             if (length.ok && length.percent == 0.0) {
                 style.spacing = static_cast<float>(ResolveLength(length, emFontSize));
+            }
+        } else if (property == "gap" || property == "row-gap" || property == "column-gap") {
+            // As in CSS: gap is row-gap then column-gap, and one value sets both.
+            // A box's spacing follows gap too.
+            std::vector<float> lengths;
+            for (const std::string& part : SplitDepth(value, ' ')) {
+                const ParsedLength length = ParseLength(trimCopy(part));
+                if (length.ok && length.percent == 0.0) {
+                    lengths.push_back(static_cast<float>(ResolveLength(length, emFontSize)));
+                }
+            }
+            if (lengths.empty()) {
+                continue;
+            }
+            if (property == "row-gap") {
+                style.rowGap = lengths.front();
+            } else if (property == "column-gap") {
+                style.columnGap = lengths.front();
+            } else {
+                style.rowGap = lengths.front();
+                style.columnGap = lengths.size() > 1 ? lengths[1] : lengths.front();
+                style.spacing = lengths.front();
             }
         } else if (property == "alignment") {
             style.alignment = ParseAlignment(value);

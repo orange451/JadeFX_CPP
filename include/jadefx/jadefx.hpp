@@ -43,6 +43,8 @@
 #include "jadefx/scene/controls/TreeItem.hpp"
 #include "jadefx/scene/controls/TreeView.hpp"
 #include "jadefx/scene/layout/BorderPane.hpp"
+#include "jadefx/scene/layout/FlowPane.hpp"
+#include "jadefx/scene/layout/GridPane.hpp"
 #include "jadefx/scene/layout/HBox.hpp"
 #include "jadefx/scene/layout/Pane.hpp"
 #include "jadefx/scene/layout/StackPane.hpp"

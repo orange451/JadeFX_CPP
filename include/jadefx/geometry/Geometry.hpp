@@ -25,6 +25,10 @@ enum class Side { Top, Bottom, Left, Right };
 
 enum class Orientation { Horizontal, Vertical };
 
+// Whether a row or column takes extra space, as JavaFX's Priority. Always grows
+// first; Sometimes grows only when no Always does; Never keeps its size.
+enum class Priority { Always, Sometimes, Never };
+
 enum class ScreenOrientation { Portrait, Landscape, All };
 
 struct Size {

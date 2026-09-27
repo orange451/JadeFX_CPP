@@ -180,6 +180,10 @@ struct ComputedStyle {
     BorderStyle borderStyle = BorderStyle::None;
     std::vector<BoxShadow> shadows;
     float spacing = 0.f;
+    // row-gap and column-gap, for panes that lay children in a grid or in runs.
+    // Negative when no stylesheet sets them.
+    float rowGap = -1.f;
+    float columnGap = -1.f;
     Pos alignment = Pos::Ancestor;
     bool alignmentFromCss = false;
     float opacity = 1.f;
