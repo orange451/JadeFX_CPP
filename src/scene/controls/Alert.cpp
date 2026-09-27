@@ -292,13 +292,36 @@ void Alert::show(Scene& scene) {
     // Buttons, not the alert: fire() may drop the alert before the key is consumed.
     Button* const accept = impl_->defaultButton;
     Button* const cancel = impl_->cancelButton;
-    impl_->hookId = scene.addKeyHook([accept, cancel](KeyEvent& event) {
-        if (!event.pressed || event.repeat) {
+    std::vector<Button*> row_buttons;
+    for (const Impl::Built& built : impl_->built) {
+        row_buttons.push_back(built.node.get());
+    }
+    impl_->hookId = scene.addKeyHook([accept, cancel, row_buttons](KeyEvent& event) {
+        if (!event.pressed) {
+            return;
+        }
+        const auto focused = std::find_if(row_buttons.begin(), row_buttons.end(),
+                                          [](const Button* button) { return button->isFocused(); });
+        // The arrows move focus along the buttons, left to right as they are shown, and stop at the ends.
+        const bool back = event.key == Key::Left || event.key == Key::Up;
+        const bool ahead = event.key == Key::Right || event.key == Key::Down;
+        if (back || ahead) {
+            if (!row_buttons.empty()) {
+                std::ptrdiff_t at = focused == row_buttons.end() ? (back ? 0 : -1) : focused - row_buttons.begin();
+                at = std::clamp<std::ptrdiff_t>(at + (ahead ? 1 : -1), 0,
+                                                static_cast<std::ptrdiff_t>(row_buttons.size()) - 1);
+                row_buttons[static_cast<std::size_t>(at)]->requestFocus();
+            }
+            event.consume();
+            return;
+        }
+        if (event.repeat) {
             return;
         }
         Button* target = nullptr;
         if (event.key == Key::Enter || event.key == Key::KpEnter) {
-            target = accept;
+            // Enter presses the button the arrows moved to, or the default one.
+            target = focused != row_buttons.end() ? *focused : accept;
         } else if (event.key == Key::Escape) {
             target = cancel;
         }

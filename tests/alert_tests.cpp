@@ -303,6 +303,47 @@ void TestInformationNoneAndCustom() {
     Expect(rolesAlert.getResult() != nullptr && rolesAlert.getResult()->getText() == "Stop", "Escape selects CancelClose");
 }
 
+// Left and Right, or Up and Down, move focus along the buttons, and Enter presses the focused one.
+void TestArrowKeys() {
+    auto root = jadefx::make<jadefx::Button>("Behind");
+    root->setPrefSize(800, 400);
+    auto scene = MakeScene(root);
+
+    jadefx::Alert choice(jadefx::AlertType::Confirmation, "Save changes?",
+                         {jadefx::ButtonType::Yes(), jadefx::ButtonType::No()});
+    choice.show(*scene);
+    scene->layout(800, 400, 0);
+    jadefx::Button* yes = choice.lookupButton(jadefx::ButtonType::Yes());
+    jadefx::Button* no = choice.lookupButton(jadefx::ButtonType::No());
+    Expect(yes != nullptr && no != nullptr && yes->isFocused(), "Yes starts focused, right of No");
+    if (yes == nullptr || no == nullptr) {
+        return;
+    }
+    Expect(scene->noteKey(jadefx::Key::Right, true, false, 0), "the arrows are the dialog's");
+    Expect(yes->isFocused(), "Right stops at the last button");
+    scene->noteKey(jadefx::Key::Left, true, false, 0);
+    Expect(no->isFocused() && !yes->isFocused(), "Left moves to No");
+    scene->noteKey(jadefx::Key::Left, true, true, 0);
+    Expect(no->isFocused(), "Left stops at the first button");
+    scene->noteKey(jadefx::Key::Down, true, false, 0);
+    Expect(yes->isFocused(), "Down moves right");
+    scene->noteKey(jadefx::Key::Up, true, false, 0);
+    Expect(no->isFocused(), "Up moves left");
+    Expect(choice.getResult() == nullptr, "moving focus sets no result");
+    scene->noteKey(jadefx::Key::Enter, true, false, 0);
+    Expect(choice.getResult() != nullptr && *choice.getResult() == jadefx::ButtonType::No(),
+           "Enter presses the button the arrows moved to");
+
+    jadefx::Alert info(jadefx::AlertType::Information, "Saved.");
+    info.show(*scene);
+    scene->layout(800, 400, 0);
+    jadefx::Button* ok = info.lookupButton(jadefx::ButtonType::Ok());
+    scene->noteKey(jadefx::Key::Left, true, false, 0);
+    Expect(ok != nullptr && ok->isFocused(), "a lone button keeps focus");
+    scene->noteKey(jadefx::Key::Enter, true, false, 0);
+    Expect(info.getResult() != nullptr && *info.getResult() == jadefx::ButtonType::Ok(), "Enter still selects OK");
+}
+
 void TestShowAndWait() {
     int rootClicks = 0;
     auto root = jadefx::make<jadefx::Button>("Behind");
@@ -369,6 +410,7 @@ int RunAlertTests() {
     TestButtonTypes();
     TestConfirmation();
     TestInformationNoneAndCustom();
+    TestArrowKeys();
     TestShowAndWait();
     return gFailures;
 }
