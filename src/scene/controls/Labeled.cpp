@@ -2,6 +2,7 @@
 
 #include "gl/UiRenderer.hpp"
 
+#include <algorithm>
 #include <cstddef>
 
 namespace jadefx {
@@ -78,48 +79,174 @@ std::string FitLine(const Font& font, const std::string& text, double maxWidth) 
 
 }  // namespace
 
+struct Labeled::Block {
+    double graphicX = 0;
+    double graphicY = 0;
+    double graphicWidth = 0;
+    double graphicHeight = 0;
+    double textX = 0;
+    double textY = 0;
+    double textWidth = 0;
+    double textHeight = 0;
+};
+
 Labeled::Labeled(std::string text) : text_(std::move(text)) {}
 
 void Labeled::setText(std::string text) { text_ = std::move(text); }
 
 std::string Labeled::displayedText() const {
+    if (!showsText()) {
+        return {};
+    }
     const Font face(computedStyle().fontFamily, computedStyle().fontSize);
-    return FitLine(face, text_, contentWidth());
+    return FitLine(face, text_, arrange().textWidth);
 }
 
 void Labeled::setTextFill(const Color& color) { setTextFillInternal(color, true); }
 
 void Labeled::setFont(const Font& font) { setFontInternal(font, true); }
 
-double Labeled::preferredContentWidth(double) const {
-    const Font face(computedStyle().fontFamily, computedStyle().fontSize);
-    return face.measureWidth(text_);
-}
-
-double Labeled::preferredContentHeight(double) const {
-    if (text_.empty()) {
-        return 0;
-    }
-    const Font face(computedStyle().fontFamily, computedStyle().fontSize);
-    return face.shape(text_).height;
-}
-
-void Labeled::renderContent(UiRenderer& renderer, float opacity) {
-    const std::string shown = displayedText();
-    if (shown.empty()) {
+void Labeled::setGraphic(std::shared_ptr<Node> graphic) {
+    if (graphic == graphic_) {
         return;
     }
-    const Font face(computedStyle().fontFamily, computedStyle().fontSize);
-    const ShapedText shaped = face.shape(shown);
+    if (graphic_) {
+        Node* old = graphic_.get();
+        children().removeIf([old](const std::shared_ptr<Node>& child) { return child.get() == old; });
+    }
+    graphic_ = std::move(graphic);
+    if (graphic_) {
+        children().add(graphic_);
+    }
+}
+
+void Labeled::detachChild(Node* child) {
+    Controls::detachChild(child);
+    if (graphic_ && graphic_.get() == child) {
+        graphic_.reset();
+    }
+}
+
+bool Labeled::showsText() const { return !text_.empty() && contentDisplay_ != ContentDisplay::GraphicOnly; }
+
+bool Labeled::showsGraphic() const {
+    return graphic_ && graphic_->isVisible() && contentDisplay_ != ContentDisplay::TextOnly;
+}
+
+Labeled::Block Labeled::arrange() const {
+    Block block;
+    const double boxWidth = contentWidth();
+    const double boxHeight = contentHeight();
+    const bool text = showsText();
+    const bool graphic = showsGraphic();
+    if (graphic) {
+        block.graphicWidth = graphic_->measuredWidth(boxWidth);
+        block.graphicHeight = graphic_->measuredHeight(block.graphicWidth, boxHeight);
+    }
+    const bool sideways = contentDisplay_ == ContentDisplay::Left || contentDisplay_ == ContentDisplay::Right;
+    const bool stacked = contentDisplay_ == ContentDisplay::Top || contentDisplay_ == ContentDisplay::Bottom;
+    const double gap = text && graphic && (sideways || stacked) ? graphicTextGap_ : 0.0;
+    if (text) {
+        const Font face(computedStyle().fontFamily, computedStyle().fontSize);
+        const ShapedText shaped = face.shape(text_);
+        // The text gives up width first, and ends in an ellipsis.
+        const double room = sideways ? boxWidth - block.graphicWidth - gap : boxWidth;
+        block.textWidth = std::max(0.0, std::min(static_cast<double>(shaped.width), room));
+        block.textHeight = shaped.height;
+    }
+    const double width =
+        sideways ? block.graphicWidth + gap + block.textWidth : std::max(block.graphicWidth, block.textWidth);
+    const double height =
+        stacked ? block.graphicHeight + gap + block.textHeight : std::max(block.graphicHeight, block.textHeight);
     const Pos align = usingAlignment();
     const int horizontal = hpos(align) == HPos::Center ? 1 : (hpos(align) == HPos::Right ? 2 : 0);
     const int vertical = vpos(align) == VPos::Center ? 1 : (vpos(align) == VPos::Bottom ? 2 : 0);
-    const double x = contentLeft() + Align(contentWidth(), shaped.width, horizontal);
-    const double y = contentTop() + Align(contentHeight(), shaped.height, vertical);
+    const double left = contentLeft() + Align(boxWidth, width, horizontal);
+    const double top = contentTop() + Align(boxHeight, height, vertical);
+    // Across the stacking axis, the smaller of the two is centered on the larger.
+    block.graphicX = left + (width - block.graphicWidth) * 0.5;
+    block.textX = left + (width - block.textWidth) * 0.5;
+    block.graphicY = top + (height - block.graphicHeight) * 0.5;
+    block.textY = top + (height - block.textHeight) * 0.5;
+    switch (contentDisplay_) {
+        case ContentDisplay::Left:
+            block.graphicX = left;
+            block.textX = left + block.graphicWidth + gap;
+            break;
+        case ContentDisplay::Right:
+            block.textX = left;
+            block.graphicX = left + block.textWidth + gap;
+            break;
+        case ContentDisplay::Top:
+            block.graphicY = top;
+            block.textY = top + block.graphicHeight + gap;
+            break;
+        case ContentDisplay::Bottom:
+            block.textY = top;
+            block.graphicY = top + block.textHeight + gap;
+            break;
+        case ContentDisplay::Center:
+        case ContentDisplay::TextOnly:
+        case ContentDisplay::GraphicOnly:
+            break;
+    }
+    return block;
+}
+
+void Labeled::layoutChildren() {
+    if (!graphic_) {
+        return;
+    }
+    if (!showsGraphic()) {
+        graphic_->performLayout(0, 0, 0, 0);
+        return;
+    }
+    const Block block = arrange();
+    graphic_->performLayout(block.graphicX, block.graphicY, block.graphicWidth, block.graphicHeight);
+}
+
+double Labeled::preferredContentWidth(double innerAvailable) const {
+    const bool text = showsText();
+    const bool graphic = showsGraphic();
+    const double textWidth =
+        text ? static_cast<double>(Font(computedStyle().fontFamily, computedStyle().fontSize).measureWidth(text_)) : 0.0;
+    const double graphicWidth = graphic ? graphic_->measuredWidth(innerAvailable) : 0.0;
+    if (contentDisplay_ == ContentDisplay::Left || contentDisplay_ == ContentDisplay::Right) {
+        return textWidth + graphicWidth + (text && graphic ? graphicTextGap_ : 0.0);
+    }
+    return std::max(textWidth, graphicWidth);
+}
+
+double Labeled::preferredContentHeight(double innerWidth) const {
+    const bool text = showsText();
+    const bool graphic = showsGraphic();
+    const double textHeight =
+        text ? static_cast<double>(Font(computedStyle().fontFamily, computedStyle().fontSize).shape(text_).height) : 0.0;
+    double graphicHeight = 0.0;
+    if (graphic) {
+        const double graphicWidth = graphic_->measuredWidth(innerWidth);
+        graphicHeight = graphic_->measuredHeight(graphicWidth, -1);
+    }
+    if (contentDisplay_ == ContentDisplay::Top || contentDisplay_ == ContentDisplay::Bottom) {
+        return textHeight + graphicHeight + (text && graphic ? graphicTextGap_ : 0.0);
+    }
+    return std::max(textHeight, graphicHeight);
+}
+
+void Labeled::renderContent(UiRenderer& renderer, float opacity) {
+    if (!showsText()) {
+        return;
+    }
+    const Block block = arrange();
+    const Font face(computedStyle().fontFamily, computedStyle().fontSize);
+    const std::string shown = FitLine(face, text_, block.textWidth);
+    if (shown.empty()) {
+        return;
+    }
     Color color = computedStyle().color;
     color.a *= opacity;
-    renderer.text(static_cast<float>(getAbsoluteX() + x), static_cast<float>(getAbsoluteY() + y), shown,
-                  computedStyle().fontFamily, computedStyle().fontSize, color, computedStyle().subpixel);
+    renderer.text(static_cast<float>(getAbsoluteX() + block.textX), static_cast<float>(getAbsoluteY() + block.textY),
+                  shown, computedStyle().fontFamily, computedStyle().fontSize, color, computedStyle().subpixel);
 }
 
 }  // namespace jadefx

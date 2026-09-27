@@ -23,10 +23,14 @@ struct Compound {
     bool focusWithin = false;
     bool selected = false;
     bool disabled = false;
-    bool horizontal = false;
-    bool vertical = false;
-    bool indeterminate = false;
-    bool determinate = false;
+    // Other pseudo-classes, such as :vertical or :empty, name a Node::setPseudoState state.
+    std::vector<std::string> states;
+    // :nth-child(An+B), with odd as 2n+1 and even as 2n.
+    struct Nth {
+        int a = 0;
+        int b = 0;
+    };
+    std::vector<Nth> nthChild;
     bool universal = false;
 };
 
@@ -230,17 +234,21 @@ bool MatchCompound(const Compound& compound, Node& node) {
     if (compound.disabled && !node.isDisabled()) {
         return false;
     }
-    if (compound.horizontal && !node.pseudoState("horizontal")) {
-        return false;
+    for (const std::string& state : compound.states) {
+        if (!node.pseudoState(state)) {
+            return false;
+        }
     }
-    if (compound.vertical && !node.pseudoState("vertical")) {
-        return false;
-    }
-    if (compound.indeterminate && !node.pseudoState("indeterminate")) {
-        return false;
-    }
-    if (compound.determinate && !node.pseudoState("determinate")) {
-        return false;
+    for (const Compound::Nth& nth : compound.nthChild) {
+        // Some n >= 0 gives a*n + b == position.
+        const int position = node.getNthChildIndex();
+        if (position < 1) {
+            return false;
+        }
+        const int rest = position - nth.b;
+        if (nth.a == 0 ? rest != 0 : (rest % nth.a != 0 || rest / nth.a < 0)) {
+            return false;
+        }
     }
     return true;
 }
@@ -269,6 +277,76 @@ bool Matches(const Selector& selector, Node& node) {
         return false;
     }
     return MatchAt(selector, selector.compounds.size() - 1, &node);
+}
+
+// An+B from :nth-child(), as CSS Selectors level 3 writes it: odd, even, 3,
+// 2n, 2n+1, -n+3, n. Spaces around the sign are allowed.
+bool ParseNth(std::string_view text, int& a, int& b) {
+    std::string compact;
+    for (const char ch : text) {
+        if (!std::isspace(static_cast<unsigned char>(ch))) {
+            compact.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+        }
+    }
+    if (compact == "odd") {
+        a = 2;
+        b = 1;
+        return true;
+    }
+    if (compact == "even") {
+        a = 2;
+        b = 0;
+        return true;
+    }
+    auto readInt = [](const std::string& digits, int& out) {
+        if (digits.empty() || digits.size() > 6) {
+            return false;
+        }
+        for (const char ch : digits) {
+            if (!std::isdigit(static_cast<unsigned char>(ch))) {
+                return false;
+            }
+        }
+        out = std::stoi(digits);
+        return true;
+    };
+    const std::size_t n = compact.find('n');
+    if (n == std::string::npos) {
+        a = 0;
+        const bool negative = !compact.empty() && compact[0] == '-';
+        const std::size_t start = !compact.empty() && (compact[0] == '-' || compact[0] == '+') ? 1 : 0;
+        if (!readInt(compact.substr(start), b)) {
+            return false;
+        }
+        b = negative ? -b : b;
+        return true;
+    }
+    const std::string head = compact.substr(0, n);
+    if (head.empty() || head == "+") {
+        a = 1;
+    } else if (head == "-") {
+        a = -1;
+    } else {
+        const bool negative = head[0] == '-';
+        const std::size_t start = head[0] == '-' || head[0] == '+' ? 1 : 0;
+        if (!readInt(head.substr(start), a)) {
+            return false;
+        }
+        a = negative ? -a : a;
+    }
+    const std::string tail = compact.substr(n + 1);
+    b = 0;
+    if (tail.empty()) {
+        return true;
+    }
+    if (tail[0] != '+' && tail[0] != '-') {
+        return false;
+    }
+    if (!readInt(tail.substr(1), b)) {
+        return false;
+    }
+    b = tail[0] == '-' ? -b : b;
+    return true;
 }
 
 bool ParseCompound(std::string_view text, std::size_t& index, Compound& compound) {
@@ -309,8 +387,20 @@ bool ParseCompound(std::string_view text, std::size_t& index, Compound& compound
                 return false;
             }
             const std::string pseudo = lowerCopy(ReadIdent(text, index));
-            if (pseudo.empty() || (index < text.size() && text[index] == '(')) {
+            if (pseudo.empty()) {
                 return false;
+            }
+            if (index < text.size() && text[index] == '(') {
+                const std::size_t close = text.find(')', index);
+                Compound::Nth nth;
+                if (pseudo != "nth-child" || close == std::string_view::npos ||
+                    !ParseNth(text.substr(index + 1, close - index - 1), nth.a, nth.b)) {
+                    return false;
+                }
+                compound.nthChild.push_back(nth);
+                index = close + 1;
+                any = true;
+                continue;
             }
             if (pseudo == "hover") {
                 compound.hover = true;
@@ -324,16 +414,8 @@ bool ParseCompound(std::string_view text, std::size_t& index, Compound& compound
                 compound.selected = true;
             } else if (pseudo == "disabled") {
                 compound.disabled = true;
-            } else if (pseudo == "horizontal") {
-                compound.horizontal = true;
-            } else if (pseudo == "vertical") {
-                compound.vertical = true;
-            } else if (pseudo == "indeterminate") {
-                compound.indeterminate = true;
-            } else if (pseudo == "determinate") {
-                compound.determinate = true;
             } else {
-                return false;
+                compound.states.push_back(pseudo);
             }
             any = true;
             continue;

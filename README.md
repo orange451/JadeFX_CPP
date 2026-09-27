@@ -26,12 +26,13 @@ build\Release\jadefx-purple.exe
 build\Release\jadefx-border.exe
 build\Release\jadefx-tabs.exe
 build\Release\jadefx-tree.exe
+build\Release\jadefx-lists.exe
 build\Release\jadefx-split.exe
 ```
 
 A system GLFW is used when CMake can find it. Otherwise CMake downloads GLFW 3.5.1. Linux needs the X11 and Wayland development packages to build that copy. CMake also downloads the stb_truetype header used to read fonts.
 
-There is also a smaller window, a BorderPane sample (`make border`), a TabPane sample (`make tabs`), a TreeView sample (`make tree`), and a SplitPane sample (`make split`):
+There is also a smaller window, a BorderPane sample (`make border`), a TabPane sample (`make tabs`), a TreeView sample (`make tree`), a ListView sample (`make lists`), and a SplitPane sample (`make split`):
 
 ```sh
 ./build/JadeFX\ Hello.app/Contents/MacOS/JadeFX\ Hello   # macOS
@@ -42,6 +43,8 @@ There is also a smaller window, a BorderPane sample (`make border`), a TabPane s
 ./build/jadefx-tabs                                      # Linux
 ./build/JadeFX\ Tree.app/Contents/MacOS/JadeFX\ Tree     # macOS
 ./build/jadefx-tree                                      # Linux
+./build/JadeFX\ Lists.app/Contents/MacOS/JadeFX\ Lists   # macOS
+./build/jadefx-lists                                     # Linux
 ./build/JadeFX\ Split.app/Contents/MacOS/JadeFX\ Split   # macOS
 ./build/jadefx-split                                     # Linux
 ```
@@ -83,14 +86,21 @@ Layout is in window points, with the origin at the top left. On a Retina display
 | `SplitPane` | `jadefx/scene/controls/SplitPane.hpp` |
 | `ScrollPane`, `ScrollBar` | `jadefx/scene/controls/ScrollPane.hpp`, `jadefx/scene/controls/ScrollBar.hpp` |
 | `TreeItem`, `TreeView` | `jadefx/scene/controls/TreeItem.hpp`, `jadefx/scene/controls/TreeView.hpp` |
+| `ListView`, `ListCell`, `TextFieldListCell` | `jadefx/scene/controls/ListView.hpp` |
+| `IndexedCell`, `MultipleSelectionModel`, `FocusModel`, `SelectionMode` | `jadefx/scene/controls/IndexedCell.hpp`, `jadefx/scene/controls/SelectionModel.hpp` |
+| `ObservableList`, `StringConverter` | `jadefx/collections/ObservableList.hpp`, `jadefx/util/StringConverter.hpp` |
 | `Image`, `ImageView` | `jadefx/scene/image/Image.hpp`, `jadefx/scene/image/ImageView.hpp` |
 | `Font`, `Color`, `Pos`, `Side`, `Insets` | `jadefx/scene/text/Font.hpp`, `jadefx/paint/Color.hpp`, `jadefx/geometry/Geometry.hpp` |
 
-`VBox` and `HBox` stack children with `setSpacing`. `StackPane` layers them and aligns each child; a child larger than the pane shrinks to fit it, down to the child's minimum size, so a `ScrollPane` in a window scrolls instead of growing past it. `BorderPane` places `setTop`, `setBottom`, `setLeft`, `setRight`, and `setCenter`. `Label` measures its text with the bundled Open Sans face. `"Google Sans"` is accepted as a family name and uses that same face.
+`VBox` and `HBox` stack children with `setSpacing`. `StackPane` layers them and aligns each child; a child larger than the pane shrinks to fit it, down to the child's minimum size, so a `ScrollPane` in a window scrolls instead of growing past it. `BorderPane` places `setTop`, `setBottom`, `setLeft`, `setRight`, and `setCenter`. `Label` measures its text with the bundled Open Sans face. `Label`, `Button`, and the other labeled controls take a graphic node with `setGraphic`: `setContentDisplay` puts it left of the text (the default), right, above, below, behind (`Center`), or alone (`GraphicOnly`), `setGraphicTextGap` spaces them (4 points), and text that no longer fits beside the graphic ends in an ellipsis. `"Google Sans"` is accepted as a family name and uses that same face.
 
 `TreeView` is the material tree from JFoenix's `JFXTreeView`. A `TreeItem` is not a node: `setValue` is the row label, `setGraphic` is an optional node beside it, and `getChildren` holds nested items. `setExpanded` shows or hides those children. Rows indent by `setIndent` (10px per level). A branch draws a disclosure arrow that turns down while it is open; a click on the arrow, a second click on the row, or the Right and Left keys opens and closes it. The selected row keeps a 3px bar on its left edge (`selection-bar`, red unless `setSelectionBarColor` or CSS changes it). The wheel and trackpad scroll in pixels when the rows are taller than the view, so a slow swipe moves the list. The scroll bar is a `ScrollBar`: drag the thumb, or click the track to page. `setShowRoot(false)` hides the root and lists its children, which stay hidden while the root is collapsed. The row type is `tree-cell`, so `tree-cell:selected` and `tree-cell:hover` style it. The label is `tree-cell-label` and the arrow is `tree-disclosure-node`.
 
 Row drag and drop is opt-in per tree, the way JavaFX leaves it to a cell factory's `onDragDetected`, `onDragOver`, and `onDragDropped`. It stays off until `setOnItemsDropped` gets a handler, so other trees keep click-and-drag doing nothing. A left press that moves past a few points (`MouseEvent::stillSincePress`, JavaFX's `isStillSincePress`) starts the drag; a selected row carries the whole selection. The top and bottom quarters of a row are `TreeDropPosition::Before` and `After`, shown as a line with a ring at the row's indent; the middle half is `Into`, shown as a box around the row. Under a branch's last row the pointer's distance from the left picks which ancestor the line closes. The rows scroll near the top and bottom edges, a closed branch held under `Into` opens after 0.7 seconds, and Escape cancels. A row never lands inside itself or its descendants, and `setDropAcceptor` can refuse more. The view never moves items itself: the handler gets a `TreeDrop` (items, target, position, and `parent()`) and changes the model.
+
+`ListView<T>` is OpenJFX's ListView. `getItems()` is an `ObservableList<T>`, and a change to it shows at the next layout; `setItems` can share one list between views. Only the rows on screen have cells, so ten thousand rows scroll as fast as ten. The default cell shows a `Node` item as its graphic and anything else as text (`std::string` as itself, other types through `operator<<`). `setCellFactory` supplies `ListCell<T>` subclasses whose `updateItem(item, empty)` draws a row. `getSelectionModel()` is a `MultipleSelectionModel` with `getSelectedItem` and `getSelectedItems`; `setSelectionMode(SelectionMode::Multiple)` adds Ctrl or Command and a click to toggle a row and Shift and a click for a range. The arrow keys, Home, End, Page Up, and Page Down move the selection, Shift extends it, Ctrl or Command moves the focus alone, Ctrl or Command and Space toggles the focused row, and Ctrl or Command and A selects all. `setEditable(true)` with `TextFieldListCell<T>::forListView()` edits a row on a double-click or F2: Enter commits through the cell's `StringConverter<T>`, and Escape or leaving the field cancels. `setOnEditCommit` decides what a commit stores; without it the new value replaces the item. `setPlaceholder` shows a node while the list is empty, `setFixedCellSize` fixes the row length instead of measuring the first row on screen, and `setOrientation(Orientation::Horizontal)` runs the rows left to right. The view type is `listview` and a row is `list-cell`, with `:selected`, `:empty`, `:focus-visible` on the focused row while the list has focus, and `:nth-child()` counted by row, so `list-cell:nth-child(even)` stripes the rows even as cells are reused.
+
+`ObservableList` takes any number of `addListener` callbacks, which hear each item added, removed, or replaced (`set`) with its index; `setAll` replaces the contents. `MouseEvent::clickCount` counts left presses less than 0.4 seconds and 4 points apart, as JavaFX's `getClickCount` does. `setOnFocusChanged` runs when a node takes or loses the focus. `applyCss` resolves a node's style at once instead of at the next layout, for a control that creates and measures nodes during layout.
 
 `Image::load` decodes a PNG, JPEG, GIF, or BMP into a bitmap. `ImageView` draws that bitmap in its box. The preferred size is the bitmap size in points, and the bitmap stretches when the view is given a different size. `TreeItem::setGraphic` accepts an `ImageView`, so a row can show an icon beside its label.
 
@@ -123,7 +133,7 @@ button->setOnMouseClicked([](const jadefx::MouseEvent&) {
 
 ## Stylesheets
 
-`setStylesheet` parses a CSS subset. Selectors can be a type (`scene`, `label`, `button`, `togglebutton`, `radiobutton`, `checkbox`, `progress-bar`, `track`, `bar`, `textfield`, `combobox`, `combo-row`, `slider`, `spinner`, `increment-arrow-button`, `decrement-arrow-button`, `tooltip`, `menubar`, `menu`, `menubutton`, `menu-item`, `separator`, `alert`, `vbox`, `stackpane`, `borderpane`, `pane`, `tabpane`, `tab`, `tab-label`, `tab-close-button`, `tab-header-area`, `treeview`, `tree-cell`, `tree-cell-label`, `tree-disclosure-node`, `selection-bar`, `split-pane`, `split-pane-divider`, `horizontal-grabber`, `vertical-grabber`), a universal `*`, a class (`.test-button`), an id (`#SignUp`), and the pseudos `:hover`, `:active`, `:focus`, `:focus-within`, `:disabled`, `:horizontal`, `:vertical`, `:determinate`, `:indeterminate`, and `:select` (also written `:selected`). A space is a descendant combinator and `>` is a child combinator.
+`setStylesheet` parses a CSS subset. Selectors can be a type (`scene`, `label`, `button`, `togglebutton`, `radiobutton`, `checkbox`, `progress-bar`, `track`, `bar`, `textfield`, `combobox`, `combo-row`, `slider`, `spinner`, `increment-arrow-button`, `decrement-arrow-button`, `tooltip`, `menubar`, `menu`, `menubutton`, `menu-item`, `separator`, `alert`, `vbox`, `stackpane`, `borderpane`, `pane`, `tabpane`, `tab`, `tab-label`, `tab-close-button`, `tab-header-area`, `treeview`, `tree-cell`, `tree-cell-label`, `listview`, `list-cell`, `scroll-pane`, `scroll-bar`, `viewport`, `tree-disclosure-node`, `selection-bar`, `split-pane`, `split-pane-divider`, `horizontal-grabber`, `vertical-grabber`), a universal `*`, a class (`.test-button`), an id (`#SignUp`), and the pseudos `:hover`, `:active`, `:focus`, `:focus-within`, `:disabled`, `:select` (also written `:selected`), and `:nth-child()` with `odd`, `even`, a number, or `An+B`. Any other pseudo-class, such as `:horizontal`, `:vertical`, `:determinate`, `:indeterminate`, `:empty`, or `:focus-visible`, matches a state a control sets with `setPseudoState`. A space is a descendant combinator and `>` is a child combinator.
 
 Supported properties: `width`, `height`, `min-*`, `max-*`, `padding`, `spacing`, `alignment`, `orientation` (`horizontal` or `vertical`), `color`, `font-size`, `font-family`, `background-color`, `background-image` (`linear-gradient`, including `to bottom` and extra color stops), `border-radius`, `border-width`, `border-color`, `border-style`, `box-shadow`, `opacity`, `cursor`, `transition`, `indeterminate-bar-length`, `indeterminate-bar-escape`, `indeterminate-bar-flip`, and `indeterminate-bar-animation-time`. Lengths accept `px`, `em`, `%`, and `calc(100% - 48px)`. An unknown unit is ignored rather than treated as pixels.
 

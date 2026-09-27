@@ -318,9 +318,6 @@ private:
     Drag drag_ = Drag::None;
     int anchorWord_ = 0;
     int clickCount_ = 0;
-    double lastPressX_ = 0;
-    double lastPressY_ = 0;
-    double lastPressSeconds_ = 0;
     float scrollGrab_ = 0.f;
 
     int hoverIndex_ = -1;

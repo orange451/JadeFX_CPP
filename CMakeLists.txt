@@ -55,6 +55,11 @@ set(JADEFX_SOURCES
     src/scene/controls/ScrollTrack.cpp
     src/scene/controls/ScrollBar.cpp
     src/scene/controls/ScrollPane.cpp
+    src/scene/controls/ScrollSupport.cpp
+    src/scene/controls/SelectionModel.cpp
+    src/scene/controls/IndexedCell.cpp
+    src/scene/controls/VirtualFlow.cpp
+    src/scene/controls/ListView.cpp
     src/scene/controls/Slider.cpp
     src/scene/controls/Spinner.cpp
     src/scene/controls/SplitPane.cpp
@@ -236,15 +241,49 @@ function(jadefx_attach_resources target)
     endif()
 endfunction()
 
+# Warnings every desktop target builds with.
+function(jadefx_warnings target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /utf-8)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra)
+    endif()
+endfunction()
+
+# One desktop sample. On macOS it is an app bundle named title, identified as
+# local.jadefx.<name>, or local.jadefx when name is empty.
+function(jadefx_add_sample target name title)
+    add_executable(${target} MACOSX_BUNDLE ${ARGN})
+    target_link_libraries(${target} PRIVATE jadefx)
+    jadefx_warnings(${target})
+    jadefx_attach_resources(${target})
+    if(APPLE)
+        if(name STREQUAL "")
+            set(identifier "local.jadefx")
+        else()
+            set(identifier "local.jadefx.${name}")
+        endif()
+        set_target_properties(${target} PROPERTIES
+            OUTPUT_NAME "${title}"
+            MACOSX_BUNDLE_BUNDLE_NAME "${title}"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "${identifier}"
+            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
+        )
+    endif()
+endfunction()
+
 if(NOT JADEFX_GLFM)
-    add_executable(jadefx-purple MACOSX_BUNDLE examples/main.cpp examples/purple_app.cpp)
-    add_executable(jadefx-hello MACOSX_BUNDLE examples/hello.cpp)
-    add_executable(jadefx-border MACOSX_BUNDLE examples/border_pane.cpp)
-    add_executable(jadefx-tabs MACOSX_BUNDLE examples/tab_pane.cpp)
-    add_executable(jadefx-tree MACOSX_BUNDLE examples/tree_view.cpp)
-    add_executable(jadefx-split MACOSX_BUNDLE examples/split_pane.cpp)
-    add_executable(jadefx-rich MACOSX_BUNDLE examples/rich_text.cpp)
-    add_executable(jadefx-controls MACOSX_BUNDLE examples/controls.cpp)
+    jadefx_add_sample(jadefx-purple "" "JadeFX" examples/main.cpp examples/purple_app.cpp)
+    jadefx_add_sample(jadefx-hello hello "JadeFX Hello" examples/hello.cpp)
+    jadefx_add_sample(jadefx-border border "JadeFX Border" examples/border_pane.cpp)
+    jadefx_add_sample(jadefx-tabs tabs "JadeFX Tabs" examples/tab_pane.cpp)
+    jadefx_add_sample(jadefx-tree tree "JadeFX Tree" examples/tree_view.cpp)
+    jadefx_add_sample(jadefx-lists lists "JadeFX Lists" examples/list_view.cpp)
+    jadefx_add_sample(jadefx-split split "JadeFX Split" examples/split_pane.cpp)
+    jadefx_add_sample(jadefx-rich rich "JadeFX Rich" examples/rich_text.cpp)
+    jadefx_add_sample(jadefx-controls controls "JadeFX Controls" examples/controls.cpp)
     add_executable(jadefx-tests
         tests/layout_tests.cpp
         tests/rich_text_tests.cpp
@@ -266,90 +305,12 @@ if(NOT JADEFX_GLFM)
         tests/run_later_tests.cpp
         tests/tree_view_tests.cpp
         tests/scroll_pane_tests.cpp
+        tests/list_view_tests.cpp
+        tests/core_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
-    foreach(target jadefx-purple jadefx-hello jadefx-border jadefx-tabs jadefx-tree jadefx-split jadefx-rich jadefx-controls jadefx-tests)
-        target_link_libraries(${target} PRIVATE jadefx)
-        if(MSVC)
-            target_compile_options(${target} PRIVATE /W4 /utf-8)
-        else()
-            target_compile_options(${target} PRIVATE -Wall -Wextra)
-        endif()
-    endforeach()
-    jadefx_attach_resources(jadefx-purple)
-    jadefx_attach_resources(jadefx-hello)
-    jadefx_attach_resources(jadefx-border)
-    jadefx_attach_resources(jadefx-tabs)
-    jadefx_attach_resources(jadefx-rich)
-    jadefx_attach_resources(jadefx-tree)
-    jadefx_attach_resources(jadefx-split)
-    jadefx_attach_resources(jadefx-controls)
-    if(APPLE)
-        set_target_properties(jadefx-purple PROPERTIES
-            OUTPUT_NAME "JadeFX"
-            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
-        )
-        set_target_properties(jadefx-hello PROPERTIES
-            OUTPUT_NAME "JadeFX Hello"
-            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Hello"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.hello"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
-        )
-        set_target_properties(jadefx-border PROPERTIES
-            OUTPUT_NAME "JadeFX Border"
-            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Border"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.border"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
-        )
-        set_target_properties(jadefx-tabs PROPERTIES
-            OUTPUT_NAME "JadeFX Tabs"
-            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Tabs"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.tabs"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
-        )
-        set_target_properties(jadefx-rich PROPERTIES
-            OUTPUT_NAME "JadeFX Rich"
-            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Rich"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.rich"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
-        )
-        set_target_properties(jadefx-tree PROPERTIES
-            OUTPUT_NAME "JadeFX Tree"
-            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Tree"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.tree"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
-        )
-        set_target_properties(jadefx-split PROPERTIES
-            OUTPUT_NAME "JadeFX Split"
-            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Split"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.split"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
-        )
-        set_target_properties(jadefx-controls PROPERTIES
-            OUTPUT_NAME "JadeFX Controls"
-            MACOSX_BUNDLE_BUNDLE_NAME "JadeFX Controls"
-            MACOSX_BUNDLE_GUI_IDENTIFIER "local.jadefx.controls"
-            MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
-            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/macos/Info.plist.in"
-        )
-    endif()
+    target_link_libraries(jadefx-tests PRIVATE jadefx)
+    jadefx_warnings(jadefx-tests)
 elseif(ANDROID)
     add_library(jadefx-purple SHARED examples/purple_app.cpp examples/glfm_entry.cpp)
     target_link_libraries(jadefx-purple PRIVATE jadefx)

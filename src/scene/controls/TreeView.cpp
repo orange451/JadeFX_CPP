@@ -2,7 +2,7 @@
 
 #include "jadefx/paint/Color.hpp"
 #include "jadefx/scene/controls/Label.hpp"
-#include "jadefx/scene/controls/ScrollBar.hpp"
+#include "ScrollSupport.hpp"
 #include "jadefx/scene/text/Font.hpp"
 #include "gl/UiRenderer.hpp"
 
@@ -667,10 +667,7 @@ struct TreeView::Impl {
 TreeView::TreeView() : impl_(std::make_unique<Impl>()) {
     getClassList().add("tree-view");
     setBackground(Color::white());
-    impl_->vbar = std::make_shared<ScrollBar>(Orientation::Vertical);
-    impl_->vbar->setVisible(false);
-    impl_->vbar->setFocusTraversable(false);
-    impl_->vbar->setOnValueChanged([this] { impl_->scroll = impl_->vbar->getValue(); });
+    impl_->vbar = scroll::MakeOwnedBar(Orientation::Vertical, [this](double value) { impl_->scroll = value; });
     impl_->vbar->setParent(this);
 }
 
@@ -1504,14 +1501,8 @@ void TreeView::layoutChildren() {
         impl_->scroll = maxScroll;
     }
     const double scroll = impl_->scroll;
-    ScrollBar& vbar = *impl_->vbar;
-    vbar.setVisible(maxScroll > 0);
-    vbar.setMax(maxScroll);
-    vbar.setVisiblePortion(height, content);
-    vbar.setUnitIncrement(row);
-    vbar.setValue(scroll);
     impl_->visibleRows = fit;
-    const double gutter = vbar.isVisible() ? ScrollBar::kThickness : 0.0;
+    const double gutter = maxScroll > 0 ? ScrollBar::kThickness : 0.0;
     const double rowWidth = std::max(0.0, width - gutter);
     const double viewBottom = top + height;
     // The row under the pointer, decided before the cells move, so the label
@@ -1569,8 +1560,8 @@ void TreeView::layoutChildren() {
             impl_->accessory->performLayout(x, y, size, size);
         }
     }
-    const double breadth = gutter > 0 ? std::min(width, gutter + ScrollBar::kHitSlop) : 0.0;
-    vbar.performLayout(left + width - breadth, top, breadth, height);
+    scroll::PlaceBar(*impl_->vbar, {maxScroll > 0, 0, maxScroll, scroll, height, content, left, top,
+                                    {rowWidth, height}});
     tickDrag();
 }
 

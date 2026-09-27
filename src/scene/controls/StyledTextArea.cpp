@@ -1882,17 +1882,7 @@ void StyledTextArea::handleMousePressed(const MouseEvent& event) {
         drag_ = Drag::None;
         return;
     }
-    const double now = Now();
-    const double dx = event.x - lastPressX_;
-    const double dy = event.y - lastPressY_;
-    if (now - lastPressSeconds_ < 0.4 && dx * dx + dy * dy < 16.0) {
-        clickCount_ = std::min(3, clickCount_ + 1);
-    } else {
-        clickCount_ = 1;
-    }
-    lastPressSeconds_ = now;
-    lastPressX_ = event.x;
-    lastPressY_ = event.y;
+    clickCount_ = std::min(3, event.clickCount);
     const CharacterHit where = hit(event.x, event.y);
     if (!where.valid) {
         return;

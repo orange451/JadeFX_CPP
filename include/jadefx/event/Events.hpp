@@ -18,6 +18,10 @@ struct MouseEvent {
     // few points from where the left button went down. A drag reads it to start,
     // and a click that ends a drag reads false.
     bool stillSincePress = true;
+    // JavaFX's getClickCount. Left presses within 0.4 seconds and 4 points of
+    // the one before count up from 1. A press that became a drag ends the run.
+    // The release and click that follow a press carry its count.
+    int clickCount = 1;
 
     bool shift() const { return (mods & 0x1) != 0; }
     // Ctrl on Windows and Linux, Command on macOS. Either one is accepted.
@@ -92,6 +96,18 @@ constexpr int PageUp = 266;
 constexpr int PageDown = 267;
 constexpr int Home = 268;
 constexpr int End = 269;
+constexpr int F1 = 290;
+constexpr int F2 = 291;
+constexpr int F3 = 292;
+constexpr int F4 = 293;
+constexpr int F5 = 294;
+constexpr int F6 = 295;
+constexpr int F7 = 296;
+constexpr int F8 = 297;
+constexpr int F9 = 298;
+constexpr int F10 = 299;
+constexpr int F11 = 300;
+constexpr int F12 = 301;
 constexpr int KpEnter = 335;
 constexpr int LeftShift = 340;
 constexpr int LeftControl = 341;

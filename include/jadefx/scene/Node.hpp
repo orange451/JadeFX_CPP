@@ -103,6 +103,9 @@ public:
     void setOnMouseClicked(MouseHandler handler) { onClicked_ = std::move(handler); }
     void setOnMouseEntered(MouseHandler handler) { onEntered_ = std::move(handler); }
     void setOnMouseExited(MouseHandler handler) { onExited_ = std::move(handler); }
+    // JavaFX's focusedProperty listener. Runs with true when this node takes the
+    // focus and false when it loses it, after handleFocusGained or handleFocusLost.
+    void setOnFocusChanged(std::function<void(bool focused)> handler) { onFocusChanged_ = std::move(handler); }
     // Right-click. The scene walks from the hit node to the root and stops at the first handler.
     void setOnContextMenuRequested(MouseHandler handler) { onContext_ = std::move(handler); }
     bool hasContextMenuHandler() const { return static_cast<bool>(onContext_); }
@@ -122,9 +125,13 @@ public:
     void setSelected(bool selected) { selected_ = selected; }
     bool isSelected() const { return selected_; }
 
-    // Extra pseudos such as :horizontal and :vertical. Hover, focus, and disabled stay separate.
+    // Extra pseudo-classes such as :horizontal and :vertical, as JavaFX's PseudoClass.
+    // A stylesheet matches any other name against these. Hover, focus, and disabled stay separate.
     void setPseudoState(const std::string& name, bool enabled);
     bool pseudoState(const std::string& name) const;
+    // This node's 1-based place among its parent's children, which :nth-child()
+    // matches. Zero without a parent. A recycled cell reports its item's place instead.
+    virtual int getNthChildIndex() const;
 
     // disable is this node's own flag. disabled is that flag, or an ancestor's.
     // A disabled node is not picked, focused, or sent input. TabPane keeps its own
@@ -172,6 +179,11 @@ public:
     // Focus moved off this node: to another node, to nothing, or because this node left the scene
     // or was disabled. Not called when a press lands on the node that already has focus.
     virtual void handleFocusLost() {}
+    // This node took the focus, from a press, requestFocus, or the keyboard.
+    virtual void handleFocusGained() {}
+    // isHovered changed. Runs before the entered or exited handler, so a control
+    // can restyle itself and leave those handlers to the application.
+    virtual void handleHoverChanged() {}
 
     Node* getElementById(const std::string& id);
     std::vector<Node*> getElementsByClassName(const std::string& className);
@@ -182,6 +194,11 @@ public:
     void setParent(Node* parent);
     // Drop a child this node owns, including a slot that is not in the child list.
     virtual void detachChild(Node* child);
+
+    // Resolves this node's style and its children's now, as JavaFX's applyCss
+    // does, instead of at the next Scene::layout. A control that creates nodes
+    // during layout calls this before it measures them.
+    void applyCss();
 
     // Place this node inside its parent and lay out its children.
     // Scene::layout is the call most applications make.
@@ -232,6 +249,8 @@ protected:
 
 private:
     void applyStyles(const ComputedStyle& inherited, double timeSeconds);
+    // What a child inherits from this node's style: text color, font, and cursor.
+    ComputedStyle inheritableStyle() const;
     void syncHover(Node* hit);
     // Like pick, but a disabled node still supplies its cursor.
     Node* pickCursorTarget(double x, double y);
@@ -341,6 +360,13 @@ private:
     MouseHandler onEntered_;
     MouseHandler onExited_;
     MouseHandler onContext_;
+    std::function<void(bool)> onFocusChanged_;
+
+    void fireFocusChanged(bool focused) {
+        if (onFocusChanged_) {
+            onFocusChanged_(focused);
+        }
+    }
 };
 
 }  // namespace jadefx

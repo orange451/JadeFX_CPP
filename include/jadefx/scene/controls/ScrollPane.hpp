@@ -8,7 +8,9 @@
 namespace jadefx {
 
 class ScrollBar;
-class ScrollPaneViewport;
+namespace scroll {
+class ClipRegion;
+}
 
 // When a ScrollPane shows a scroll bar. AsNeeded shows it while the content
 // is longer than the viewport along that axis.
@@ -85,10 +87,6 @@ protected:
     double preferredContentHeight(double innerWidth) const override;
 
 private:
-    friend class ScrollPaneViewport;
-
-    // The viewport's content was taken by another parent.
-    void contentDetached();
     // Moves the viewport by points along each axis. False when neither axis moved.
     bool scrollBy(double dx, double dy);
     // The value that shows the content offset by this many points, and back.
@@ -96,9 +94,8 @@ private:
     double offsetForValue(double value, double maxOffset, bool horizontal) const;
     void changeHvalue(double value);
     void changeVvalue(double value);
-    bool showsBar(ScrollBarPolicy policy, double content, double viewport) const;
 
-    std::shared_ptr<ScrollPaneViewport> viewportNode_;
+    std::shared_ptr<scroll::ClipRegion> viewportNode_;
     std::shared_ptr<ScrollBar> hbar_;
     std::shared_ptr<ScrollBar> vbar_;
     std::shared_ptr<Node> content_;

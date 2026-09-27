@@ -74,11 +74,6 @@ int PreviousWord(const std::u32string& chars, int index) {
     return cursor;
 }
 
-double Now() {
-    using Clock = std::chrono::steady_clock;
-    return std::chrono::duration<double>(Clock::now().time_since_epoch()).count();
-}
-
 // Matches StyledTextArea: letters, digits, underscore, and anything past ASCII that is not a space.
 bool IsWordChar(char32_t codepoint) {
     if (codepoint == U'_') {
@@ -471,17 +466,7 @@ void TextField::handleMousePressed(const MouseEvent& event) {
     if (isDisabled()) {
         return;
     }
-    const double now = Now();
-    const double dx = event.x - lastPressX_;
-    const double dy = event.y - lastPressY_;
-    if (now - lastPressSeconds_ < 0.4 && dx * dx + dy * dy < 16.0) {
-        clickCount_ = std::min(3, clickCount_ + 1);
-    } else {
-        clickCount_ = 1;
-    }
-    lastPressSeconds_ = now;
-    lastPressX_ = event.x;
-    lastPressY_ = event.y;
+    clickCount_ = std::min(3, event.clickCount);
     dragWords_ = false;
     if (clickCount_ >= 3) {
         // The field is one line, so the line is the whole text.
@@ -503,10 +488,6 @@ void TextField::handleMousePressed(const MouseEvent& event) {
 void TextField::handleMouseDragged(const MouseEvent& event) {
     if (isDisabled()) {
         return;
-    }
-    // A press that became a drag is never the first half of a double-click.
-    if (!event.stillSincePress) {
-        lastPressSeconds_ = 0;
     }
     if (clickCount_ >= 3) {
         return;

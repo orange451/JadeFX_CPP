@@ -11,6 +11,9 @@ namespace {
 
 // How far the pointer may wander from a press, in points, and still be a click.
 constexpr double kPressHysteresis = 4;
+// Presses closer together than this, in time and in points, count as one multi-click.
+constexpr double kMultiClickSeconds = 0.4;
+constexpr double kMultiClickPoints = 4;
 
 bool Related(Node* a, Node* b) {
     if (a == nullptr || b == nullptr) {
@@ -140,7 +143,10 @@ void Scene::noteMove(double x, double y) {
     if (pressedTarget_ != nullptr) {
         if (stillSincePress_ && std::hypot(x - pressX_, y - pressY_) > kPressHysteresis) {
             stillSincePress_ = false;
+            // A drag is never the first half of a double-click.
+            lastClickSeconds_ = -1;
         }
+        event.clickCount = clickCount_;
         event.stillSincePress = stillSincePress_;
         event.target = pressedTarget_;
         pressedTarget_->handleMouseDragged(event);
@@ -194,6 +200,14 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
     event.button = button;
     event.mods = mods;
     if (down) {
+        const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        const bool repeat = lastClickSeconds_ >= 0 && now - lastClickSeconds_ < kMultiClickSeconds &&
+                            std::hypot(x - lastClickX_, y - lastClickY_) < kMultiClickPoints;
+        clickCount_ = repeat ? clickCount_ + 1 : 1;
+        lastClickSeconds_ = now;
+        lastClickX_ = x;
+        lastClickY_ = y;
+        event.clickCount = clickCount_;
         Node* hit = pick(x, y);
         std::vector<Node*> dismiss;
         for (const PopupRecord& popup : popups_) {
@@ -222,6 +236,7 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
         return;
     }
 
+    event.clickCount = clickCount_;
     Node* released = pick(x, y);
     Node* pressed = pressedTarget_;
     event.stillSincePress = pressed == nullptr || stillSincePress_;
@@ -317,9 +332,18 @@ void Scene::moveFocus(Node* next) {
     clearFocus();
     markFocused(next);
     focused_ = next;
+    if (previous == next || isTearingDown()) {
+        return;
+    }
     // A node leaves focus before it leaves the scene, so previous is still alive here.
-    if (previous != nullptr && previous != next && !isTearingDown()) {
+    if (previous != nullptr) {
         previous->handleFocusLost();
+        previous->fireFocusChanged(false);
+    }
+    // A handler above may have moved the focus on again.
+    if (next != nullptr && focused_ == next) {
+        next->handleFocusGained();
+        next->fireFocusChanged(true);
     }
 }
 
@@ -375,13 +399,7 @@ void Scene::layoutPopup(PopupRecord& popup) {
     if (!popup.node) {
         return;
     }
-    ComputedStyle pass;
-    pass.color = computed_.color;
-    pass.fontSize = computed_.fontSize > 0.f ? computed_.fontSize : 16.f;
-    pass.fontFamily = computed_.fontFamily.empty() ? "Open Sans" : computed_.fontFamily;
-    pass.subpixel = computed_.subpixel;
-    pass.cursor = computed_.cursor;
-    popup.node->applyStyles(pass, lastTime_);
+    popup.node->applyStyles(inheritableStyle(), lastTime_);
     if (popup.fillScene) {
         popup.node->performLayout(0, 0, std::max(0.0, width_), std::max(0.0, height_));
         return;

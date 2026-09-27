@@ -1,6 +1,7 @@
 #pragma once
 
 #include "jadefx/scene/controls/Controls.hpp"
+#include "jadefx/scene/controls/SelectionModel.hpp"
 #include "jadefx/scene/controls/TreeItem.hpp"
 
 #include <functional>
@@ -8,11 +9,6 @@
 #include <vector>
 
 namespace jadefx {
-
-// Single keeps one row selected. Multiple adds Ctrl or Command and a click to
-// add or remove a row, and Shift and a click, or Shift and an arrow key, to
-// select every row from the anchor to that one.
-enum class SelectionMode { Single, Multiple };
 
 // Where dragged rows would land against the row under the pointer. The top and
 // bottom quarters of a row are Before and After it, as its sibling. The middle

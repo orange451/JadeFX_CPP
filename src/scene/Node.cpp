@@ -171,6 +171,21 @@ bool Node::pseudoState(const std::string& name) const {
     return std::find(pseudoStates_.begin(), pseudoStates_.end(), name) != pseudoStates_.end();
 }
 
+int Node::getNthChildIndex() const {
+    if (parent_ == nullptr) {
+        return 0;
+    }
+    int position = 0;
+    int found = 0;
+    parent_->visitChildren([&](Node* child) {
+        ++position;
+        if (child == this) {
+            found = position;
+        }
+    });
+    return found;
+}
+
 void Node::setDisable(bool value) {
     if (disable_ == value) {
         return;
@@ -582,17 +597,27 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
 
     computed_ = style;
     styleDidApply();
-    ComputedStyle pass;
-    pass.color = computed_.color;
-    pass.fontSize = computed_.fontSize;
-    pass.fontFamily = computed_.fontFamily;
-    pass.subpixel = computed_.subpixel;
-    pass.cursor = computed_.cursor;
+    const ComputedStyle pass = inheritableStyle();
     std::vector<Node*> kids;
     visitChildren([&](Node* child) { kids.push_back(child); });
     for (Node* child : kids) {
         child->applyStyles(pass, timeSeconds);
     }
+}
+
+ComputedStyle Node::inheritableStyle() const {
+    ComputedStyle pass;
+    pass.color = computed_.color;
+    pass.fontSize = computed_.fontSize > 0.f ? computed_.fontSize : 16.f;
+    pass.fontFamily = computed_.fontFamily.empty() ? "Open Sans" : computed_.fontFamily;
+    pass.subpixel = computed_.subpixel;
+    pass.cursor = computed_.cursor;
+    return pass;
+}
+
+void Node::applyCss() {
+    const double time = scene_ != nullptr ? scene_->timeSeconds() : 0.0;
+    applyStyles(parent_ != nullptr ? parent_->inheritableStyle() : ComputedStyle{}, time);
 }
 
 bool Node::isFocusWithin() {
@@ -697,6 +722,7 @@ void Node::syncHover(Node* hit) {
         if (node->wasHovered_ == node->hovered_) {
             continue;
         }
+        node->handleHoverChanged();
         MouseEvent event;
         event.target = node;
         event.x = node->getAbsoluteX();

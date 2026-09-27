@@ -25,6 +25,7 @@
 #include "jadefx/scene/controls/CodeArea.hpp"
 #include "jadefx/scene/controls/InlineCssTextArea.hpp"
 #include "jadefx/scene/controls/Label.hpp"
+#include "jadefx/scene/controls/ListView.hpp"
 #include "jadefx/scene/controls/Menu.hpp"
 #include "jadefx/scene/controls/MenuBar.hpp"
 #include "jadefx/scene/controls/MenuButton.hpp"

@@ -1,50 +1,13 @@
 #include "jadefx/scene/controls/ScrollPane.hpp"
 
-#include "jadefx/scene/Scene.hpp"
-#include "jadefx/scene/controls/ScrollBar.hpp"
-#include "gl/UiRenderer.hpp"
+#include "ScrollSupport.hpp"
 
 #include <algorithm>
 #include <cmath>
 
 namespace jadefx {
 
-// Holds the content and clips it. Picking stops at its bounds too, so a part of
-// the content scrolled out of view cannot take a click.
-class ScrollPaneViewport : public Region {
-public:
-    explicit ScrollPaneViewport(ScrollPane& pane) : pane_(&pane) { getClassList().add("viewport"); }
-
-    const char* getElementType() const override { return "viewport"; }
-
-    void release() { pane_ = nullptr; }
-    ObservableList<std::shared_ptr<Node>>& items() { return children(); }
-
-    void detachChild(Node* child) override {
-        Region::detachChild(child);
-        if (pane_ != nullptr) {
-            pane_->contentDetached();
-        }
-    }
-
-protected:
-    void renderChildren(UiRenderer& renderer, float opacity) override {
-        renderer.pushClip(static_cast<float>(getAbsoluteX()), static_cast<float>(getAbsoluteY()),
-                          static_cast<float>(getWidth()), static_cast<float>(getHeight()));
-        Region::renderChildren(renderer, opacity);
-        renderer.popClip();
-    }
-
-private:
-    ScrollPane* pane_ = nullptr;
-};
-
 namespace {
-
-// Points per wheel notch. A trackpad sends fractions of a notch.
-constexpr double kWheelStep = 40;
-// Points per arrow key.
-constexpr double kLineStep = 20;
 
 // Keeps min <= max by moving the end that was not just set.
 void Order(double& min, double& max, bool minChanged) {
@@ -62,15 +25,14 @@ void Order(double& min, double& max, bool minChanged) {
 
 ScrollPane::ScrollPane() {
     getClassList().add("scroll-pane");
-    viewportNode_ = std::make_shared<ScrollPaneViewport>(*this);
-    hbar_ = std::make_shared<ScrollBar>(Orientation::Horizontal);
-    vbar_ = std::make_shared<ScrollBar>(Orientation::Vertical);
-    for (ScrollBar* bar : {hbar_.get(), vbar_.get()}) {
-        bar->setFocusTraversable(false);
-        bar->setVisible(false);
-    }
-    hbar_->setOnValueChanged([this] { changeHvalue(hbar_->getValue()); });
-    vbar_->setOnValueChanged([this] { changeVvalue(vbar_->getValue()); });
+    viewportNode_ = std::make_shared<scroll::ClipRegion>("viewport");
+    viewportNode_->setOnChildDetached([this](Node* child) {
+        if (content_ && content_.get() == child) {
+            content_.reset();
+        }
+    });
+    hbar_ = scroll::MakeOwnedBar(Orientation::Horizontal, [this](double value) { changeHvalue(value); });
+    vbar_ = scroll::MakeOwnedBar(Orientation::Vertical, [this](double value) { changeVvalue(value); });
     children().add(viewportNode_);
     children().add(hbar_);
     children().add(vbar_);
@@ -79,7 +41,7 @@ ScrollPane::ScrollPane() {
 ScrollPane::ScrollPane(std::shared_ptr<Node> content) : ScrollPane() { setContent(std::move(content)); }
 
 ScrollPane::~ScrollPane() {
-    viewportNode_->release();
+    viewportNode_->setOnChildDetached(nullptr);
     hbar_->setOnValueChanged(nullptr);
     vbar_->setOnValueChanged(nullptr);
 }
@@ -93,12 +55,6 @@ void ScrollPane::setContent(std::shared_ptr<Node> content) {
     content_ = std::move(content);
     if (content_) {
         items.add(content_);
-    }
-}
-
-void ScrollPane::contentDetached() {
-    if (content_ && content_->getParent() != viewportNode_.get()) {
-        content_.reset();
     }
 }
 
@@ -195,10 +151,8 @@ bool ScrollPane::scrollBy(double dx, double dy) {
 }
 
 void ScrollPane::handleScroll(ScrollEvent& event) {
-    const bool shift = getScene() != nullptr && (getScene()->modifierMask() & Key::ModShift) != 0;
-    const double dx = shift ? event.deltaY + event.deltaX : event.deltaX;
-    const double dy = shift ? 0.0 : event.deltaY;
-    if (scrollBy(-dx * kWheelStep, -dy * kWheelStep)) {
+    const Size delta = scroll::WheelPoints(*this, event);
+    if (scrollBy(delta.width, delta.height)) {
         event.consume();
     }
 }
@@ -210,16 +164,16 @@ void ScrollPane::handleKey(KeyEvent& event) {
     bool moved = false;
     switch (event.key) {
         case Key::Up:
-            moved = scrollBy(0, -kLineStep);
+            moved = scrollBy(0, -scroll::kLineStep);
             break;
         case Key::Down:
-            moved = scrollBy(0, kLineStep);
+            moved = scrollBy(0, scroll::kLineStep);
             break;
         case Key::Left:
-            moved = scrollBy(-kLineStep, 0);
+            moved = scrollBy(-scroll::kLineStep, 0);
             break;
         case Key::Right:
-            moved = scrollBy(kLineStep, 0);
+            moved = scrollBy(scroll::kLineStep, 0);
             break;
         case Key::PageUp:
             moved = scrollBy(0, -viewport_.height);
@@ -241,92 +195,35 @@ void ScrollPane::handleKey(KeyEvent& event) {
     }
 }
 
-bool ScrollPane::showsBar(ScrollBarPolicy policy, double content, double viewport) const {
-    switch (policy) {
-        case ScrollBarPolicy::Always:
-            return true;
-        case ScrollBarPolicy::Never:
-            return false;
-        case ScrollBarPolicy::AsNeeded:
-            return content > viewport + 0.5;
-    }
-    return false;
-}
-
 void ScrollPane::layoutChildren() {
     const double left = contentLeft();
     const double top = contentTop();
-    const double width = contentWidth();
-    const double height = contentHeight();
-    const double bar = ScrollBar::kThickness;
-
-    auto measure = [this](double viewWidth, double viewHeight) {
-        Size size;
-        if (!content_) {
+    const scroll::BarLayout bars =
+        scroll::ResolveBars(hbarPolicy_, vbarPolicy_, {contentWidth(), contentHeight()}, [this](Size view) {
+            Size size;
+            if (!content_) {
+                return size;
+            }
+            size.width = fitToWidth_ ? std::max(view.width, content_->getMinWidth()) : content_->measuredWidth(view.width);
+            size.height = fitToHeight_ ? std::max(view.height, content_->getMinHeight())
+                                       : content_->measuredHeight(size.width, view.height);
             return size;
-        }
-        size.width = fitToWidth_ ? std::max(viewWidth, content_->getMinWidth()) : content_->measuredWidth(viewWidth);
-        size.height = fitToHeight_ ? std::max(viewHeight, content_->getMinHeight())
-                                   : content_->measuredHeight(size.width, viewHeight);
-        return size;
-    };
+        });
+    viewport_ = bars.viewport;
+    contentSize_ = bars.content;
+    scrollRange_ = {std::max(0.0, contentSize_.width - viewport_.width),
+                    std::max(0.0, contentSize_.height - viewport_.height)};
 
-    // Each bar narrows the other axis, which can bring in the other bar. Two
-    // rounds settle it; the third only confirms.
-    bool needH = hbarPolicy_ == ScrollBarPolicy::Always;
-    bool needV = vbarPolicy_ == ScrollBarPolicy::Always;
-    double viewWidth = width;
-    double viewHeight = height;
-    Size size;
-    for (int round = 0; round < 3; ++round) {
-        viewWidth = std::max(0.0, width - (needV ? bar : 0.0));
-        viewHeight = std::max(0.0, height - (needH ? bar : 0.0));
-        size = measure(viewWidth, viewHeight);
-        const bool nextH = showsBar(hbarPolicy_, size.width, viewWidth);
-        const bool nextV = showsBar(vbarPolicy_, size.height, viewHeight);
-        if (nextH == needH && nextV == needV) {
-            break;
-        }
-        needH = nextH;
-        needV = nextV;
-    }
-    viewWidth = std::max(0.0, width - (needV ? bar : 0.0));
-    viewHeight = std::max(0.0, height - (needH ? bar : 0.0));
-
-    viewport_ = {viewWidth, viewHeight};
-    contentSize_ = size;
-    scrollRange_ = {std::max(0.0, size.width - viewWidth), std::max(0.0, size.height - viewHeight)};
-
-    viewportNode_->performLayout(left, top, viewWidth, viewHeight);
+    viewportNode_->performLayout(left, top, viewport_.width, viewport_.height);
     if (content_) {
         const double offsetX = offsetForValue(hvalue_, scrollRange_.width, true);
         const double offsetY = offsetForValue(vvalue_, scrollRange_.height, false);
-        content_->performLayout(-std::round(offsetX), -std::round(offsetY), size.width, size.height);
+        content_->performLayout(-std::round(offsetX), -std::round(offsetY), contentSize_.width, contentSize_.height);
     }
-
-    auto place = [&](ScrollBar& scrollBar, bool shown, bool horizontal) {
-        scrollBar.setVisible(shown);
-        if (!shown) {
-            scrollBar.performLayout(0, 0, 0, 0);
-            return;
-        }
-        const double range = horizontal ? scrollRange_.width : scrollRange_.height;
-        const double span = (horizontal ? hmax_ - hmin_ : vmax_ - vmin_);
-        scrollBar.setMin(horizontal ? hmin_ : vmin_);
-        scrollBar.setMax(horizontal ? hmax_ : vmax_);
-        scrollBar.setVisiblePortion(horizontal ? viewWidth : viewHeight, horizontal ? size.width : size.height);
-        scrollBar.setUnitIncrement(range > 0 ? span * kLineStep / range : 0.0);
-        scrollBar.setValue(horizontal ? hvalue_ : vvalue_);
-        // The bar reaches kHitSlop over the viewport's edge, so it is easier to grab.
-        const double breadth = bar + ScrollBar::kHitSlop;
-        if (horizontal) {
-            scrollBar.performLayout(left, top + viewHeight - ScrollBar::kHitSlop, viewWidth, breadth);
-        } else {
-            scrollBar.performLayout(left + viewWidth - ScrollBar::kHitSlop, top, breadth, viewHeight);
-        }
-    };
-    place(*hbar_, needH, true);
-    place(*vbar_, needV, false);
+    scroll::PlaceBar(*hbar_, {bars.horizontal, hmin_, hmax_, hvalue_, viewport_.width, contentSize_.width, left, top,
+                              viewport_});
+    scroll::PlaceBar(*vbar_, {bars.vertical, vmin_, vmax_, vvalue_, viewport_.height, contentSize_.height, left, top,
+                              viewport_});
 }
 
 double ScrollPane::preferredContentWidth(double innerAvailable) const {

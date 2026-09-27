@@ -84,9 +84,6 @@ private:
     bool editable_ = true;
     // Presses close in time and place count up to a triple click.
     int clickCount_ = 0;
-    double lastPressSeconds_ = 0;
-    double lastPressX_ = 0;
-    double lastPressY_ = 0;
     // A double-click drag grows by whole words from the word it started on.
     bool dragWords_ = false;
     int wordStart_ = 0;

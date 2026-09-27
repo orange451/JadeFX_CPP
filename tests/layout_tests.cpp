@@ -1842,6 +1842,8 @@ int RunImageTests();
 int RunRunLaterTests();
 int RunTreeViewTests();
 int RunScrollPaneTests();
+int RunListViewTests();
+int RunCoreTests();
 
 int main() {
     TestColors();
@@ -1880,6 +1882,8 @@ int main() {
     gFailures += RunImageTests();
     gFailures += RunTreeViewTests();
     gFailures += RunScrollPaneTests();
+    gFailures += RunListViewTests();
+    gFailures += RunCoreTests();
     if (gFailures == 0) {
         std::printf("layout tests passed\n");
         return 0;

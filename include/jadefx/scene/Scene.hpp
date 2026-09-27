@@ -110,6 +110,11 @@ private:
     double pressX_ = 0;
     double pressY_ = 0;
     bool stillSincePress_ = true;
+    // The run of left presses that clickCount counts.
+    int clickCount_ = 0;
+    double lastClickSeconds_ = -1;
+    double lastClickX_ = 0;
+    double lastClickY_ = 0;
     Node* focused_ = nullptr;
     int keyMods_ = 0;
     bool laidOut_ = false;
