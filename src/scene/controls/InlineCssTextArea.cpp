@@ -137,10 +137,17 @@ std::string RewriteCss(std::string_view css, bool underline, bool enable) {
     return Serialize(decls);
 }
 
+// CSS replaces how text looks, not where it links.
+TextStyle KeepLink(const TextStyle& old, TextStyle next) {
+    next.href = old.href;
+    return next;
+}
+
 }  // namespace
 
 void InlineCssTextArea::setStyle(int start, int end, const std::string& css) {
-    StyledTextArea::setStyle(start, end, ParseTextCss(css));
+    const TextStyle parsed = ParseTextCss(css);
+    restyle(start, end, [&](const TextStyle& old) { return KeepLink(old, parsed); });
 }
 
 void InlineCssTextArea::toggleDecoration(bool underline) {
@@ -168,7 +175,7 @@ void InlineCssTextArea::toggleDecoration(bool underline) {
     }
     if (!anyRange) {
         const TextStyle current = styleForInsertion(caretPosition());
-        setTypingStyle(ParseTextCss(RewriteCss(current.inlineCss, underline, enable)));
+        setTypingStyle(KeepLink(current, ParseTextCss(RewriteCss(current.inlineCss, underline, enable))));
         return;
     }
     std::sort(ranges.begin(), ranges.end(), [](const IndexRange& a, const IndexRange& b) { return a.start > b.start; });
@@ -177,12 +184,9 @@ void InlineCssTextArea::toggleDecoration(bool underline) {
             if (range.empty()) {
                 continue;
             }
-            const StyleSpans spans = getStyleSpans(range.start, range.end);
-            StyleSpansBuilder builder;
-            for (const StyleSpan& span : spans.spans()) {
-                builder.add(ParseTextCss(RewriteCss(span.style.inlineCss, underline, enable)), span.length);
-            }
-            setStyleSpans(range.start, builder.create(), true);
+            restyle(range.start, range.end, [&](const TextStyle& old) {
+                return KeepLink(old, ParseTextCss(RewriteCss(old.inlineCss, underline, enable)));
+            });
         }
     });
 }

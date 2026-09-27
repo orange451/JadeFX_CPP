@@ -4,7 +4,9 @@
 #include "gl/UiRenderer.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <string_view>
 #include <vector>
 
 namespace jadefx {
@@ -648,6 +650,12 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
 
 Color Node::themeColor(ThemeColor color) const {
     const std::string value = computed_.variable(Theme::variableName(color));
+    constexpr std::string_view kCurrentColor = "currentcolor";
+    if (std::equal(value.begin(), value.end(), kCurrentColor.begin(), kCurrentColor.end(), [](char a, char b) {
+            return std::tolower(static_cast<unsigned char>(a)) == b;
+        })) {
+        return computed_.color;
+    }
     bool ok = false;
     const Color parsed = value.empty() ? Color() : Color::parse(value, &ok);
     return ok ? parsed : Theme::defaultColor(color);

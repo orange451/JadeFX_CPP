@@ -1,5 +1,6 @@
 #include "jadefx/jadefx.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 
@@ -356,6 +357,136 @@ void TestTextMarks() {
     Expect(code->textMarks().empty(), "clearing marks removes the squiggles");
 }
 
+// The window point over the middle of the glyph at index.
+bool GlyphCenter(jadefx::StyledTextArea& area, int index, double& x, double& y) {
+    area.moveTo(index);
+    const jadefx::TextBounds left = area.caretBounds();
+    area.moveTo(index + 1);
+    const jadefx::TextBounds right = area.caretBounds();
+    x = (left.x + right.x) * 0.5;
+    y = left.y + left.height * 0.5;
+    return left.valid && right.valid;
+}
+
+void Click(jadefx::Scene& scene, double x, double y, int mods = 0) {
+    scene.noteMove(x, y);
+    scene.noteButton(0, true, x, y, mods);
+    scene.noteButton(0, false, x, y, mods);
+}
+
+void TestLinks() {
+    // "see docs here\nand more": docs is 4-8, here is 9-13, and more is 14-22.
+    auto area = Editor("see docs here\nand more", 300, 120);
+    auto scene = jadefx::make<jadefx::Scene>(area, 300, 120);
+    scene->layout(300, 120, 0);
+    jadefx::TextStyle bold;
+    bold.bold = true;
+    area->setStyle(0, area->length(), bold);
+    area->setLink(4, 8, "https://docs");
+    Expect(area->linkAt(4) == "https://docs" && area->linkAt(7) == "https://docs", "setLink links the range");
+    Expect(area->linkAt(3).empty() && area->linkAt(8).empty(), "and nothing around it");
+    Expect(area->getStyleSpans(5, 6).spans().front().style.bold, "a link keeps the text's other styling");
+    Expect(area->linkRange(6).start == 4 && area->linkRange(6).end == 8, "linkRange is the whole link");
+    Expect(area->linkRange(2).empty(), "plain text has no link range");
+    area->undo();
+    Expect(area->linkAt(5).empty() && area->getStyleSpans(5, 6).spans().front().style.bold, "setLink is one undo");
+    area->redo();
+
+    area->setLink(9, 18, "#more");
+    Expect(area->linkRange(10).start == 9 && area->linkRange(16).end == 18, "a link carries over a line break");
+    Expect(area->linkAt(13).empty(), "the line break itself is not linked");
+    area->setLink(9, 18, "");
+    Expect(area->linkAt(10).empty() && area->linkAt(4) == "https://docs", "an empty href removes links");
+
+    // Typing extends a link only from inside it.
+    area->requestFocus();
+    area->moveTo(8);
+    scene->noteText("X");
+    Expect(area->linkAt(8).empty(), "typing at a link's end does not extend it");
+    area->moveTo(4);
+    scene->noteText("Y");
+    Expect(area->linkAt(4).empty() && area->linkAt(5) == "https://docs", "nor typing at its start");
+    area->moveTo(7);
+    scene->noteText("Z");
+    Expect(area->linkAt(7) == "https://docs" && area->linkRange(7).end == 10, "typing inside a link extends it");
+    area->setText("see docs here\nand more");
+    area->setLink(4, 8, "https://docs");
+    scene->layout(300, 120, 1);
+
+    std::string clicked;
+    jadefx::IndexRange range;
+    area->setOnLinkClicked([&](const jadefx::LinkEvent& event) {
+        clicked = event.href;
+        range = event.range;
+    });
+    double x = 0;
+    double y = 0;
+    double nextX = 0;
+    double nextY = 0;
+    double plainX = 0;
+    double plainY = 0;
+    // Clicks in a row land on different glyphs, so the scene does not count a double click.
+    Expect(GlyphCenter(*area, 5, x, y) && GlyphCenter(*area, 6, nextX, nextY) && GlyphCenter(*area, 1, plainX, plainY),
+           "the link is on screen");
+
+    // An editable area follows links with Cmd/Ctrl held.
+    scene->noteMove(x, y);
+    Expect(area->cursorAt(x, y) == jadefx::Cursor::Text && area->hoveredLink().empty(),
+           "an editable link is text without the shortcut key");
+    Click(*scene, nextX, nextY);
+    Expect(clicked.empty() && area->caretPosition() == 6, "a plain click places the caret in it");
+    // As GLFW reports it on X11, a modifier key's own event has the state from before it.
+    scene->noteKey(jadefx::Key::LeftControl, true, false, 0);
+    Expect(area->cursorAt(x, y) == jadefx::Cursor::Pointer && area->hoveredLink() == "https://docs",
+           "pressing Ctrl over a link shows a pointer and hovers it, without moving");
+    Click(*scene, x, y, jadefx::Key::ModControl);
+    Expect(clicked == "https://docs" && range.start == 4 && range.end == 8, "and a Ctrl-click follows it");
+    scene->noteKey(jadefx::Key::LeftControl, false, false, jadefx::Key::ModControl);
+    Expect(area->cursorAt(x, y) == jadefx::Cursor::Text && area->hoveredLink().empty(),
+           "releasing Ctrl ends the hover");
+
+    // A read-only area follows links on a plain click, and a drag selects instead.
+    area->setEditable(false);
+    clicked.clear();
+    scene->noteMove(plainX, plainY);
+    Expect(area->cursorAt(plainX, plainY) == jadefx::Cursor::Text && area->hoveredLink().empty(),
+           "plain text is not a link");
+    scene->noteMove(x, y);
+    Expect(area->cursorAt(x, y) == jadefx::Cursor::Pointer && area->hoveredLink() == "https://docs",
+           "a read-only link hovers without a key");
+    Click(*scene, nextX, nextY);
+    Expect(clicked == "https://docs", "a click follows it");
+    clicked.clear();
+    scene->noteButton(0, true, x, y, 0);
+    scene->noteMove(plainX, plainY);
+    scene->noteButton(0, false, plainX, plainY, 0);
+    Expect(clicked.empty() && !area->selection().empty(), "a drag from a link selects instead");
+    scene->notePointerExit();
+    Expect(area->hoveredLink().empty(), "leaving the area ends the hover");
+    const jadefx::Color link = area->themeColor(jadefx::ThemeColor::Link);
+    const jadefx::Color expected = jadefx::Color::parse("#0b57d0");
+    Expect(link.r == expected.r && link.g == expected.g && link.b == expected.b, "links take --link-color");
+    area->setStyle("color: #336699; --link-color: currentColor;");
+    scene->layout(300, 120, 2);
+    const jadefx::Color current = area->themeColor(jadefx::ThemeColor::Link);
+    Expect(std::fabs(current.r - 0x33 / 255.f) < 0.01f && std::fabs(current.b - 0x99 / 255.f) < 0.01f,
+           "--link-color: currentColor keeps the text color");
+
+    // Restyling a range keeps its links.
+    auto classed = jadefx::make<jadefx::StyleClassedTextArea>();
+    classed->setText("a link");
+    classed->setLink(2, 6, "#l");
+    classed->setStyleClass(0, 6, "keyword");
+    Expect(classed->linkAt(3) == "#l" && classed->getStyleSpans(3, 4).spans().front().style.styleClass == "keyword",
+           "a style class keeps the link");
+    auto inlineCss = jadefx::make<jadefx::InlineCssTextArea>();
+    inlineCss->setText("a link");
+    inlineCss->setLink(2, 6, "#l");
+    inlineCss->setStyle(0, 6, "font-weight: bold;");
+    Expect(inlineCss->linkAt(3) == "#l" && inlineCss->getStyleSpans(3, 4).spans().front().style.bold,
+           "inline CSS keeps the link");
+}
+
 }  // namespace
 
 int RunRichTextTests() {
@@ -371,5 +502,6 @@ int RunRichTextTests() {
     TestCharacterStyleShortcuts();
     TestArrowEdges();
     TestTextMarks();
+    TestLinks();
     return gFailures;
 }

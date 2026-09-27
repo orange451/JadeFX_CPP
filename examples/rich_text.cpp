@@ -176,7 +176,8 @@ public:
         const std::string body =
             "Rich text\n"
             "Select a word and press Cmd/Ctrl+B for bold, or Cmd/Ctrl+U for underline.\n"
-            "Colors, sizes, and underlines share a paragraph. Undo puts them back.";
+            "Colors, sizes, and underlines share a paragraph. Undo puts them back.\n"
+            "Links: Cmd/Ctrl-click the JadeFX repository, or jump back to the top.";
         notes->setText(body);
         notes->setStyle(0, 9, "color: #174ea6; font-size: 28px; font-weight: bold;");
         const std::size_t boldAt = body.find("bold");
@@ -184,6 +185,13 @@ public:
         const std::size_t lineAt = body.find("underline");
         notes->setStyle(static_cast<int>(lineAt), static_cast<int>(lineAt + 9),
                         "text-decoration: underline; color: #0a7d33;");
+        auto link = [&](const std::string& text, const std::string& href) {
+            const std::size_t at = body.find(text);
+            notes->setLink(static_cast<int>(at), static_cast<int>(at + text.size()), href);
+        };
+        link("JadeFX repository", "https://github.com/orange451/JadeFX_CPP");
+        link("back to the top", "#top");
+        notes->forgetHistory();
 
         auto tabs = jadefx::make<jadefx::TabPane>();
         tabs->setTabClosingPolicy(jadefx::TabPane::TabClosingPolicy::Unavailable);
@@ -193,6 +201,15 @@ public:
         auto hint = jadefx::make<jadefx::Label>(
             "Arrows, words, page, undo, clipboard. Alt-click adds a caret. Click a fold arrow, or Cmd/Ctrl+Alt+[ to fold.");
         hint->getClassList().add("hint");
+        jadefx::InlineCssTextArea* notesArea = notes.get();
+        jadefx::Label* hintLabel = hint.get();
+        notes->setOnLinkClicked([notesArea, hintLabel](const jadefx::LinkEvent& event) {
+            if (event.href == "#top") {
+                notesArea->moveTo(0);
+                return;
+            }
+            hintLabel->setText("Link clicked: " + event.href);
+        });
 
         auto root = jadefx::make<jadefx::BorderPane>();
         root->setTop(hint);

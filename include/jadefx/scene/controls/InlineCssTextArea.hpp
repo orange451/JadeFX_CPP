@@ -14,6 +14,7 @@ class InlineCssTextArea : public StyledTextArea {
 public:
     const char* getElementType() const override { return "inlinecsstextarea"; }
 
+    using StyledTextArea::setStyle;
     void setStyle(int start, int end, const std::string& css);
     void handleKey(KeyEvent& event) override;
 

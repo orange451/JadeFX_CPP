@@ -20,6 +20,7 @@ enum class ThemeColor {
     Border,         // --border-color: control outlines and separators
     Accent,         // --accent-color: checked boxes, fills, and selections
     Outline,        // --outline-color: the focus ring
+    Link,           // --link-color: links in rich text, as the LinkText system color
     Hover,          // --hover-color: a pressed box, a hovered menu title
     Track,          // --track-color: grooves, tab strips, and spinner buttons
     Subtle,         // --subtle-color: table headers and a hovered check box

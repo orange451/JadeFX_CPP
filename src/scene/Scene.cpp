@@ -12,6 +12,26 @@ namespace {
 
 // How far the pointer may wander from a press, in points, and still be a click.
 constexpr double kPressHysteresis = 4;
+
+// The Mod bit a modifier key sets, or 0 for any other key.
+int ModifierBit(int key) {
+    switch (key) {
+        case Key::LeftShift:
+        case Key::RightShift:
+            return Key::ModShift;
+        case Key::LeftControl:
+        case Key::RightControl:
+            return Key::ModControl;
+        case Key::LeftAlt:
+        case Key::RightAlt:
+            return Key::ModAlt;
+        case Key::LeftSuper:
+        case Key::RightSuper:
+            return Key::ModSuper;
+        default:
+            return 0;
+    }
+}
 // Presses closer together than this, in time and in points, count as one multi-click.
 constexpr double kMultiClickSeconds = 0.4;
 constexpr double kMultiClickPoints = 4;
@@ -151,6 +171,7 @@ void Scene::noteMove(double x, double y) {
     MouseEvent event;
     event.x = x;
     event.y = y;
+    event.mods = keyMods_;
     if (pressedTarget_ != nullptr) {
         if (stillSincePress_ && std::hypot(x - pressX_, y - pressY_) > kPressHysteresis) {
             stillSincePress_ = false;
@@ -170,6 +191,7 @@ void Scene::noteMove(double x, double y) {
 }
 
 void Scene::noteButton(int button, bool down, double x, double y, int mods) {
+    keyMods_ = mods;
     noteMove(x, y);
     // GLFW button 1 is the right button. A press opens a context menu and does not click.
     if (button == 1) {
@@ -278,7 +300,24 @@ void Scene::noteScroll(double x, double y, double deltaX, double deltaY) {
 }
 
 bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
+    // A modifier key's own event carries the state from before it (GLFW on X11), so it is folded in here.
+    const int bit = ModifierBit(key);
+    if (bit != 0) {
+        mods = pressed || repeat ? (mods | bit) : (mods & ~bit);
+    }
+    const bool modifiersChanged = mods != keyMods_;
     keyMods_ = mods;
+    // What is under a still pointer can depend on the modifiers, such as a link that follows on Ctrl-click.
+    if (modifiersChanged && pointerValid_ && pressedTarget_ == nullptr) {
+        if (Node* hit = pick(pointerX_, pointerY_)) {
+            MouseEvent moved;
+            moved.x = pointerX_;
+            moved.y = pointerY_;
+            moved.mods = keyMods_;
+            moved.target = hit;
+            hit->handleMouseMoved(moved);
+        }
+    }
     if (focused_ != nullptr && focused_->getScene() != this) {
         focused_ = nullptr;
     }

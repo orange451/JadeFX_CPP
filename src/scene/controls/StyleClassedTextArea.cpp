@@ -9,9 +9,12 @@ void StyleClassedTextArea::defineStyleClass(std::string name, TextStyle style) {
 }
 
 void StyleClassedTextArea::setStyleClass(int start, int end, std::string className) {
-    TextStyle style;
-    style.styleClass = std::move(className);
-    setStyle(start, end, style);
+    restyle(start, end, [&](const TextStyle& old) {
+        TextStyle style;
+        style.styleClass = className;
+        style.href = old.href;
+        return style;
+    });
 }
 
 TextStyle StyleClassedTextArea::resolveStyle(const TextStyle& style) const {

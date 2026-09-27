@@ -86,6 +86,31 @@ TextStyle SpanStyle(const Paragraph& paragraph, int column) {
     return paragraph.spans().back().style;
 }
 
+// The columns of paragraph around column whose spans link to href.
+IndexRange LinkRun(const Paragraph& paragraph, int column, const std::string& href) {
+    const std::vector<StyleSpan>& spans = paragraph.spans();
+    std::vector<int> starts(spans.size() + 1, 0);
+    std::size_t hit = spans.size();
+    for (std::size_t i = 0; i < spans.size(); ++i) {
+        starts[i + 1] = starts[i] + std::max(0, spans[i].length);
+        if (hit == spans.size() && column < starts[i + 1] && spans[i].length > 0) {
+            hit = i;
+        }
+    }
+    if (hit == spans.size() || spans[hit].style.href != href) {
+        return {column, column};
+    }
+    std::size_t first = hit;
+    while (first > 0 && (spans[first - 1].length <= 0 || spans[first - 1].style.href == href)) {
+        --first;
+    }
+    std::size_t last = hit + 1;
+    while (last < spans.size() && (spans[last].length <= 0 || spans[last].style.href == href)) {
+        ++last;
+    }
+    return {starts[first], starts[last]};
+}
+
 void Fill(UiRenderer& renderer, float x, float y, float width, float height, const Color& color) {
     if (width <= 0.f || height <= 0.f || color.a <= 0.f) {
         return;
@@ -659,7 +684,99 @@ TextStyle StyledTextArea::styleForInsertion(int offset) const {
     if (offset > content_.length()) {
         offset = content_.length();
     }
-    return content_.styleAt(offset);
+    // Typing at either end of a link does not extend it, as in a browser's editable text.
+    TextStyle style = content_.styleAt(offset);
+    if (!style.href.empty() && (linkAt(offset - 1) != style.href || linkAt(offset) != style.href)) {
+        style.href.clear();
+    }
+    return style;
+}
+
+void StyledTextArea::restyle(int start, int end, const std::function<TextStyle(const TextStyle&)>& map) {
+    if (end < start) {
+        std::swap(start, end);
+    }
+    start = std::max(0, start);
+    end = std::min(content_.length(), end);
+    if (start >= end) {
+        return;
+    }
+    const StyleSpans current = content_.styleSpans(start, end);
+    StyleSpansBuilder builder;
+    for (const StyleSpan& span : current.spans()) {
+        builder.add(map(span.style), span.length);
+    }
+    setStyleSpans(start, builder.create(), true);
+}
+
+void StyledTextArea::setLink(int start, int end, const std::string& href) {
+    restyle(start, end, [&](const TextStyle& style) {
+        TextStyle linked = style;
+        linked.href = href;
+        return linked;
+    });
+}
+
+std::string StyledTextArea::linkAt(int index) const {
+    if (index < 0 || index >= content_.length()) {
+        return {};
+    }
+    const TextPos at = content_.position(index);
+    const Paragraph& paragraph = content_.paragraph(at.paragraph);
+    // The line break after a paragraph is never part of a link.
+    if (at.column >= paragraph.length()) {
+        return {};
+    }
+    return SpanStyle(paragraph, at.column).href;
+}
+
+IndexRange StyledTextArea::linkRange(int index) const {
+    const std::string href = linkAt(index);
+    if (href.empty()) {
+        return {index, index};
+    }
+    const TextPos at = content_.position(index);
+    int first = at.paragraph;
+    int last = at.paragraph;
+    const IndexRange run = LinkRun(content_.paragraph(at.paragraph), at.column, href);
+    int startColumn = run.start;
+    int endColumn = run.end;
+    // A link carries on over a line break when the lines on both sides link to it.
+    while (startColumn == 0 && first > 0) {
+        const Paragraph& previous = content_.paragraph(first - 1);
+        if (previous.length() == 0 || SpanStyle(previous, previous.length() - 1).href != href) {
+            break;
+        }
+        --first;
+        startColumn = LinkRun(previous, previous.length() - 1, href).start;
+    }
+    while (endColumn == content_.paragraph(last).length() && last + 1 < content_.paragraphCount()) {
+        const Paragraph& next = content_.paragraph(last + 1);
+        if (next.length() == 0 || SpanStyle(next, 0).href != href) {
+            break;
+        }
+        ++last;
+        endColumn = LinkRun(next, 0, href).end;
+    }
+    return {content_.offset(first, startColumn), content_.offset(last, endColumn)};
+}
+
+std::string StyledTextArea::followableLinkAt(double x, double y) const {
+    const bool shortcut = getScene() != nullptr && (getScene()->modifierMask() & (Key::ModControl | Key::ModSuper)) != 0;
+    if (editable_ && !shortcut) {
+        return {};
+    }
+    rebuild();
+    const float localX = static_cast<float>(x - getAbsoluteX());
+    const float localY = static_cast<float>(y - getAbsoluteY());
+    if (verticalScroll_.part(localX, localY) != ScrollTrack::Part::None ||
+        horizontalScroll_.part(localX, localY) != ScrollTrack::Part::None ||
+        localX < static_cast<float>(contentLeft()) + view_.gutter) {
+        return {};
+    }
+    // The glyph under the pointer, not the nearest caret gap, so the link starts at its first glyph's left edge.
+    const CharacterHit where = hit(x, y);
+    return where.valid && where.characterIndex >= 0 ? linkAt(where.characterIndex) : std::string{};
 }
 
 ParagraphStyle StyledTextArea::paragraphStyleForInsertion(int offset) const {
@@ -1834,11 +1951,12 @@ Cursor StyledTextArea::cursorAt(double x, double y) const {
         horizontalScroll_.part(localX, localY) != ScrollTrack::Part::None) {
         return Cursor::Default;
     }
-    return base;
+    return followableLinkAt(x, y).empty() ? base : Cursor::Pointer;
 }
 
 void StyledTextArea::handleMousePressed(const MouseEvent& event) {
     rebuild();
+    pressedLink_.clear();
     const float localX = static_cast<float>(event.x - getAbsoluteX());
     const float localY = static_cast<float>(event.y - getAbsoluteY());
     const float left = static_cast<float>(contentLeft());
@@ -1888,6 +2006,10 @@ void StyledTextArea::handleMousePressed(const MouseEvent& event) {
         return;
     }
     clickCount_ = std::min(3, event.clickCount);
+    // A link is followed on release, so a drag that starts on one still selects.
+    if (event.button == 0 && event.clickCount == 1 && !shift && !alt) {
+        pressedLink_ = followableLinkAt(event.x, event.y);
+    }
     const CharacterHit where = hit(event.x, event.y);
     if (!where.valid) {
         return;
@@ -2001,9 +2123,30 @@ void StyledTextArea::handleMouseDragged(const MouseEvent& event) {
     ensureCaretVisible();
 }
 
-void StyledTextArea::handleMouseReleased(const MouseEvent&) { drag_ = Drag::None; }
+void StyledTextArea::handleMouseReleased(const MouseEvent& event) {
+    drag_ = Drag::None;
+    const std::string pressed = std::move(pressedLink_);
+    pressedLink_.clear();
+    if (pressed.empty() || primary().anchor != primary().caret) {
+        return;
+    }
+    const CharacterHit where = hit(event.x, event.y);
+    if (!where.valid || where.characterIndex < 0 || linkAt(where.characterIndex) != pressed) {
+        return;
+    }
+    if (onLinkClicked_) {
+        onLinkClicked_(LinkEvent{pressed, linkRange(where.characterIndex)});
+    }
+}
+
+void StyledTextArea::handleHoverChanged() {
+    if (!isHovered()) {
+        hoveredLink_.clear();
+    }
+}
 
 void StyledTextArea::handleMouseMoved(const MouseEvent& event) {
+    hoveredLink_ = followableLinkAt(event.x, event.y);
     const CharacterHit where = hit(event.x, event.y);
     const int index = where.valid ? where.insertionIndex : -1;
     if (index != hoverIndex_) {
@@ -2203,6 +2346,7 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
     }
     const Font font = areaFont();
     const Color selectionFill = chrome::Themed(*this, ThemeColor::TextSelection, opacity);
+    const Color linkFill = themeColor(ThemeColor::Link);
     const int caretParagraph = content_.position(primary().caret).paragraph;
     if (highlightLine_ && caretParagraph >= 0 && caretParagraph < static_cast<int>(view_.tops.size()) - 1 &&
         !isHidden(caretParagraph)) {
@@ -2268,7 +2412,8 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
                 const std::u32string chunk = model.content().substr(static_cast<std::size_t>(piece.begin),
                                                                     static_cast<std::size_t>(piece.end - piece.begin));
                 const std::string utf8 = Utf8(chunk);
-                Color color = piece.style.hasFill ? piece.style.fill : computedStyle().color;
+                const bool link = !piece.style.href.empty();
+                Color color = piece.style.hasFill ? piece.style.fill : (link ? linkFill : computedStyle().color);
                 color.a *= opacity;
                 if (piece.style.hasBackground) {
                     Color back = piece.style.background;
@@ -2285,7 +2430,10 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
                 if (piece.style.bold) {
                     renderer.text(drawX + 0.6f, lineY, utf8, font.family(), piece.fontSize, color, computedStyle().subpixel);
                 }
-                if (piece.style.underline) {
+                const bool linkUnderlined =
+                    link && (linkUnderline_ == LinkUnderline::Always ||
+                             (linkUnderline_ == LinkUnderline::Hover && piece.style.href == hoveredLink_));
+                if (piece.style.underline || linkUnderlined) {
                     const int localEnd = piece.end - line.start;
                     const int localBegin = piece.begin - line.start;
                     if (localEnd >= 0 && localEnd < static_cast<int>(measured.caret.size()) && localBegin >= 0) {

@@ -9,6 +9,9 @@ namespace jadefx {
 // How one run of characters is drawn. Unset colors inherit the area's font color.
 // styleClass is resolved by StyleClassedTextArea. inlineCss is the source form
 // kept by InlineCssTextArea; the parsed fields are what drawing uses.
+// A non-empty href makes the run a link, as an HTML a element's href: the text
+// area colors it, underlines it, and reports clicks on it. Restyling a range
+// keeps its links.
 struct TextStyle {
     Color fill = Color::black();
     bool hasFill = false;
@@ -22,11 +25,12 @@ struct TextStyle {
     float fontSize = 0.f;
     std::string styleClass;
     std::string inlineCss;
+    std::string href;
 
     bool operator==(const TextStyle& other) const {
         return hasFill == other.hasFill && hasBackground == other.hasBackground && bold == other.bold &&
                italic == other.italic && underline == other.underline && strikethrough == other.strikethrough &&
-               fontSize == other.fontSize && styleClass == other.styleClass && inlineCss == other.inlineCss &&
+               fontSize == other.fontSize && styleClass == other.styleClass && inlineCss == other.inlineCss && href == other.href &&
                fill.r == other.fill.r && fill.g == other.fill.g && fill.b == other.fill.b && fill.a == other.fill.a &&
                background.r == other.background.r && background.g == other.background.g &&
                background.b == other.background.b && background.a == other.background.a;

@@ -46,6 +46,15 @@ struct TextMark {
     }
 };
 
+// A click on a link: its href and the run of text it covers.
+struct LinkEvent {
+    std::string href;
+    IndexRange range;
+};
+
+// When links draw their underline. Hover is the JavaFX Hyperlink look.
+enum class LinkUnderline { Hover, Always, Never };
+
 // Virtualized rich text editor in the shape of RichTextFX's StyledTextArea.
 // Text is a list of paragraphs. A newline starts a paragraph and counts as one code point.
 // Only the paragraphs inside the viewport are drawn. Styles cover code-point ranges.
@@ -53,6 +62,10 @@ struct TextMark {
 // The area shows a caret while it is focused, scrolls with the wheel, and edits from the
 // keyboard: arrows, word jumps, home and end, page up and down, enter, tab, undo, and clipboard.
 // Alt-click adds a caret.
+// Text whose style has an href is a link. It takes --link-color unless it sets its
+// own fill, and a click on it that does not drag reports it through setOnLinkClicked.
+// In an editable area a link is followed with Cmd/Ctrl held, as in code editors,
+// so a plain click still places the caret in it.
 // Italic is stored but drawn with the regular face, because the bundled font has no italic.
 class StyledTextArea : public Controls {
 public:
@@ -103,10 +116,26 @@ public:
     void addCaret(int offset);
     void clearSecondaryCarets();
 
+    // Node's setStyle(css) styles the area itself; these style ranges of its text.
+    using Controls::setStyle;
     void setStyle(int start, int end, const TextStyle& style);
     // undoable is false for highlighters that restyle after every text change.
     void setStyleSpans(int start, const StyleSpans& spans, bool undoable = false);
     StyleSpans getStyleSpans(int start, int end) const { return content_.styleSpans(start, end); }
+
+    // Makes the range a link to href, keeping its other styling. An empty href removes links.
+    void setLink(int start, int end, const std::string& href);
+    // The href of the code point at index, or empty.
+    std::string linkAt(int index) const;
+    // The run of text around index that links to the same href, across line breaks.
+    // Empty when index is not in a link.
+    IndexRange linkRange(int index) const;
+    // The href under the pointer while it can be followed, or empty. Every run with
+    // this href is drawn hovered.
+    const std::string& hoveredLink() const { return hoveredLink_; }
+    void setLinkUnderline(LinkUnderline underline) { linkUnderline_ = underline; }
+    LinkUnderline getLinkUnderline() const { return linkUnderline_; }
+    void setOnLinkClicked(std::function<void(const LinkEvent&)> handler) { onLinkClicked_ = std::move(handler); }
 
     void undo();
     void redo();
@@ -173,6 +202,7 @@ public:
     void handleMouseReleased(const MouseEvent& event) override;
     void handleMouseDragged(const MouseEvent& event) override;
     void handleMouseMoved(const MouseEvent& event) override;
+    void handleHoverChanged() override;
     void handleScroll(ScrollEvent& event) override;
     void handleKey(KeyEvent& event) override;
     void handleText(TextEvent& event) override;
@@ -186,6 +216,8 @@ protected:
     virtual TextStyle resolveStyle(const TextStyle& style) const;
     TextStyle styleForInsertion(int offset) const;
     void setTypingStyle(TextStyle style);
+    // Replaces each span's style in the range with map of it, as one undoable edit.
+    void restyle(int start, int end, const std::function<TextStyle(const TextStyle&)>& map);
     void transact(bool coalesce, const std::function<void()>& body);
     // Styled paste keeps colors and weight when this returns true.
     virtual bool pasteKeepsStyle() const { return true; }
@@ -278,6 +310,8 @@ private:
     int primaryIndex() const;
     Selection& primary();
     const Selection& primary() const;
+    // The link under a window point that a click would follow, or empty.
+    std::string followableLinkAt(double x, double y) const;
 
     EditableStyledDocument content_;
     std::vector<Selection> selections_;
@@ -328,6 +362,12 @@ private:
     std::function<void(const DocumentChange&)> onRich_;
     std::function<void(int)> onHover_;
     std::vector<TextMark> textMarks_;
+
+    LinkUnderline linkUnderline_ = LinkUnderline::Hover;
+    std::string hoveredLink_;
+    // The link a press landed on. A release on it without a drag follows it.
+    std::string pressedLink_;
+    std::function<void(const LinkEvent&)> onLinkClicked_;
 };
 
 }  // namespace jadefx

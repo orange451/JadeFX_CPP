@@ -23,6 +23,7 @@ constexpr PaletteEntry kPalette[] = {
     {ThemeColor::Border, "--border-color", "#dadce0", "#3c4043"},
     {ThemeColor::Accent, "--accent-color", "#1a73e8", "#8ab4f8"},
     {ThemeColor::Outline, "--outline-color", "var(--accent-color)", "var(--accent-color)"},
+    {ThemeColor::Link, "--link-color", "#0b57d0", "#8ab4f8"},
     {ThemeColor::Hover, "--hover-color", "#e8eaed", "#3c4043"},
     {ThemeColor::Track, "--track-color", "#f1f3f4", "#35363a"},
     {ThemeColor::Subtle, "--subtle-color", "#f8f9fa", "#2d2e31"},

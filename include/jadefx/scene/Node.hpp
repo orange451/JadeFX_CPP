@@ -199,6 +199,7 @@ public:
     const ComputedStyle& computedStyle() const { return computed_; }
     // A theme color as this node's style sets it, through the custom property
     // Theme::variableName names, or the light theme's value when nothing sets it.
+    // currentColor is the node's text color, as in CSS.
     Color themeColor(ThemeColor color) const;
 
     // Reparents the node. Adding it to a child list does this on its own.
