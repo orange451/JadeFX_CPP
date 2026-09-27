@@ -209,9 +209,7 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
         pressY_ = y;
         stillSincePress_ = true;
         setPressedChain(pressedTarget_);
-        clearFocus();
-        markFocused(pressedTarget_);
-        focused_ = pressedTarget_;
+        moveFocus(pressedTarget_);
         if (pressedTarget_ != nullptr) {
             event.target = pressedTarget_;
             pressedTarget_->handleMousePressed(event);
@@ -310,17 +308,22 @@ bool Scene::noteText(const std::string& text) {
     return false;
 }
 
-void Scene::requestFocus(Node* node) {
+void Scene::moveFocus(Node* next) {
+    Node* const previous = focused_;
     clearFocus();
-    focused_ = nullptr;
-    if (node == nullptr) {
-        return;
+    markFocused(next);
+    focused_ = next;
+    // A node leaves focus before it leaves the scene, so previous is still alive here.
+    if (previous != nullptr && previous != next && !isTearingDown()) {
+        previous->handleFocusLost();
     }
-    if (node != this && (node->getScene() != this || node->isDisabled())) {
-        return;
+}
+
+void Scene::requestFocus(Node* node) {
+    if (node != nullptr && node != this && (node->getScene() != this || node->isDisabled())) {
+        node = nullptr;
     }
-    markFocused(node);
-    focused_ = node;
+    moveFocus(node);
 }
 
 void Scene::releaseFocus(Node* node) {
@@ -329,8 +332,7 @@ void Scene::releaseFocus(Node* node) {
     }
     for (Node* cursor = focused_; cursor != nullptr; cursor = cursor->getParent()) {
         if (cursor == node) {
-            clearFocus();
-            focused_ = nullptr;
+            moveFocus(nullptr);
             return;
         }
     }

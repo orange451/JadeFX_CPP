@@ -50,6 +50,8 @@ protected:
     void handleMousePressed(const MouseEvent& event) override;
     void handleMouseDragged(const MouseEvent& event) override;
     void handleKey(KeyEvent& event) override;
+    // The selection goes when focus does. The caret stays where it was.
+    void handleFocusLost() override;
     void handleText(TextEvent& event) override;
     void render(UiRenderer& renderer, float opacity) override;
     void renderContent(UiRenderer& renderer, float opacity) override;

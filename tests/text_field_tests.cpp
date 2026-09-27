@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -422,6 +423,59 @@ void TestMultiClickSelection() {
 
 }  // namespace
 
+struct CountingField : jadefx::TextField {
+    explicit CountingField(std::string text) : jadefx::TextField(std::move(text)) {}
+    void handleFocusLost() override {
+        ++lost;
+        jadefx::TextField::handleFocusLost();
+    }
+    int lost = 0;
+};
+
+// Focus leaving a field takes its selection with it, however it leaves. The caret stays put.
+void TestSelectionClearsOnFocusLost() {
+    auto row = jadefx::make<jadefx::HBox>();
+    auto first = jadefx::make<CountingField>("hello");
+    auto second = jadefx::make<CountingField>("world");
+    first->setPrefWidth(200);
+    second->setPrefWidth(200);
+    row->getChildren().add(first);
+    row->getChildren().add(second);
+    auto scene = jadefx::make<jadefx::Scene>(row, 480, 160);
+    scene->layout(480, 160, 0);
+
+    first->requestFocus();
+    const double inside = first->getAbsoluteX() + 10;
+    const double y = first->getAbsoluteY() + first->getHeight() * 0.5;
+    scene->noteButton(0, true, inside, y);
+    scene->noteButton(0, false, inside, y);
+    first->requestFocus();
+    Expect(first->isFocused() && first->lost == 0, "focusing the field that has focus is not a loss");
+
+    first->selectAll();
+    const double other = second->getAbsoluteX() + second->getWidth() * 0.5;
+    scene->noteButton(0, true, other, y);
+    scene->noteButton(0, false, other, y);
+    Expect(second->isFocused() && !first->isFocused() && first->lost == 1, "a click moves focus to the other field");
+    Expect(first->getSelectedText().empty(), "a click elsewhere clears the selection");
+    Expect(first->getCaretPosition() == 5 && first->getText() == "hello", "the caret and text stay");
+
+    first->requestFocus();
+    first->selectRange(1, 3);
+    second->requestFocus();
+    Expect(first->getSelectedText().empty() && first->getCaretPosition() == 3, "requestFocus elsewhere clears it");
+
+    second->selectAll();
+    second->setDisable(true);
+    Expect(!second->isFocused() && second->getSelectedText().empty(), "disabling the field clears it");
+    second->setDisable(false);
+
+    first->requestFocus();
+    first->selectAll();
+    row->getChildren().removeAt(0);
+    Expect(first->getSelectedText().empty(), "leaving the scene clears it");
+}
+
 int RunTextFieldTests() {
     TestDefaultsAndTyping();
     TestActionAndClipboard();
@@ -431,5 +485,6 @@ int RunTextFieldTests() {
     TestCaretBounds();
     TestHorizontalScroll();
     TestMultiClickSelection();
+    TestSelectionClearsOnFocusLost();
     return gFailures;
 }

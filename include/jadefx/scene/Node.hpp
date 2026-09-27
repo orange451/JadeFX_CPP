@@ -164,6 +164,9 @@ public:
     virtual void handleScroll(ScrollEvent&) {}
     virtual void handleKey(KeyEvent&) {}
     virtual void handleText(TextEvent&) {}
+    // Focus moved off this node: to another node, to nothing, or because this node left the scene
+    // or was disabled. Not called when a press lands on the node that already has focus.
+    virtual void handleFocusLost() {}
 
     Node* getElementById(const std::string& id);
     std::vector<Node*> getElementsByClassName(const std::string& className);

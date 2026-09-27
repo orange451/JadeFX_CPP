@@ -96,6 +96,8 @@ protected:
     Scene* asScene() override { return this; }
 
 private:
+    // Focuses next, or nothing when it is null, and tells the node that had focus.
+    void moveFocus(Node* next);
     std::shared_ptr<StackPane> internal_;
     std::shared_ptr<Node> root_;
     double requestedWidth_ = 0;

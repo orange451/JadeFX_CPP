@@ -526,6 +526,8 @@ void TextField::handleMouseDragged(const MouseEvent& event) {
     ensureCaretVisible();
 }
 
+void TextField::handleFocusLost() { anchor_ = caret_; }
+
 void TextField::handleKey(KeyEvent& event) {
     if (!event.pressed || isDisabled()) {
         return;
