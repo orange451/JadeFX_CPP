@@ -341,6 +341,8 @@ struct ColorChooser::Parts {
 ColorChooser::ColorChooser() : ColorChooser(Color::white()) {}
 
 ColorChooser::ColorChooser(Color initial) : parts_(std::make_unique<Parts>()) {
+    // Its fields take the focus. A press on the panel between them leaves it where it was.
+    setFocusTraversable(false);
     for (const Color& color : DefaultPresets()) {
         presets_.add(color);
     }
