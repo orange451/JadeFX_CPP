@@ -1517,7 +1517,7 @@ void StyledTextArea::rebuild() const {
         const float digit = std::max(1.f, font.measureWidth("0"));
         gutter = 16.f + (lineNumbers_ ? digit * static_cast<float>(digits) + 10.f : 0.f);
     }
-    const float bar = ScrollBar::kThickness;
+    const float bar = ScrollTrack::kThickness;
     bool vertical = view_.verticalBar;
     bool horizontal = view_.horizontalBar;
     std::vector<ParagraphLayout> layouts = view_.paragraphs;
@@ -1648,14 +1648,14 @@ void StyledTextArea::rebuild() const {
     scrollY_ = std::max(0.0, std::min(static_cast<double>(maxY), scrollY_));
     scrollX_ = std::max(0.0, std::min(static_cast<double>(maxX), scrollX_));
     if (view_.verticalBar && view_.contentHeight > 0.f) {
-        verticalScroll_ = ScrollBar::vertical(static_cast<float>(contentLeft()) + contentW - bar,
+        verticalScroll_ = ScrollTrack::vertical(static_cast<float>(contentLeft()) + contentW - bar,
                                                static_cast<float>(contentTop()), view_.textH, view_.contentHeight,
                                                view_.textH, scrollY_);
     } else {
         verticalScroll_ = {};
     }
     if (view_.horizontalBar && view_.contentWidth > 0.f) {
-        horizontalScroll_ = ScrollBar::horizontal(view_.textX, static_cast<float>(contentTop()) + contentH - bar,
+        horizontalScroll_ = ScrollTrack::horizontal(view_.textX, static_cast<float>(contentTop()) + contentH - bar,
                                                    view_.textW, view_.contentWidth, view_.textW, scrollX_);
     } else {
         horizontalScroll_ = {};
@@ -1825,8 +1825,8 @@ Cursor StyledTextArea::cursorAt(double x, double y) const {
     }
     const float localX = static_cast<float>(x - getAbsoluteX());
     const float localY = static_cast<float>(y - getAbsoluteY());
-    if (verticalScroll_.part(localX, localY) != ScrollBar::Part::None ||
-        horizontalScroll_.part(localX, localY) != ScrollBar::Part::None) {
+    if (verticalScroll_.part(localX, localY) != ScrollTrack::Part::None ||
+        horizontalScroll_.part(localX, localY) != ScrollTrack::Part::None) {
         return Cursor::Default;
     }
     return base;
@@ -1841,25 +1841,25 @@ void StyledTextArea::handleMousePressed(const MouseEvent& event) {
     const float boxH = static_cast<float>(contentHeight());
     const bool shift = getScene() != nullptr && (getScene()->modifierMask() & Key::ModShift) != 0;
     const bool alt = getScene() != nullptr && (getScene()->modifierMask() & Key::ModAlt) != 0;
-    const ScrollBar::Part verticalPart = verticalScroll_.part(localX, localY);
-    if (verticalPart != ScrollBar::Part::None) {
+    const ScrollTrack::Part verticalPart = verticalScroll_.part(localX, localY);
+    if (verticalPart != ScrollTrack::Part::None) {
         drag_ = Drag::VerticalBar;
-        if (verticalPart == ScrollBar::Part::Thumb) {
+        if (verticalPart == ScrollTrack::Part::Thumb) {
             scrollGrab_ = localY - verticalScroll_.thumb;
         } else {
-            scrollY_ = verticalScroll_.offsetFromPage(scrollY_, verticalPart == ScrollBar::Part::After);
+            scrollY_ = verticalScroll_.offsetFromPage(scrollY_, verticalPart == ScrollTrack::Part::After);
             rebuild();
             scrollGrab_ = verticalScroll_.thumbLength * 0.5f;
         }
         return;
     }
-    const ScrollBar::Part horizontalPart = horizontalScroll_.part(localX, localY);
-    if (horizontalPart != ScrollBar::Part::None) {
+    const ScrollTrack::Part horizontalPart = horizontalScroll_.part(localX, localY);
+    if (horizontalPart != ScrollTrack::Part::None) {
         drag_ = Drag::HorizontalBar;
-        if (horizontalPart == ScrollBar::Part::Thumb) {
+        if (horizontalPart == ScrollTrack::Part::Thumb) {
             scrollGrab_ = localX - horizontalScroll_.thumb;
         } else {
-            scrollX_ = horizontalScroll_.offsetFromPage(scrollX_, horizontalPart == ScrollBar::Part::After);
+            scrollX_ = horizontalScroll_.offsetFromPage(scrollX_, horizontalPart == ScrollTrack::Part::After);
             rebuild();
             scrollGrab_ = horizontalScroll_.thumbLength * 0.5f;
         }

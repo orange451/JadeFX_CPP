@@ -17,6 +17,8 @@
 #include "jadefx/scene/controls/ComboBox.hpp"
 #include "jadefx/scene/controls/CheckBox.hpp"
 #include "jadefx/scene/controls/RadioButton.hpp"
+#include "jadefx/scene/controls/ScrollBar.hpp"
+#include "jadefx/scene/controls/ScrollPane.hpp"
 #include "jadefx/scene/controls/ToggleButton.hpp"
 #include "jadefx/scene/controls/ToggleGroup.hpp"
 #include "jadefx/scene/controls/Tooltip.hpp"

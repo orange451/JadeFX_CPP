@@ -1,109 +1,96 @@
 #pragma once
 
-#include <algorithm>
+#include "jadefx/scene/controls/Controls.hpp"
+#include "jadefx/scene/controls/ScrollTrack.hpp"
+
+#include <functional>
 
 namespace jadefx {
 
-class UiRenderer;
+// A scroll bar, in the shape of OpenJFX ScrollBar.
+// value runs from min to max. visibleAmount is how much of that range is on
+// screen, and sets the thumb's share of the track. With a visibleAmount that
+// covers the whole range there is nothing to scroll and no thumb is drawn.
+// Dragging the thumb moves value with the pointer. A press on the track moves
+// value by blockIncrement toward the press. The arrow keys move it by
+// unitIncrement, and Page Up and Page Down by blockIncrement.
+// ScrollPane, ListView, and TreeView own one for each axis.
+class ScrollBar : public Controls {
+public:
+    // The thumb's breadth across the scroll axis. A bar laid out broader keeps
+    // the thumb on its trailing edge, and the rest is grab margin. Owners lay
+    // their bars out kHitSlop broader, over the edge of the content.
+    static constexpr double kThickness = ScrollTrack::kThickness;
+    static constexpr double kHitSlop = ScrollTrack::kHitSlop;
 
-// The scrollbar used by TreeView and StyledTextArea.
-// An 8px thumb tracks a drag. A click on the track pages by one viewport.
-// Coordinates are local to the control, with the origin at its top left.
-struct ScrollBar {
-    static constexpr float kThickness = 8.f;
-    static constexpr float kMinThumb = 18.f;
-    static constexpr float kHitSlop = 2.f;
+    ScrollBar();
+    explicit ScrollBar(Orientation orientation);
 
-    bool visible = false;
-    bool sideways = false;
-    // cross is x for a vertical bar and y for a horizontal bar.
-    // origin is the start of the track along the scroll axis.
-    float cross = 0.f;
-    float origin = 0.f;
-    float thickness = kThickness;
-    float track = 0.f;
-    float thumb = 0.f;
-    float thumbLength = 0.f;
-    float content = 0.f;
-    float viewport = 0.f;
+    const char* getElementType() const override { return "scroll-bar"; }
 
-    enum class Part { None, Thumb, Before, After };
+    void setOrientation(Orientation orientation);
+    Orientation getOrientation() const { return orientation_; }
 
-    static ScrollBar vertical(float x, float y, float trackLength, float content, float viewport, double offset) {
-        return make(false, x, y, trackLength, content, viewport, offset);
-    }
+    // A min above max raises max, and a max below min lowers min. value is clamped.
+    void setMin(double value);
+    double getMin() const { return min_; }
+    void setMax(double value);
+    double getMax() const { return max_; }
+    // Clamped to min and max.
+    void setValue(double value);
+    double getValue() const { return value_; }
+    // Negative values are treated as zero.
+    void setVisibleAmount(double value);
+    double getVisibleAmount() const { return visible_; }
+    void setUnitIncrement(double value) { unit_ = value; }
+    double getUnitIncrement() const { return unit_; }
+    void setBlockIncrement(double value) { block_ = value; }
+    double getBlockIncrement() const { return block_; }
 
-    static ScrollBar horizontal(float x, float y, float trackLength, float content, float viewport, double offset) {
-        return make(true, y, x, trackLength, content, viewport, offset);
-    }
+    // True while the thumb is dragged.
+    bool isValueChanging() const { return dragging_; }
 
-    float maxOffset() const { return std::max(0.f, content - viewport); }
+    // For a bar whose range covers scrolling content of contentLength points
+    // through a viewport of viewportLength points, from its start to its end:
+    // sets visibleAmount to the viewport's share of the content, and
+    // blockIncrement to the value one viewport scrolls.
+    void setVisiblePortion(double viewportLength, double contentLength);
 
-    Part part(float localX, float localY) const {
-        if (!visible) {
-            return Part::None;
-        }
-        const float along = sideways ? localX : localY;
-        const float other = sideways ? localY : localX;
-        if (other < cross - kHitSlop || other > cross + thickness + kHitSlop) {
-            return Part::None;
-        }
-        if (along < origin || along > origin + track) {
-            return Part::None;
-        }
-        if (along >= thumb && along <= thumb + thumbLength) {
-            return Part::Thumb;
-        }
-        return along < thumb ? Part::Before : Part::After;
-    }
+    // Clamps, then sets value. This is what the thumb, the track, and the keys use.
+    void adjustValue(double value);
+    void increment();
+    void decrement();
 
-    // grab is the pointer's distance from the thumb's leading edge at the press.
-    double offsetFromDrag(float localX, float localY, float grab) const {
-        const float along = sideways ? localX : localY;
-        const float travel = std::max(1.f, track - thumbLength);
-        const float pos = along - grab - origin;
-        const float t = std::max(0.f, std::min(1.f, pos / travel));
-        return static_cast<double>(maxOffset()) * static_cast<double>(t);
-    }
+    // Runs after value changes, from any source.
+    void setOnValueChanged(std::function<void()> handler) { onChanged_ = std::move(handler); }
 
-    double offsetFromPage(double offset, bool forward) const {
-        double next = offset + (forward ? static_cast<double>(viewport) : -static_cast<double>(viewport));
-        const double limit = maxOffset();
-        if (next < 0.0) {
-            next = 0.0;
-        }
-        if (next > limit) {
-            next = limit;
-        }
-        return next;
-    }
+    void handleMousePressed(const MouseEvent& event) override;
+    void handleMouseDragged(const MouseEvent& event) override;
+    void handleMouseReleased(const MouseEvent& event) override;
+    void handleKey(KeyEvent& event) override;
 
-    void draw(UiRenderer& renderer, float absoluteX, float absoluteY, float opacity) const;
+protected:
+    double preferredContentWidth(double innerAvailable) const override;
+    double preferredContentHeight(double innerWidth) const override;
+    void renderContent(UiRenderer& renderer, float opacity) override;
 
 private:
-    static ScrollBar make(bool horizontal, float cross, float origin, float trackLength, float content, float viewport,
-                          double offset) {
-        ScrollBar bar;
-        bar.sideways = horizontal;
-        bar.cross = cross;
-        bar.origin = origin;
-        bar.track = std::max(0.f, trackLength);
-        bar.content = std::max(0.f, content);
-        bar.viewport = std::max(0.f, viewport);
-        bar.visible = bar.content > bar.viewport + 0.5f && bar.content > 0.f && bar.track > 0.f;
-        if (!bar.visible) {
-            return bar;
-        }
-        bar.thumbLength = std::max(kMinThumb, bar.track * (bar.track / bar.content));
-        if (bar.thumbLength > bar.track) {
-            bar.thumbLength = bar.track;
-        }
-        const float travel = std::max(0.f, bar.track - bar.thumbLength);
-        const float limit = bar.maxOffset();
-        const float ratio = limit <= 0.f ? 0.f : static_cast<float>(offset / static_cast<double>(limit));
-        bar.thumb = bar.origin + travel * std::max(0.f, std::min(1.f, ratio));
-        return bar;
-    }
+    // The thumb and track in this bar's local points.
+    ScrollTrack track() const;
+    // How far value sits along its range, from 0 to 1.
+    double fraction() const;
+    void syncPseudos();
+
+    Orientation orientation_ = Orientation::Horizontal;
+    double min_ = 0;
+    double max_ = 100;
+    double value_ = 0;
+    double visible_ = 15;
+    double unit_ = 1;
+    double block_ = 10;
+    bool dragging_ = false;
+    float grab_ = 0.f;
+    std::function<void()> onChanged_;
 };
 
 }  // namespace jadefx

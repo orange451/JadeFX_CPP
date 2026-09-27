@@ -29,7 +29,13 @@ void StackPane::layoutChildren() {
             const double floor = layout_detail::LowerBound(style.minWidth, innerWidth, style.fontSize);
             width = std::max(innerWidth, floor);
         }
-        const double height = child->measuredHeight(width, innerHeight);
+        double height = child->measuredHeight(width, innerHeight);
+        // The same for a child taller than the box, such as a ScrollPane around a long form.
+        if (height > innerHeight) {
+            const ComputedStyle& style = child->computedStyle();
+            const double floor = layout_detail::LowerBound(style.minHeight, innerHeight, style.fontSize);
+            height = std::max(innerHeight, floor);
+        }
         const double x = left + layout_detail::Align(innerWidth, width, horizontal);
         const double y = top + layout_detail::Align(innerHeight, height, vertical);
         child->performLayout(x, y, width, height);

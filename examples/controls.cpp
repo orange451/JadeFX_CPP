@@ -371,7 +371,10 @@ public:
 
         auto root = jadefx::make<jadefx::BorderPane>();
         root->setTop(bar);
-        root->setCenter(sheet);
+        // The form scrolls when the window is shorter than it.
+        auto scroller = jadefx::make<jadefx::ScrollPane>(sheet);
+        scroller->setFitToWidth(true);
+        root->setCenter(scroller);
         root->setPadding(jadefx::Insets::uniform(16));
 
         auto scene = jadefx::make<jadefx::Scene>(root, 720, 780);

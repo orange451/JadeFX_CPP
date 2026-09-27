@@ -16,41 +16,6 @@
 
 namespace jadefx {
 
-class TreeScrollBar : public Region {
-public:
-    explicit TreeScrollBar(TreeView& view) : view_(&view) {
-        setDefaultCursor(Cursor::Default);
-        getClassList().add("scroll-bar");
-    }
-
-    const char* getElementType() const override { return "scroll-bar"; }
-
-    void clearView() { view_ = nullptr; }
-
-    void handleMousePressed(const MouseEvent& event) override {
-        if (view_ != nullptr) {
-            view_->pressScrollBar(event);
-        }
-    }
-
-    void handleMouseDragged(const MouseEvent& event) override {
-        if (view_ != nullptr) {
-            view_->dragScrollBar(event);
-        }
-    }
-
-    void handleMouseReleased(const MouseEvent&) override {
-        if (view_ != nullptr) {
-            view_->releaseScrollBar();
-        }
-    }
-
-    void renderContent(UiRenderer& renderer, float opacity) override;
-
-private:
-    TreeView* view_ = nullptr;
-};
-
 namespace {
 
 constexpr double kDisclosure = 18;
@@ -675,11 +640,8 @@ struct TreeView::Impl {
     Color barColor = Color::rgb8(26, 115, 232);
     std::shared_ptr<Node> accessory;
     TreeItem* hoverItem = nullptr;
-    std::shared_ptr<TreeScrollBar> track;
-    ScrollBar vbar;
+    std::shared_ptr<ScrollBar> vbar;
     double scroll = 0;
-    bool scrollDrag = false;
-    float scrollGrab = 0.f;
     int visibleRows = 1;
     int syncDepth = 0;
     int selectDepth = 0;
@@ -705,8 +667,11 @@ struct TreeView::Impl {
 TreeView::TreeView() : impl_(std::make_unique<Impl>()) {
     getClassList().add("tree-view");
     setBackground(Color::white());
-    impl_->track = std::make_shared<TreeScrollBar>(*this);
-    impl_->track->setParent(this);
+    impl_->vbar = std::make_shared<ScrollBar>(Orientation::Vertical);
+    impl_->vbar->setVisible(false);
+    impl_->vbar->setFocusTraversable(false);
+    impl_->vbar->setOnValueChanged([this] { impl_->scroll = impl_->vbar->getValue(); });
+    impl_->vbar->setParent(this);
 }
 
 TreeView::TreeView(std::shared_ptr<TreeItem> root) : TreeView() { setRoot(std::move(root)); }
@@ -738,12 +703,12 @@ TreeView::~TreeView() {
         }
     }
     impl_->rows.clear();
-    if (impl_->track) {
-        impl_->track->clearView();
-        if (impl_->track->getParent() == this) {
-            impl_->track->setParent(nullptr);
+    if (impl_->vbar) {
+        impl_->vbar->setOnValueChanged(nullptr);
+        if (impl_->vbar->getParent() == this) {
+            impl_->vbar->setParent(nullptr);
         }
-        impl_->track.reset();
+        impl_->vbar.reset();
     }
     if (impl_->accessory) {
         if (impl_->accessory->getParent() == this) {
@@ -1539,11 +1504,14 @@ void TreeView::layoutChildren() {
         impl_->scroll = maxScroll;
     }
     const double scroll = impl_->scroll;
-    impl_->vbar = ScrollBar::vertical(static_cast<float>(left + width - ScrollBar::kThickness), static_cast<float>(top),
-                                       static_cast<float>(height), static_cast<float>(content), static_cast<float>(height),
-                                       scroll);
+    ScrollBar& vbar = *impl_->vbar;
+    vbar.setVisible(maxScroll > 0);
+    vbar.setMax(maxScroll);
+    vbar.setVisiblePortion(height, content);
+    vbar.setUnitIncrement(row);
+    vbar.setValue(scroll);
     impl_->visibleRows = fit;
-    const double gutter = impl_->vbar.visible ? ScrollBar::kThickness : 0.0;
+    const double gutter = vbar.isVisible() ? ScrollBar::kThickness : 0.0;
     const double rowWidth = std::max(0.0, width - gutter);
     const double viewBottom = top + height;
     // The row under the pointer, decided before the cells move, so the label
@@ -1601,17 +1569,8 @@ void TreeView::layoutChildren() {
             impl_->accessory->performLayout(x, y, size, size);
         }
     }
-    if (impl_->track) {
-        if (impl_->vbar.visible) {
-            const double x = std::max(left, static_cast<double>(impl_->vbar.cross) - ScrollBar::kHitSlop);
-            const double right = std::min(left + width, static_cast<double>(impl_->vbar.cross + impl_->vbar.thickness));
-            impl_->track->setVisible(true);
-            impl_->track->performLayout(x, top, std::max(0.0, right - x), height);
-        } else {
-            impl_->track->setVisible(false);
-            impl_->track->performLayout(0, 0, 0, 0);
-        }
-    }
+    const double breadth = gutter > 0 ? std::min(width, gutter + ScrollBar::kHitSlop) : 0.0;
+    vbar.performLayout(left + width - breadth, top, breadth, height);
     tickDrag();
 }
 
@@ -1629,8 +1588,8 @@ void TreeView::visitChildren(const std::function<void(Node*)>& visitor) {
     if (impl_->accessory) {
         visitor(impl_->accessory.get());
     }
-    if (impl_->track) {
-        visitor(impl_->track.get());
+    if (impl_->vbar) {
+        visitor(impl_->vbar.get());
     }
 }
 
@@ -2013,7 +1972,7 @@ void TreeView::renderDropMarker(UiRenderer& renderer, float opacity) {
         return;
     }
     const double rowH = rowSize();
-    const double gutter = impl_->vbar.visible ? ScrollBar::kThickness : 0.0;
+    const double gutter = impl_->vbar->isVisible() ? ScrollBar::kThickness : 0.0;
     const float left = static_cast<float>(getAbsoluteX() + contentLeft());
     const float top = static_cast<float>(getAbsoluteY() + contentTop() - impl_->scroll);
     const float width = static_cast<float>(std::max(0.0, contentWidth() - gutter));
@@ -2058,49 +2017,6 @@ void TreeView::renderDropMarker(UiRenderer& renderer, float opacity) {
     hole.a *= opacity;
     renderer.fillRounded(ringX - ring, lineY - ring, ring * 2.f, ring * 2.f, round, &hole, &at, 1, 0.f);
     renderer.strokeRounded(ringX - ring, lineY - ring, ring * 2.f, ring * 2.f, round, sides, accent);
-}
-
-void TreeView::pressScrollBar(const MouseEvent& event) {
-    if (!impl_) {
-        return;
-    }
-    const float localX = static_cast<float>(event.x - getAbsoluteX());
-    const float localY = static_cast<float>(event.y - getAbsoluteY());
-    const ScrollBar::Part where = impl_->vbar.part(localX, localY);
-    if (where == ScrollBar::Part::None) {
-        impl_->scrollDrag = false;
-        return;
-    }
-    impl_->scrollDrag = true;
-    if (where == ScrollBar::Part::Thumb) {
-        impl_->scrollGrab = localY - impl_->vbar.thumb;
-        return;
-    }
-    impl_->scroll = impl_->vbar.offsetFromPage(impl_->scroll, where == ScrollBar::Part::After);
-    impl_->scrollGrab = impl_->vbar.thumbLength * 0.5f;
-}
-
-void TreeView::dragScrollBar(const MouseEvent& event) {
-    if (!impl_ || !impl_->scrollDrag) {
-        return;
-    }
-    const float localX = static_cast<float>(event.x - getAbsoluteX());
-    const float localY = static_cast<float>(event.y - getAbsoluteY());
-    impl_->scroll = impl_->vbar.offsetFromDrag(localX, localY, impl_->scrollGrab);
-}
-
-void TreeView::releaseScrollBar() {
-    if (impl_) {
-        impl_->scrollDrag = false;
-    }
-}
-
-void TreeScrollBar::renderContent(UiRenderer& renderer, float opacity) {
-    if (view_ == nullptr || view_->impl_ == nullptr) {
-        return;
-    }
-    view_->impl_->vbar.draw(renderer, static_cast<float>(view_->getAbsoluteX()),
-                            static_cast<float>(view_->getAbsoluteY()), opacity);
 }
 
 }  // namespace jadefx

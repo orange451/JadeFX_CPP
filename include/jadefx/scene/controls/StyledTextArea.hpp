@@ -1,7 +1,7 @@
 #pragma once
 
 #include "jadefx/scene/controls/Controls.hpp"
-#include "jadefx/scene/controls/ScrollBar.hpp"
+#include "jadefx/scene/controls/ScrollTrack.hpp"
 #include "jadefx/scene/text/EditableStyledDocument.hpp"
 
 #include <functional>
@@ -312,8 +312,8 @@ private:
     mutable bool layoutDirty_ = true;
     double caretMovedAt_ = 0;
     mutable ViewLayout view_;
-    mutable ScrollBar verticalScroll_;
-    mutable ScrollBar horizontalScroll_;
+    mutable ScrollTrack verticalScroll_;
+    mutable ScrollTrack horizontalScroll_;
 
     Drag drag_ = Drag::None;
     int anchorWord_ = 0;

@@ -152,6 +152,11 @@ public:
     // cursor for a scrollbar than for its text.
     virtual Cursor cursorAt(double x, double y) const;
 
+    // A press on a node that is not focus traversable focuses its nearest ancestor
+    // that is, as JavaFX does for a control's inner scroll bars. The default is true.
+    void setFocusTraversable(bool value) { focusTraversable_ = value; }
+    bool isFocusTraversable() const { return focusTraversable_; }
+
     // Focus this node. Keys and text input are delivered here until another press.
     void requestFocus();
 
@@ -323,6 +328,7 @@ private:
     bool focused_ = false;
     bool selected_ = false;
     bool disable_ = false;
+    bool focusTraversable_ = true;
     std::vector<std::string> pseudoStates_;
     // Unset means a SplitPane may resize this item with the pane.
     std::optional<bool> resizableWithParent_;

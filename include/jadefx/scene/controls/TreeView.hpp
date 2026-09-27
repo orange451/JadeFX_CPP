@@ -9,8 +9,6 @@
 
 namespace jadefx {
 
-class TreeScrollBar;
-
 // Single keeps one row selected. Multiple adds Ctrl or Command and a click to
 // add or remove a row, and Shift and a click, or Shift and an arrow key, to
 // select every row from the anchor to that one.
@@ -40,10 +38,8 @@ struct TreeDrop {
 // A right-click selects the row and asks for a context menu; in Multiple mode a
 // right-click on a selected row keeps the others. Arrow keys move the selection. The wheel and trackpad scroll
 // in pixels when the rows are taller than the view, so a slow swipe still moves.
-// The scrollbar matches StyledTextArea: drag the thumb, or click the track to page.
+// The scroll bar is a ScrollBar: drag the thumb, or click the track to page.
 class TreeView : public Controls {
-    friend class TreeScrollBar;
-
 public:
     TreeView();
     explicit TreeView(std::shared_ptr<TreeItem> root);
@@ -193,9 +189,6 @@ private:
     // Re-aims at the pointer and scrolls near the edges. Runs after layout.
     void tickDrag();
     void renderDropMarker(UiRenderer& renderer, float opacity);
-    void pressScrollBar(const MouseEvent& event);
-    void dragScrollBar(const MouseEvent& event);
-    void releaseScrollBar();
 
     std::unique_ptr<Impl> impl_;
 };

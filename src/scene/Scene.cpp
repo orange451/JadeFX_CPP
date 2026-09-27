@@ -209,7 +209,11 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
         pressY_ = y;
         stillSincePress_ = true;
         setPressedChain(pressedTarget_);
-        moveFocus(pressedTarget_);
+        Node* focusTarget = pressedTarget_;
+        while (focusTarget != nullptr && !focusTarget->isFocusTraversable()) {
+            focusTarget = focusTarget->getParent();
+        }
+        moveFocus(focusTarget);
         if (pressedTarget_ != nullptr) {
             event.target = pressedTarget_;
             pressedTarget_->handleMousePressed(event);
