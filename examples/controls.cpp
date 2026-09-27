@@ -3,6 +3,7 @@
 #include "jadefx/scene/controls/Alert.hpp"
 #include "jadefx/scene/controls/ButtonType.hpp"
 #include "jadefx/scene/controls/CheckBox.hpp"
+#include "jadefx/scene/controls/ColorPicker.hpp"
 #include "jadefx/scene/controls/ComboBox.hpp"
 #include "jadefx/scene/controls/Menu.hpp"
 #include "jadefx/scene/controls/MenuBar.hpp"
@@ -151,6 +152,11 @@ public:
         custom->getItems().add("Afternoon");
         custom->getItems().add("Evening");
         custom->setOnAction([custom, status](jadefx::ActionEvent&) { status->setText("When: " + custom->getValue()); });
+
+        auto accent = jadefx::make<jadefx::ColorPicker>(jadefx::Color::parse("#1a73e8"));
+        accent->setOnAction([accent, status](jadefx::ActionEvent&) {
+            status->setText("Color: " + accent->getValue().toHex(accent->getValue().a < 1.f));
+        });
 
         auto small = jadefx::make<jadefx::RadioButton>("Small");
         auto medium = jadefx::make<jadefx::RadioButton>("Medium");
@@ -313,6 +319,7 @@ public:
         cityRow->setSpacing(10);
         cityRow->getChildren().add(city);
         cityRow->getChildren().add(custom);
+        cityRow->getChildren().add(accent);
         auto sizeRow = jadefx::make<jadefx::HBox>();
         sizeRow->getClassList().add("row");
         sizeRow->setSpacing(16);

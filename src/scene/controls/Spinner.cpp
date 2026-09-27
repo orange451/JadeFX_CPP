@@ -104,40 +104,6 @@ double WrapDouble(double current, double next, double min, double max) {
     return next > max ? min + remainder : max + remainder;
 }
 
-void DrawTriangle(UiRenderer& renderer, float centerX, float centerY, bool vertical, bool forward, const Color& color) {
-    if (color.a <= 0.f) {
-        return;
-    }
-    constexpr float kWide = 8.f;
-    constexpr float kTall = 5.f;
-    const float radius[4] = {};
-    const float at = 0.f;
-    if (vertical) {
-        // The point sits one sixth off the box center, so shift it back onto the midline.
-        const float top = centerY - kTall * 0.5f + (forward ? -kTall / 6.f : kTall / 6.f);
-        for (float row = 0.f; row < kTall; row += 1.f) {
-            const float y = top + row;
-            const float t = (row + 0.5f) / kTall;
-            const float across = kWide * (forward ? t : 1.f - t);
-            if (across < 0.4f) {
-                continue;
-            }
-            renderer.fillRounded(centerX - across * 0.5f, y, across, 1.f, radius, &color, &at, 1, 0.f);
-        }
-        return;
-    }
-    const float left = centerX - kTall * 0.5f + (forward ? kTall / 6.f : -kTall / 6.f);
-    for (float column = 0.f; column < kTall; column += 1.f) {
-        const float x = left + column;
-        const float t = (column + 0.5f) / kTall;
-        const float across = kWide * (forward ? 1.f - t : t);
-        if (across < 0.4f) {
-            continue;
-        }
-        renderer.fillRounded(x, centerY - across * 0.5f, 1.f, across, radius, &color, &at, 1, 0.f);
-    }
-}
-
 }  // namespace
 
 class SpinnerArrow : public Controls {
@@ -182,7 +148,8 @@ protected:
         }
         const bool vertical = owner_->arrowsAreVertical();
         const Color mark = chrome::Themed(*this, ThemeColor::Muted, opacity);
-        DrawTriangle(renderer, x + width * 0.5f, y + height * 0.5f, vertical, increment_, mark);
+        const Side points = vertical ? (increment_ ? Side::Top : Side::Bottom) : (increment_ ? Side::Right : Side::Left);
+        chrome::DrawArrowHead(renderer, x + width * 0.5f, y + height * 0.5f, points, mark);
     }
 
 private:

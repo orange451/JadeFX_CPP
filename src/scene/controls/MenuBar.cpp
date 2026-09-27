@@ -17,13 +17,6 @@ namespace {
 constexpr double kTitleHeight = 28;
 constexpr double kTitlePad = 24;
 
-Font BarFont(const Node& node) {
-    const ComputedStyle& style = node.computedStyle();
-    const float size = style.fontSize > 0.f ? style.fontSize : 16.f;
-    const std::string family = style.fontFamily.empty() ? std::string("Open Sans") : style.fontFamily;
-    return Font(family, size);
-}
-
 }  // namespace
 
 class MenuTitle : public Region {
@@ -142,7 +135,7 @@ ObservableList<std::shared_ptr<Menu>>& MenuBar::getMenus() { return menus_; }
 const ObservableList<std::shared_ptr<Menu>>& MenuBar::getMenus() const { return menus_; }
 
 void MenuBar::layoutChildren() {
-    const Font font = BarFont(*this);
+    const Font font = chrome::FontOf(*this);
     double x = contentLeft();
     const double y = contentTop();
     for (const std::shared_ptr<Node>& title : titles_) {
@@ -191,7 +184,7 @@ void MenuBar::handleMouseMoved(const MouseEvent& event) {
 }
 
 double MenuBar::preferredContentWidth(double) const {
-    const Font font = BarFont(*this);
+    const Font font = chrome::FontOf(*this);
     double width = 0;
     for (const std::shared_ptr<Menu>& menu : menus_.items()) {
         if (!menu || !menu->isVisible()) {

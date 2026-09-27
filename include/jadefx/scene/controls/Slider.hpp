@@ -72,6 +72,17 @@ public:
     void setOnValueChanged(std::function<void()> handler) { onChanged_ = std::move(handler); }
 
 protected:
+    // The line the thumb's center travels, in window points: from start for length
+    // along the slider, at cross on the other axis.
+    struct Groove {
+        bool horizontal = true;
+        float start = 0.f;
+        float length = 0.f;
+        float cross = 0.f;
+    };
+    // Draws the track under the thumb. The default is a 4-point pill in --border-color.
+    virtual void renderGroove(UiRenderer& renderer, float opacity, const Groove& groove);
+
     void styleDidApply() override;
     void render(UiRenderer& renderer, float opacity) override;
     void renderContent(UiRenderer& renderer, float opacity) override;

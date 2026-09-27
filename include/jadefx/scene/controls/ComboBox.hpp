@@ -1,7 +1,7 @@
 #pragma once
 
 #include "jadefx/collections/ObservableList.hpp"
-#include "jadefx/scene/controls/Controls.hpp"
+#include "jadefx/scene/controls/ComboBoxBase.hpp"
 #include "jadefx/scene/controls/TextField.hpp"
 
 #include <memory>
@@ -16,7 +16,8 @@ class ComboRow;
 // pressing Enter on the highlighted row, fires the action. setValue and select
 // do not. An editable box commits its text field on Enter, and again when a
 // click or Escape outside the list is noticed on the next layout.
-class ComboBox : public Controls {
+// The Up and Down keys move the selection while the list is closed.
+class ComboBox : public ComboBoxBase {
     friend class ComboPopup;
     friend class ComboRow;
 
@@ -45,31 +46,27 @@ public:
     void setEditable(bool editable);
     bool isEditable() const { return editable_; }
 
-    // Also disables the editor. Node::setDisable is not virtual; call this on the combo.
+    // Also disables the editor and hides the list. Node::setDisable is not virtual; call this on the combo.
     void setDisable(bool value);
-
-    void setOnAction(ActionHandler handler) { onAction_ = std::move(handler); }
-    void show();
-    void hide();
-    bool isShowing() const;
 
     // Non-null only while the combo is editable. The field is a child of the combo
     // and its text box fills the combo's height.
     TextField* getEditor() const { return editable_ ? editor_.get() : nullptr; }
 
 protected:
+    std::shared_ptr<Node> createPopupContent() override;
+    bool canShowPopup() const override;
+    void popupShowing() override;
+    void popupHidden() override;
+    void renderValue(UiRenderer& renderer, float opacity, float x, float y, float width, float height) override;
     void layoutChildren() override;
-    void render(UiRenderer& renderer, float opacity) override;
-    void renderContent(UiRenderer& renderer, float opacity) override;
     double preferredContentWidth(double innerAvailable) const override;
-    double preferredContentHeight(double innerWidth) const override;
     void handleMousePressed(const MouseEvent& event) override;
     void handleKey(KeyEvent& event) override;
-    void sceneChanged(Scene* previous) override;
 
 private:
-    void ensurePopup();
-    void presentPopup();
+    // Closes the list without committing the editor, after an action already took its value.
+    void closeCommitted();
     void onItemsChanged();
     void syncEditor();
     void fire();
@@ -91,7 +88,6 @@ private:
     ObservableList<std::string> items_;
     std::string value_;
     std::string prompt_;
-    ActionHandler onAction_;
     std::shared_ptr<TextField> editor_;
     std::shared_ptr<ComboPopup> popup_;
     int selection_ = -1;
@@ -99,12 +95,10 @@ private:
     int visibleRowCount_ = 10;
     double scroll_ = 0;
     bool editable_ = false;
-    bool popupArmed_ = false;
     bool commitSuppressed_ = false;
     bool syncingEditor_ = false;
     bool editorActionDuringKey_ = false;
     bool committingEditor_ = false;
-    bool hiding_ = false;
     bool closing_ = false;
 };
 

@@ -2,6 +2,9 @@
 
 #include "internal/Text.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 
@@ -136,6 +139,66 @@ bool ParseRgb(std::string_view text, Color& color) {
 
 Color Color::rgb8(int red, int green, int blue, int alpha) {
     return {Channel8(red), Channel8(green), Channel8(blue), Channel8(alpha)};
+}
+
+Color Color::hsb(double hue, double saturation, double brightness, double opacity) {
+    auto unit = [](double value) { return std::clamp(value, 0.0, 1.0); };
+    const double h = std::fmod(std::fmod(hue, 360.0) + 360.0, 360.0) / 60.0;
+    const double s = unit(saturation);
+    const double v = unit(brightness);
+    const int sector = static_cast<int>(h) % 6;
+    const double f = h - std::floor(h);
+    const double p = v * (1.0 - s);
+    const double q = v * (1.0 - s * f);
+    const double t = v * (1.0 - s * (1.0 - f));
+    double r = v;
+    double g = t;
+    double b = p;
+    switch (sector) {
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+        default: break;
+    }
+    return {static_cast<float>(r), static_cast<float>(g), static_cast<float>(b), static_cast<float>(unit(opacity))};
+}
+
+double Color::getHue() const {
+    const double high = std::max({r, g, b});
+    const double range = high - std::min({r, g, b});
+    if (range <= 0.0) {
+        return 0.0;
+    }
+    double hue = 0.0;
+    if (high == r) {
+        hue = (g - b) / range;
+    } else if (high == g) {
+        hue = 2.0 + (b - r) / range;
+    } else {
+        hue = 4.0 + (r - g) / range;
+    }
+    hue *= 60.0;
+    return hue < 0.0 ? hue + 360.0 : hue;
+}
+
+double Color::getSaturation() const {
+    const double high = std::max({r, g, b});
+    return high <= 0.0 ? 0.0 : (high - std::min({r, g, b})) / high;
+}
+
+double Color::getBrightness() const { return std::max({r, g, b}); }
+
+std::string Color::toHex(bool withAlpha) const {
+    auto byte = [](float value) { return static_cast<int>(std::lround(std::clamp(value, 0.f, 1.f) * 255.f)); };
+    char buffer[10];
+    if (withAlpha) {
+        std::snprintf(buffer, sizeof(buffer), "#%02x%02x%02x%02x", byte(r), byte(g), byte(b), byte(a));
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "#%02x%02x%02x", byte(r), byte(g), byte(b));
+    }
+    return buffer;
 }
 
 Color Color::parse(std::string_view text, bool* ok) {

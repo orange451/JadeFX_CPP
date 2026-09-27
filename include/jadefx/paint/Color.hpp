@@ -24,6 +24,20 @@ struct Color {
 
     // CSS color: #RGB, #RGBA, #RRGGBB, #RRGGBBAA, rgb()/rgba(), or a name such as "white".
     static Color parse(std::string_view text, bool* ok = nullptr);
+
+    // As JavaFX's Color.hsb: hue in degrees (any value, it wraps), saturation,
+    // brightness, and opacity from 0 to 1.
+    static Color hsb(double hue, double saturation, double brightness, double opacity = 1.0);
+    // Hue in degrees from 0 up to 360, and 0 for a gray.
+    double getHue() const;
+    // 0 for a gray or black.
+    double getSaturation() const;
+    // The largest channel.
+    double getBrightness() const;
+
+    // #rrggbb in lowercase, as an HTML color input reports it. withAlpha appends
+    // the alpha byte, as #rrggbbaa.
+    std::string toHex(bool withAlpha = false) const;
 };
 
 inline Color mix(const Color& from, const Color& to, float t) {

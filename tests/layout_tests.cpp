@@ -1847,6 +1847,7 @@ int RunCoreTests();
 int RunTableViewTests();
 int RunThemeTests();
 int RunLayoutPaneTests();
+int RunColorPickerTests();
 
 int main() {
     TestColors();
@@ -1890,6 +1891,7 @@ int main() {
     gFailures += RunTableViewTests();
     gFailures += RunThemeTests();
     gFailures += RunLayoutPaneTests();
+    gFailures += RunColorPickerTests();
     if (gFailures == 0) {
         std::printf("layout tests passed\n");
         return 0;

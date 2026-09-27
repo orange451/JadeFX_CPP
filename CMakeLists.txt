@@ -44,7 +44,10 @@ set(JADEFX_SOURCES
     src/scene/controls/Menu.cpp
     src/scene/controls/MenuButton.cpp
     src/scene/controls/MenuBar.cpp
+    src/scene/controls/ColorChooser.cpp
+    src/scene/controls/ColorPicker.cpp
     src/scene/controls/ComboBox.cpp
+    src/scene/controls/ComboBoxBase.cpp
     src/scene/controls/Tab.cpp
     src/scene/controls/TabPane.cpp
     src/scene/image/Image.cpp
@@ -316,6 +319,7 @@ if(NOT JADEFX_GLFM)
         tests/table_view_tests.cpp
         tests/theme_tests.cpp
         tests/layout_pane_tests.cpp
+        tests/color_picker_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

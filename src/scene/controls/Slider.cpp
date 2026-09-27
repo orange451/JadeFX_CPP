@@ -62,12 +62,6 @@ std::string TrimmedNumber(double value) {
     return text;
 }
 
-Font FaceOf(const Slider& slider) {
-    const ComputedStyle& style = slider.computedStyle();
-    const float size = style.fontSize > 0.f ? style.fontSize : 16.f;
-    return Font(style.fontFamily.empty() ? "Open Sans" : style.fontFamily, size);
-}
-
 }  // namespace
 
 struct Slider::Track {
@@ -246,10 +240,10 @@ double Slider::tickExtra() const {
     }
     if (showLabels_) {
         if (orientation_ == Orientation::Horizontal) {
-            extra += FaceOf(*this).lineHeight();
+            extra += chrome::FontOf(*this).lineHeight();
         } else {
             double widest = 0;
-            const Font face = FaceOf(*this);
+            const Font face = chrome::FontOf(*this);
             const double span = max_ - min_;
             int guard = 0;
             for (double tick = min_; tick <= max_ + major_ * 1e-6 && guard < kMaxTicks; tick += major_, ++guard) {
@@ -452,28 +446,32 @@ void Slider::render(UiRenderer& renderer, float opacity) {
     Node::render(renderer, isDisabled() ? opacity * 0.45f : opacity);
 }
 
+void Slider::renderGroove(UiRenderer& renderer, float opacity, const Groove& groove) {
+    const float half = static_cast<float>(kTrack * 0.5);
+    const float pill[4] = {half, half, half, half};
+    const float at = 0.f;
+    const Color color = chrome::Themed(*this, ThemeColor::Border, opacity);
+    const float thickness = static_cast<float>(kTrack);
+    if (groove.horizontal) {
+        renderer.fillRounded(groove.start, groove.cross - half, groove.length, thickness, pill, &color, &at, 1, 0.f);
+    } else {
+        renderer.fillRounded(groove.cross - half, groove.start, thickness, groove.length, pill, &color, &at, 1, 0.f);
+    }
+}
+
 void Slider::renderContent(UiRenderer& renderer, float opacity) {
     const Track metrics = track();
     const float radius = static_cast<float>(kThumb * 0.5);
-    const float trackRadius = static_cast<float>(kTrack * 0.5);
-    const float pill[4] = {trackRadius, trackRadius, trackRadius, trackRadius};
     const float at = 0.f;
-    const float along0 = static_cast<float>(metrics.alongStart);
-    const float along1 = static_cast<float>(metrics.alongStart + metrics.alongLength);
     const float cross = static_cast<float>(metrics.crossCenter);
     if (metrics.alongLength > 0) {
-        const Color groove = chrome::Themed(*this, ThemeColor::Border, opacity);
-        if (metrics.horizontal) {
-            renderer.fillRounded(along0, cross - trackRadius, along1 - along0, static_cast<float>(kTrack), pill, &groove,
-                                 &at, 1, 0.f);
-        } else {
-            renderer.fillRounded(cross - trackRadius, along0, static_cast<float>(kTrack), along1 - along0, pill, &groove,
-                                 &at, 1, 0.f);
-        }
+        renderGroove(renderer, opacity,
+                     Groove{metrics.horizontal, static_cast<float>(metrics.alongStart),
+                            static_cast<float>(metrics.alongLength), cross});
     }
 
     if ((showMarks_ || showLabels_) && major_ > 0 && max_ >= min_) {
-        const Font face = FaceOf(*this);
+        const Font face = chrome::FontOf(*this);
         const Color mark = chrome::Themed(*this, ThemeColor::Muted, opacity);
         const Color minorMark = chrome::Themed(*this, ThemeColor::Faint, opacity);
         Color text = computedStyle().color;

@@ -516,6 +516,8 @@ void Scene::showPopup(std::shared_ptr<Node> popup, double x, double y, double wi
     if (record == nullptr) {
         return;
     }
+    // As an HTML popover while it is shown.
+    popupNode->setPseudoState("popover-open", true);
     record->owner = options.owner;
     record->autoHide = options.autoHide;
     record->hideOnPress = options.hideOnPress;
@@ -651,6 +653,9 @@ void Scene::hidePopup(Node* popup) {
                                  }),
                   popups_.end());
     for (const std::shared_ptr<Node>& node : alive) {
+        if (node) {
+            node->setPseudoState("popover-open", false);
+        }
         if (node && node->getParent() == this) {
             detachChild(node.get());
         }

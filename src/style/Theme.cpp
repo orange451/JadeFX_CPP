@@ -55,14 +55,27 @@ scene {
     color: var(--text-color);
 }
 button, togglebutton, radiobutton, menubutton, textfield, combobox, spinner, treeview, listview, table,
-tabpane, menubar, combo-popup, menu-popup, alert {
+tabpane, menubar, combo-popup, menu-popup, alert, color-picker, color-chooser {
     background-color: var(--surface-color);
 }
 checkbox {
     background-color: transparent;
 }
-combobox, combo-popup, tooltip {
+combobox, combo-popup, tooltip, color-picker {
     border-radius: 4px;
+}
+color-chooser {
+    padding: 12px;
+}
+color-chooser:popover-open {
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: var(--border-color);
+    box-shadow: 0px 3px 10px 0px rgba(0, 0, 0, 0.14);
+}
+color-chooser .caption {
+    color: var(--muted-color);
+    font-size: 12px;
 }
 menu-popup {
     border-radius: 4px;

@@ -15,7 +15,6 @@ namespace jadefx {
 namespace {
 
 constexpr double kRowHeight = 28.0;
-constexpr double kArrowWidth = 28.0;
 constexpr double kPreferredHeight = 32.0;
 constexpr double kMinimumWidth = 120.0;
 constexpr double kArrowGap = 36.0;
@@ -29,15 +28,6 @@ struct Raise {
     Raise(const Raise&) = delete;
     Raise& operator=(const Raise&) = delete;
 };
-
-Font FaceOf(const Node& node) {
-    const ComputedStyle& style = node.computedStyle();
-    const float size = style.fontSize > 0.f ? style.fontSize : 16.f;
-    if (style.fontFamily.empty()) {
-        return Font("Open Sans", size);
-    }
-    return Font(style.fontFamily, size);
-}
 
 int Step(int current, int delta, int count) {
     if (count <= 0 || delta == 0) {
@@ -64,28 +54,6 @@ void DrawLine(UiRenderer& renderer, float x, float y, float width, float height,
     renderer.pushClip(x, y, width, height);
     renderer.text(x, top, text, face.family(), face.size(), color, style.subpixel);
     renderer.popClip();
-}
-
-// A filled triangle, point down. The centroid sits above the box center, so the
-// mark is shifted down by one sixth of its height to sit on the control's midline.
-void DrawDownArrow(UiRenderer& renderer, float centerX, float centerY, const Color& color) {
-    if (color.a <= 0.f) {
-        return;
-    }
-    constexpr float kWidth = 8.f;
-    constexpr float kHeight = 5.f;
-    const float top = centerY - kHeight * 0.5f + kHeight / 6.f;
-    const float radius[4] = {};
-    const float at = 0.f;
-    for (float row = 0.f; row < kHeight; row += 1.f) {
-        const float y = top + row;
-        const float across = kWidth * (1.f - std::min(1.f, (row + 0.5f) / kHeight));
-        if (across < 0.4f) {
-            continue;
-        }
-        const float rowHeight = std::min(1.f, top + kHeight - y);
-        renderer.fillRounded(centerX - across * 0.5f, y, across, rowHeight, radius, &color, &at, 1, 0.f);
-    }
 }
 
 }  // namespace
@@ -217,8 +185,6 @@ private:
 };
 
 ComboBox::ComboBox() {
-    setDefaultCursor(Cursor::Pointer);
-    setPadding(Insets::axes(4, 8));
     setPrefHeight(kPreferredHeight);
     items_.setIndexedAddCallback([this](std::string, std::size_t) { onItemsChanged(); });
     items_.setIndexedRemoveCallback([this](std::string, std::size_t) { onItemsChanged(); });
@@ -265,8 +231,7 @@ void ComboBox::setPromptText(std::string text) {
 void ComboBox::setVisibleRowCount(int rows) {
     visibleRowCount_ = std::max(1, rows);
     if (isShowing()) {
-        revealHighlight();
-        presentPopup();
+        show();
     }
 }
 
@@ -302,120 +267,73 @@ void ComboBox::setEditable(bool editable) {
 }
 
 void ComboBox::setDisable(bool value) {
-    Node::setDisable(value);
     if (editor_ != nullptr) {
         editor_->setDisable(value);
     }
-    if (value) {
-        hide();
-    }
+    ComboBoxBase::setDisable(value);
 }
 
-void ComboBox::show() {
-    if (closing_ || isDisabled() || items_.empty() || getScene() == nullptr) {
-        return;
-    }
-    ensurePopup();
+std::shared_ptr<Node> ComboBox::createPopupContent() {
+    popup_ = std::make_shared<ComboPopup>();
+    popup_->bind(this);
+    return popup_;
+}
+
+bool ComboBox::canShowPopup() const { return !closing_ && !items_.empty(); }
+
+void ComboBox::popupShowing() {
     if (!isShowing()) {
         highlight_ = selection_ >= 0 ? selection_ : 0;
         scroll_ = 0.0;
     }
     revealHighlight();
-    popupArmed_ = true;
-    presentPopup();
+    popup_->setPrefSize(popupWidth(), viewportHeight());
+    popup_->rebuild();
 }
 
-void ComboBox::hide() {
-    if (hiding_) {
-        return;
-    }
-    if (Scene* scene = getScene(); scene != nullptr && scene->isTearingDown()) {
-        popupArmed_ = false;
-        return;
-    }
-    Raise guard(hiding_);
-    const bool live = isShowing();
-    if (!live && !popupArmed_) {
-        commitSuppressed_ = false;
-        return;
-    }
-    const bool commit = !commitSuppressed_ && !closing_;
-    commitSuppressed_ = false;
-    popupArmed_ = false;
-    if (commit) {
+void ComboBox::popupHidden() {
+    // Escape and an outside press close the list without a choice, so typed text is kept.
+    if (!commitSuppressed_ && !closing_) {
         commitEditorIfDirty();
     }
-    if (live) {
-        if (Scene* scene = getScene()) {
-            scene->hidePopup(popup_.get());
-        }
-    }
 }
 
-bool ComboBox::isShowing() const {
-    return popup_ != nullptr && getScene() != nullptr && getScene()->isPopupShowing(popup_.get());
+void ComboBox::closeCommitted() {
+    commitSuppressed_ = true;
+    hide();
+    commitSuppressed_ = false;
 }
 
 void ComboBox::layoutChildren() {
     layoutEditor();
-    // Escape and an outside press hide the popup in the scene, without calling hide().
-    // The next layout is the first place the combo can commit the editor.
-    if (popupArmed_ && !isShowing()) {
-        hide();
-    }
+    ComboBoxBase::layoutChildren();
     if (popup_ != nullptr && isShowing()) {
         popup_->setPrefSize(popupWidth(), viewportHeight());
     }
 }
 
-void ComboBox::render(UiRenderer& renderer, float opacity) {
-    Node::render(renderer, isDisabled() ? opacity * 0.45f : opacity);
-}
-
-void ComboBox::renderContent(UiRenderer& renderer, float opacity) {
-    const float x = static_cast<float>(getAbsoluteX());
-    const float y = static_cast<float>(getAbsoluteY());
-    const float width = static_cast<float>(getWidth());
-    const float height = static_cast<float>(getHeight());
-    if (width <= 0.f || height <= 0.f) {
+void ComboBox::renderValue(UiRenderer& renderer, float opacity, float x, float y, float width, float height) {
+    if (editable_) {
         return;
     }
     const ComputedStyle& style = computedStyle();
-    chrome::DrawBorder(renderer, *this, opacity, kCorner);
-    if (!isDisabled() && isFocusWithin()) {
-        chrome::DrawFocusRing(renderer, *this, opacity, kCorner);
+    const bool prompt = value_.empty();
+    Color color = style.color;
+    if (prompt) {
+        color.a *= 0.45f;
     }
-
-    if (!editable_) {
-        const bool prompt = value_.empty();
-        const std::string& shown = prompt ? prompt_ : value_;
-        Color color = style.color;
-        if (prompt) {
-            color.a *= 0.45f;
-        }
-        color.a *= opacity;
-        const float textX = x + static_cast<float>(contentLeft());
-        const float textW = std::max(0.f, width - static_cast<float>(kArrowWidth) - static_cast<float>(contentLeft()));
-        DrawLine(renderer, textX, y, textW, height, shown, style, color);
-    }
-
-    const Color mark = chrome::Themed(*this, ThemeColor::Muted, opacity);
-    const float center = x + width - static_cast<float>(kArrowWidth) * 0.5f;
-    DrawDownArrow(renderer, center, y + height * 0.5f, mark);
+    color.a *= opacity;
+    DrawLine(renderer, x, y, width, height, prompt ? prompt_ : value_, style, color);
 }
 
 double ComboBox::preferredContentWidth(double) const {
-    const Font face = FaceOf(*this);
+    const Font face = chrome::FontOf(*this);
     double widest = static_cast<double>(face.measureWidth(prompt_));
     for (const std::string& item : items_.items()) {
         widest = std::max(widest, static_cast<double>(face.measureWidth(item)));
     }
     const double total = std::max(kMinimumWidth, widest + kArrowGap);
     return std::max(0.0, total - computedStyle().padding.width());
-}
-
-double ComboBox::preferredContentHeight(double) const {
-    return std::max(0.0, kPreferredHeight - computedStyle().padding.height());
 }
 
 void ComboBox::handleMousePressed(const MouseEvent& event) {
@@ -431,11 +349,7 @@ void ComboBox::handleMousePressed(const MouseEvent& event) {
             return;
         }
     }
-    if (isShowing()) {
-        hide();
-    } else {
-        show();
-    }
+    ComboBoxBase::handleMousePressed(event);
     if (editable_ && editor_ != nullptr) {
         editor_->requestFocus();
     }
@@ -462,7 +376,7 @@ void ComboBox::handleKey(KeyEvent& event) {
     }
     editorActionDuringKey_ = false;
 
-    if (arrow) {
+    if (arrow && !event.alt) {
         const int delta = event.key == Key::Down ? 1 : -1;
         if (isShowing()) {
             moveHighlight(delta);
@@ -482,42 +396,10 @@ void ComboBox::handleKey(KeyEvent& event) {
         event.consume();
         return;
     }
-    if (event.key == Key::Space && !editable_ && !isShowing()) {
-        show();
-        event.consume();
+    // Space is a character in an editable combo's field.
+    if (!editable_ || event.key != Key::Space) {
+        ComboBoxBase::handleKey(event);
     }
-}
-
-void ComboBox::sceneChanged(Scene* previous) {
-    if (previous != nullptr && previous->isTearingDown()) {
-        popupArmed_ = false;
-        return;
-    }
-    if (previous != nullptr) {
-        hide();
-    }
-}
-
-void ComboBox::ensurePopup() {
-    if (popup_ != nullptr) {
-        return;
-    }
-    popup_ = std::make_shared<ComboPopup>();
-    popup_->bind(this);
-}
-
-void ComboBox::presentPopup() {
-    Scene* scene = getScene();
-    if (scene == nullptr || popup_ == nullptr) {
-        return;
-    }
-    popup_->setPrefSize(popupWidth(), viewportHeight());
-    popup_->rebuild();
-    PopupOptions options;
-    options.owner = this;
-    options.autoHide = true;
-    popupArmed_ = true;
-    scene->showPopupNear(popup_, this, Side::Bottom, options);
 }
 
 void ComboBox::onItemsChanged() {
@@ -534,8 +416,7 @@ void ComboBox::onItemsChanged() {
         hide();
         return;
     }
-    revealHighlight();
-    presentPopup();
+    show();
 }
 
 void ComboBox::syncEditor() {
@@ -552,12 +433,9 @@ void ComboBox::syncEditor() {
 }
 
 void ComboBox::fire() {
-    if (closing_ || !onAction_) {
-        return;
+    if (!closing_) {
+        fireAction();
     }
-    ActionEvent event;
-    event.source = this;
-    onAction_(event);
 }
 
 void ComboBox::commitEditor() {
@@ -567,9 +445,8 @@ void ComboBox::commitEditor() {
     Raise guard(committingEditor_);
     editorActionDuringKey_ = true;
     setValue(editor_->getText());
-    commitSuppressed_ = true;
     fire();
-    hide();
+    closeCommitted();
 }
 
 void ComboBox::commitEditorIfDirty() {
@@ -586,14 +463,13 @@ void ComboBox::activateRow(int index) {
     }
     highlight_ = index;
     select(index);
-    commitSuppressed_ = true;
     fire();
     if (editable_ && editor_ != nullptr) {
         editor_->requestFocus();
     } else {
         requestFocus();
     }
-    hide();
+    closeCommitted();
 }
 
 void ComboBox::moveClosedSelection(int delta) {
