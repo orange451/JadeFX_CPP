@@ -102,6 +102,12 @@ void TestMenuButtonActivatesItem() {
     Expect(popups.size() == 1, "one popup is showing after the menu opens");
     Expect(!popups.empty() && scene->isPopupShowing(popups[0]), "isPopupShowing sees the open menu");
     Expect(!popups.empty() && popups[0]->getWidth() >= 160, "the menu popup is at least 160 wide");
+    if (!popups.empty()) {
+        const std::vector<jadefx::BoxShadow>& shadows = popups[0]->computedStyle().shadows;
+        Expect(shadows.size() == 1 && !shadows[0].inset && shadows[0].offsetY > 0 && shadows[0].blur > 0 &&
+                   shadows[0].color.a > 0.f && shadows[0].color.a < 0.25f,
+               "the menu popup casts a soft shadow below it");
+    }
     Expect(!popups.empty() &&
                popups[0]->getAbsoluteY() + 0.5 >= button->getAbsoluteY() + button->getHeight(),
            "the menu popup sits under the button");

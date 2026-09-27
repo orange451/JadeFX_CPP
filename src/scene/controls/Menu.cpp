@@ -122,6 +122,8 @@ public:
         setPadding(Insets::uniform(kPopupPad));
         setBackground(Color::white());
         getClassList().add("menu-popup");
+        // Rounded to match the outline drawn in render, with a soft shadow that lifts it off the content below.
+        setStyle("border-radius: 4px; box-shadow: 0px 3px 10px 0px rgba(0, 0, 0, 0.14)");
         setPrefWidth(kMinPopupWidth);
     }
 
