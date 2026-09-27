@@ -5,10 +5,12 @@
 #include "platform/GlfwHost.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -732,7 +734,16 @@ void TestResizeRedraws() {
         host.swap();
     });
     host.setSize(360, 240);
-    host.poll();
+    // On X11 the new size arrives as a later event, so one poll can run before it.
+    // Poll until the redraw sees the new size, for up to two seconds.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    do {
+        host.poll();
+        if (seenWidth == 360 && seenHeight == 240) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    } while (std::chrono::steady_clock::now() < deadline);
     Expect(calls > 0, "resizing the window redraws before the main loop continues");
     Expect(seenWidth == 360 && seenHeight == 240, "the resize redraw sees the new window size");
     Expect(stage.getWidth() == 360 && stage.getHeight() == 240, "the scene adopts the new window size");
