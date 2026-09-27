@@ -256,6 +256,7 @@ void Node::setParent(Node* parent) {
     if (sceneMoved && previousAlive) {
         previousScene->releaseFocus(this);
         previousScene->hidePopupsOwnedBy(this);
+        previousScene->forgetNode(this);
     }
     if (sceneMoved) {
         // sceneChanged may see a scene that is tearing down. It must not use

@@ -76,6 +76,7 @@ set(JADEFX_SOURCES
     src/scene/controls/SplitPane.cpp
     src/scene/controls/TreeItem.cpp
     src/scene/controls/TreeView.cpp
+    src/scene/DragAndDrop.cpp
     src/scene/Scene.cpp
     src/stage/Stage.cpp
     src/application/Application.cpp
@@ -323,6 +324,7 @@ if(NOT JADEFX_GLFM)
         tests/layout_pane_tests.cpp
         tests/color_picker_tests.cpp
         tests/date_picker_tests.cpp
+        tests/drag_drop_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

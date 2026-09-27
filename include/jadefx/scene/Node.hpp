@@ -1,6 +1,7 @@
 #pragma once
 
 #include "jadefx/collections/ObservableList.hpp"
+#include "jadefx/event/DragEvent.hpp"
 #include "jadefx/event/Events.hpp"
 #include "jadefx/geometry/Geometry.hpp"
 #include "jadefx/paint/Color.hpp"
@@ -123,6 +124,20 @@ public:
         }
     }
 
+    // Drag and drop, in the shape of JavaFX's. A press that moves far enough to be a
+    // drag runs drag-detected on the pressed node and its ancestors; a handler starts
+    // the drag with startDragAndDrop. The node under the pointer then hears entered,
+    // over, and exited, and dropped on release; the source hears done at the end.
+    void setOnDragDetected(MouseHandler handler) { drag_.detected = std::move(handler); }
+    void setOnDragEntered(DragHandler handler) { drag_.entered = std::move(handler); }
+    void setOnDragOver(DragHandler handler) { drag_.over = std::move(handler); }
+    void setOnDragExited(DragHandler handler) { drag_.exited = std::move(handler); }
+    void setOnDragDropped(DragHandler handler) { drag_.dropped = std::move(handler); }
+    void setOnDragDone(DragHandler handler) { drag_.done = std::move(handler); }
+    // Starts a drag from this node that allows modes, and returns its dragboard to fill.
+    // Works only while drag-detected runs for this node; otherwise returns null.
+    Dragboard* startDragAndDrop(TransferModes modes);
+
     bool isHovered() const { return hovered_; }
     bool isPressed() const { return pressed_; }
     // Keyboard arming uses the same flag as a mouse press, so :active matches.
@@ -192,6 +207,14 @@ public:
     // isHovered changed. Runs before the entered or exited handler, so a control
     // can restyle itself and leave those handlers to the application.
     virtual void handleHoverChanged() {}
+    // Drag and drop, before the handlers set above. A control that starts drags or
+    // takes drops overrides these.
+    virtual void handleDragDetected(const MouseEvent&) {}
+    virtual void handleDragEntered(DragEvent&) {}
+    virtual void handleDragOver(DragEvent&) {}
+    virtual void handleDragExited(DragEvent&) {}
+    virtual void handleDragDropped(DragEvent&) {}
+    virtual void handleDragDone(DragEvent&) {}
 
     Node* getElementById(const std::string& id);
     std::vector<Node*> getElementsByClassName(const std::string& className);
@@ -374,6 +397,16 @@ private:
     MouseHandler onExited_;
     MouseHandler onContext_;
     std::function<void(bool)> onFocusChanged_;
+
+    struct DragHandlers {
+        MouseHandler detected;
+        DragHandler entered;
+        DragHandler over;
+        DragHandler exited;
+        DragHandler dropped;
+        DragHandler done;
+    };
+    DragHandlers drag_;
 
     void fireFocusChanged(bool focused) {
         if (onFocusChanged_) {

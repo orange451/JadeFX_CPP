@@ -52,6 +52,8 @@ public:
     void pushText(std::string text);
     // The window gained or lost the system's keyboard focus.
     void pushWindowFocus(bool focused);
+    // Files dropped on the window from the system, at a point in window points.
+    void pushFileDrop(double x, double y, std::vector<std::string> paths);
 
     void setClipboardText(const std::string& text);
     std::string clipboardText() const;

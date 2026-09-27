@@ -155,6 +155,15 @@ Cursor Scene::hoverCursor() {
     if (!pointerValid_) {
         return Cursor::Default;
     }
+    // A drag shows what a drop there would do.
+    if (drag_ != nullptr) {
+        if (drag_->acceptor == nullptr) {
+            return Cursor::NotAllowed;
+        }
+        return drag_->mode == TransferMode::Copy ? Cursor::Copy
+               : drag_->mode == TransferMode::Link ? Cursor::Alias
+                                                   : Cursor::Default;
+    }
     Node* hit = pickCursorTarget(pointerX_, pointerY_);
     if (hit == nullptr) {
         return Cursor::Default;
@@ -166,6 +175,13 @@ void Scene::noteMove(double x, double y) {
     pointerX_ = x;
     pointerY_ = y;
     pointerValid_ = true;
+    // While a drag and drop runs, the pointer belongs to it.
+    if (drag_ != nullptr) {
+        if (!drag_->ending) {
+            updateDrag(*drag_, x, y, drag_->source);
+        }
+        return;
+    }
     Node* hit = pick(x, y);
     syncHover(hit);
     MouseEvent event;
@@ -173,15 +189,25 @@ void Scene::noteMove(double x, double y) {
     event.y = y;
     event.mods = keyMods_;
     if (pressedTarget_ != nullptr) {
+        bool detect = false;
         if (stillSincePress_ && std::hypot(x - pressX_, y - pressY_) > kPressHysteresis) {
             stillSincePress_ = false;
             // A drag is never the first half of a double-click.
             lastClickSeconds_ = -1;
+            detect = true;
         }
         event.clickCount = clickCount_;
         event.stillSincePress = stillSincePress_;
         event.target = pressedTarget_;
         pressedTarget_->handleMouseDragged(event);
+        // As in JavaFX, drag-detected follows the first dragged event past the threshold.
+        if (detect && pressedTarget_ != nullptr) {
+            detectDrag(event);
+            if (drag_ != nullptr) {
+                updateDrag(*drag_, x, y, drag_->source);
+                return;
+            }
+        }
     }
     if (hit != nullptr) {
         event.target = hit;
@@ -269,6 +295,11 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
         return;
     }
 
+    if (drag_ != nullptr) {
+        finishDrag(x, y, true);
+        pressedTarget_ = nullptr;
+        return;
+    }
     event.clickCount = clickCount_;
     Node* released = pick(x, y);
     Node* pressed = pressedTarget_;
@@ -337,6 +368,10 @@ bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
         if (event.consumed) {
             return true;
         }
+    }
+    if (event.pressed && event.key == Key::Escape && drag_ != nullptr) {
+        finishDrag(pointerX_, pointerY_, false);
+        return true;
     }
     if (event.pressed && event.key == Key::Escape) {
         for (auto it = popups_.rbegin(); it != popups_.rend(); ++it) {
@@ -412,6 +447,7 @@ void Scene::noteWindowFocus(bool focused) {
     }
     if (!focused) {
         keyMods_ = 0;
+        finishDrag(pointerX_, pointerY_, false);
         std::vector<Node*> dismiss;
         for (const PopupRecord& popup : popups_) {
             if (popup.node && (popup.autoHide || popup.hideOnPress)) {

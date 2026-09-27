@@ -13,7 +13,7 @@
 namespace jadefx {
 
 struct Stage::Event {
-    enum class Type { Move, Button, Scroll, Key, Text, Leave, Focus };
+    enum class Type { Move, Button, Scroll, Key, Text, Leave, Focus, Drop };
     Type type = Type::Move;
     double x = 0;
     double y = 0;
@@ -25,6 +25,7 @@ struct Stage::Event {
     bool down = false;
     bool repeat = false;
     std::string text;
+    std::vector<std::string> paths;
 };
 
 Stage::Stage() {
@@ -196,6 +197,15 @@ void Stage::pushWindowFocus(bool focused) {
     events_.push_back(std::move(event));
 }
 
+void Stage::pushFileDrop(double x, double y, std::vector<std::string> paths) {
+    Event event;
+    event.type = Event::Type::Drop;
+    event.x = x;
+    event.y = y;
+    event.paths = std::move(paths);
+    events_.push_back(std::move(event));
+}
+
 void Stage::pushText(std::string text) {
     Event event;
     event.type = Event::Type::Text;
@@ -241,6 +251,9 @@ void Stage::processEvents() {
                 break;
             case Event::Type::Focus:
                 scene_->noteWindowFocus(event.down);
+                break;
+            case Event::Type::Drop:
+                scene_->noteFileDrop(event.x, event.y, event.paths);
                 break;
         }
     }

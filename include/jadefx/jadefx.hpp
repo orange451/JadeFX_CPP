@@ -3,6 +3,7 @@
 #include "jadefx/application/Application.hpp"
 #include "jadefx/application/RunLater.hpp"
 #include "jadefx/collections/ObservableList.hpp"
+#include "jadefx/event/DragEvent.hpp"
 #include "jadefx/event/Events.hpp"
 #include "jadefx/geometry/Geometry.hpp"
 #include "jadefx/paint/Color.hpp"

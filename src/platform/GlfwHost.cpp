@@ -12,6 +12,7 @@
 
 #include <cstdio>
 #include <string>
+#include <vector>
 
 namespace jadefx {
 namespace {
@@ -133,6 +134,19 @@ void OnFocus(GLFWwindow* window, int focused) {
     if (Stage* stage = host != nullptr ? host->boundStage() : nullptr) {
         stage->pushWindowFocus(focused == GLFW_TRUE);
     }
+}
+
+void OnDrop(GLFWwindow* window, int count, const char** paths) {
+    GlfwHost* host = HostOf(window);
+    Stage* stage = host != nullptr ? host->boundStage() : nullptr;
+    if (stage == nullptr || count <= 0) {
+        return;
+    }
+    // GLFW reports only the drop, so the pointer's position says where it landed.
+    double x = 0;
+    double y = 0;
+    glfwGetCursorPos(window, &x, &y);
+    stage->pushFileDrop(x, y, std::vector<std::string>(paths, paths + count));
 }
 
 void OnCursorEnter(GLFWwindow* window, int entered) {
@@ -371,6 +385,7 @@ void GlfwHost::bind(Stage* stage) {
     glfwSetCursorPosCallback(window_, OnMove);
     glfwSetCursorEnterCallback(window_, OnCursorEnter);
     glfwSetWindowFocusCallback(window_, OnFocus);
+    glfwSetDropCallback(window_, OnDrop);
     glfwSetMouseButtonCallback(window_, OnButton);
     glfwSetScrollCallback(window_, OnScroll);
     glfwSetKeyCallback(window_, OnKey);

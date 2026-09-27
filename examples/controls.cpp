@@ -45,6 +45,24 @@ scene {
     spacing: 10px;
     alignment: center-left;
 }
+.chip {
+    background-color: var(--selection-color);
+    border-radius: 12px;
+    padding: 4px 12px;
+    cursor: grab;
+}
+.drop-zone {
+    border-width: 1px;
+    border-style: solid;
+    border-color: var(--border-color);
+    border-radius: 6px;
+    padding: 8px 16px;
+    color: var(--muted-color);
+}
+.drop-zone.over {
+    border-color: var(--accent-color);
+    background-color: var(--selection-color);
+}
 .hint {
     color: var(--muted-color);
     font-size: 13px;
@@ -165,6 +183,43 @@ public:
         due->setOnAction([due, status](jadefx::ActionEvent&) {
             status->setText(due->getValue() ? "Due: " + due->getValue()->toString() : "No due date");
         });
+
+        // Drag the chip onto the zone, or drop files on it from the system.
+        auto chip = jadefx::make<jadefx::Label>("Drag me");
+        chip->getClassList().add("chip");
+        jadefx::Label* chipLabel = chip.get();
+        chip->setOnDragDetected([chipLabel](const jadefx::MouseEvent&) {
+            jadefx::Dragboard* board = chipLabel->startDragAndDrop(jadefx::TransferModes::copyOrMove());
+            board->putString(chipLabel->getText());
+            auto view = jadefx::make<jadefx::Label>(chipLabel->getText());
+            view->getClassList().add("chip");
+            board->setDragView(view, 12, 12);
+        });
+        auto zone = jadefx::make<jadefx::Label>("Drop text or files here");
+        zone->getClassList().add("drop-zone");
+        jadefx::Label* zoneLabel = zone.get();
+        zone->setOnDragEntered([zoneLabel](jadefx::DragEvent&) { zoneLabel->getClassList().add("over"); });
+        zone->setOnDragExited([zoneLabel](jadefx::DragEvent&) {
+            zoneLabel->getClassList().removeIf([](const std::string& name) { return name == "over"; });
+        });
+        zone->setOnDragOver([](jadefx::DragEvent& event) {
+            if (event.getDragboard().hasString() || event.getDragboard().hasFiles()) {
+                event.acceptTransferModes(jadefx::TransferModes::copyOrMove());
+            }
+            event.consume();
+        });
+        zone->setOnDragDropped([zoneLabel](jadefx::DragEvent& event) {
+            const jadefx::Dragboard& board = event.getDragboard();
+            zoneLabel->setText(board.hasFiles() ? std::to_string(board.getFiles().size()) + " file(s): " + board.getFiles()[0]
+                                                : "Dropped: " + board.getString());
+            event.setDropCompleted(true);
+            event.consume();
+        });
+        auto dragRow = jadefx::make<jadefx::HBox>();
+        dragRow->getClassList().add("row");
+        dragRow->setSpacing(10);
+        dragRow->getChildren().add(chip);
+        dragRow->getChildren().add(zone);
 
         auto small = jadefx::make<jadefx::RadioButton>("Small");
         auto medium = jadefx::make<jadefx::RadioButton>("Medium");
@@ -383,6 +438,7 @@ public:
         sheet->getChildren().add(nameRow);
         sheet->getChildren().add(cityRow);
         sheet->getChildren().add(pickRow);
+        sheet->getChildren().add(dragRow);
         sheet->getChildren().add(sizeRow);
         sheet->getChildren().add(styleRow);
         sheet->getChildren().add(notifyRow);

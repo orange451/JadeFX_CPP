@@ -71,6 +71,12 @@ public:
     // another window, and popups that hide on an outside press close.
     void noteWindowFocus(bool focused);
     bool isWindowFocused() const { return windowFocused_; }
+    // Files dropped on the window from the system, at a point in window points. The node
+    // there sees them as a drag with no source: entered, over, then dropped if it
+    // accepts, and exited. Returns true when a node completed the drop.
+    bool noteFileDrop(double x, double y, std::vector<std::string> paths);
+    // True while a drag started with startDragAndDrop is under way. Escape cancels it.
+    bool isDragging() const { return drag_ != nullptr; }
 
     void requestFocus(Node* node);
     Node* focusedNode() const { return focused_; }
@@ -111,8 +117,35 @@ protected:
     Scene* asScene() override { return this; }
 
 private:
+    friend class Node;
+
+    // A drag under way: its data and the nodes it has met.
+    struct DragState {
+        Dragboard board;
+        Node* source = nullptr;
+        // The node under the pointer and its ancestors, which have heard entered.
+        std::vector<Node*> entered;
+        // The node that accepted the latest over, and the mode it took.
+        Node* acceptor = nullptr;
+        TransferMode mode = TransferMode::Move;
+        std::shared_ptr<Node> view;
+        // Set while finishDrag tells the nodes, so nothing moves the drag meanwhile.
+        bool ending = false;
+    };
+
     // Focuses next, or nothing when it is null, and tells the node that had focus.
     void moveFocus(Node* next);
+    // A node is leaving this scene, so nothing here may point at it any more.
+    void forgetNode(Node* node);
+    // A press became a drag: runs drag-detected from the pressed node up.
+    void detectDrag(const MouseEvent& event);
+    Dragboard* beginDrag(Node* source, TransferModes modes);
+    // Moves the drag to a point: entered and exited, over, the cursor, and the view.
+    void updateDrag(DragState& drag, double x, double y, Node* source);
+    // Ends the drag, dropping it where it is when drop is set, and tells the source.
+    // Returns true when the drop completed.
+    bool finishDrag(double x, double y, bool drop);
+    DragEvent makeDragEvent(DragState& drag, double x, double y, Node* source) const;
     std::shared_ptr<StackPane> internal_;
     std::shared_ptr<Node> root_;
     double requestedWidth_ = 0;
@@ -124,6 +157,9 @@ private:
     std::string userAgentSource_;
     Stylesheet userAgent_;
     Node* pressedTarget_ = nullptr;
+    std::unique_ptr<DragState> drag_;
+    // The node whose drag-detected handlers are running, which may start a drag.
+    Node* detecting_ = nullptr;
     double pressX_ = 0;
     double pressY_ = 0;
     bool stillSincePress_ = true;
