@@ -332,6 +332,18 @@ void GlfwHost::requestClose() {
 
 void GlfwHost::poll() { glfwPollEvents(); }
 
+void GlfwHost::waitEvents(double seconds) {
+    if (seconds > 0) {
+        glfwWaitEventsTimeout(seconds);
+    } else {
+        glfwPollEvents();
+    }
+}
+
+bool GlfwHost::isIconified() const { return window_ != nullptr && glfwGetWindowAttrib(window_, GLFW_ICONIFIED) == GLFW_TRUE; }
+
+double GlfwHost::now() { return glfwGetTime(); }
+
 void GlfwHost::swap() {
     if (window_ != nullptr) {
         glfwSwapBuffers(window_);

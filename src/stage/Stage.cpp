@@ -190,6 +190,8 @@ void Stage::setClipboardHandlers(std::function<void(const std::string&)> setText
     clipboardGet_ = std::move(getText);
 }
 
+bool Stage::isFocused() const { return scene_ == nullptr || scene_->isWindowFocused(); }
+
 void Stage::pushWindowFocus(bool focused) {
     Event event;
     event.type = Event::Type::Focus;

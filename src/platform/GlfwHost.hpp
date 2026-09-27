@@ -21,6 +21,11 @@ public:
     bool shouldClose() const;
     void requestClose();
     void poll();
+    // Handles events as they come, for up to seconds, and returns early after the first.
+    void waitEvents(double seconds);
+    bool isIconified() const;
+    // Seconds on a steady clock.
+    static double now();
     void swap();
     void show();
     void setSize(int width, int height);

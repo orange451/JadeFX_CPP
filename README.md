@@ -69,6 +69,8 @@ int main(int argc, char** argv) {
 
 Nodes are owned with `std::shared_ptr`. `jadefx::make<T>()` is `std::make_shared`.
 
+A window draws at most 60 frames per second, and 30 while it is unfocused or minimized (`Stage::setMaxFrameRate`, `Stage::setBackgroundFrameRate`; 0 is uncapped). Between frames the loop sleeps in GLFW's event wait and wakes for input, so an idle window uses almost no CPU even where the driver ignores the swap interval. `JADEFX_MAX_FPS=0` (or any number) overrides both caps from the environment.
+
 Layout is in window points, with the origin at the top left. On a Retina display the framebuffer is larger, and drawing uses that scale so edges stay sharp.
 
 ## Scene graph

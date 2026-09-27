@@ -3,6 +3,7 @@
 #include "platform/DesktopWindows.hpp"
 #include "platform/GlfwHost.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstdio>
 
@@ -96,6 +97,10 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
     if (const char* smoke = std::getenv("JADEFX_SMOKE_FRAMES")) {
         smokeFrames = std::atoi(smoke);
     }
+    double forcedFrameRate = -1;
+    if (const char* cap = std::getenv("JADEFX_MAX_FPS")) {
+        forcedFrameRate = std::max(0.0, std::atof(cap));
+    }
     int rendered = 0;
     bool drawing = false;
     int pumping = 0;
@@ -143,7 +148,23 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
     app->start(stage, argc, argv);
     stage.show();
 
+    double nextFrame = GlfwHost::now();
     while (!host.shouldClose()) {
+        const bool background = host.isIconified() || !stage.isFocused();
+        const double fps = forcedFrameRate >= 0 ? forcedFrameRate
+                           : background         ? stage.getBackgroundFrameRate()
+                                                : stage.getMaxFrameRate();
+        if (fps > 0) {
+            // Sleep in the system's event wait until the frame is due. Input wakes the
+            // wait and is queued for that frame, so the loop idles instead of spinning.
+            const double interval = 1.0 / fps;
+            for (double now = GlfwHost::now(); now < nextFrame && !host.shouldClose(); now = GlfwHost::now()) {
+                host.waitEvents(nextFrame - now);
+            }
+            const double now = GlfwHost::now();
+            // After a slow frame the schedule starts over, rather than rushing to catch up.
+            nextFrame = now - nextFrame > interval ? now + interval : nextFrame + interval;
+        }
         host.poll();
         closeFlaggedDesktopWindows();
         if (host.shouldClose() || !drawFrame() || !drawDesktopWindows()) {

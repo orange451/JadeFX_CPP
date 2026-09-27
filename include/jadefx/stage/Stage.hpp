@@ -69,6 +69,19 @@ public:
     void setClearsColor(bool clear) { clearColor_ = clear; }
     bool graphicsOk() const { return graphicsOk_; }
 
+    // The most frames per second the window loop draws: 60 by default, and 0 for as
+    // many as it can. Between frames the loop sleeps in the system's event wait and
+    // wakes for input, so an idle window costs next to nothing, whether or not the
+    // driver honors the swap interval. JADEFX_MAX_FPS in the environment overrides
+    // both caps, for example JADEFX_MAX_FPS=0 to measure uncapped.
+    void setMaxFrameRate(double fps) { maxFrameRate_ = fps < 0 ? 0 : fps; }
+    double getMaxFrameRate() const { return maxFrameRate_; }
+    // The cap while the window is in the background, unfocused or minimized. 30 by default.
+    void setBackgroundFrameRate(double fps) { backgroundFrameRate_ = fps < 0 ? 0 : fps; }
+    double getBackgroundFrameRate() const { return backgroundFrameRate_; }
+    // The window has the system's keyboard focus, as JavaFX's Window.isFocused.
+    bool isFocused() const;
+
     using ResizeHandler = std::function<void(int width, int height)>;
     using ShowHandler = std::function<void()>;
     using TitleHandler = std::function<void(const std::string&)>;
@@ -127,6 +140,8 @@ private:
     bool graphicsReady_ = false;
     bool graphicsOk_ = true;
     bool clearColor_ = true;
+    double maxFrameRate_ = 60;
+    double backgroundFrameRate_ = 30;
     bool shown_ = false;
     int frames_ = 0;
     std::string pendingTitle_;
