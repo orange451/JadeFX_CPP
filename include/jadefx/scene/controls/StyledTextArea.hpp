@@ -5,11 +5,17 @@
 #include "jadefx/scene/text/EditableStyledDocument.hpp"
 
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace jadefx {
+
+namespace detail {
+struct MeasuredLine;
+}
 
 // Where a pointer landed in the text. insertionIndex is the caret gap nearest the pointer,
 // and column is that gap's column in paragraph. characterIndex is the code point whose glyph
@@ -193,6 +199,20 @@ public:
     void setTextMarks(std::vector<TextMark> marks);
     const std::vector<TextMark>& textMarks() const { return textMarks_; }
 
+    // A node that sits in the text before the code point at offset, as an inline
+    // object in RichTextFX: it takes its preferred width in the line, the caret and
+    // wrapping step over it, and it takes its own clicks. It is not part of the text,
+    // so an edit does not move it; set the nodes again after the text changes. The
+    // script editor puts a color swatch before each Color3 this way.
+    struct InlineNode {
+        int offset = 0;
+        std::shared_ptr<Node> node;
+    };
+    void setInlineNodes(std::vector<InlineNode> nodes);
+    const std::vector<InlineNode>& getInlineNodes() const { return inlineNodes_; }
+    // One paragraph's inline boxes as (column, width) pairs, sorted by column.
+    using InlineBoxes = std::vector<std::pair<int, float>>;
+
     void setOnPlainTextChange(std::function<void(const PlainTextChange&)> handler) { onPlain_ = std::move(handler); }
     void setOnRichTextChange(std::function<void(const DocumentChange&)> handler) { onRich_ = std::move(handler); }
     void setOnMouseOverText(std::function<void(int index)> handler) { onHover_ = std::move(handler); }
@@ -253,6 +273,8 @@ private:
 
     struct ParagraphLayout {
         int revision = -1;
+        // The inline boxes the lines were wrapped with.
+        InlineBoxes boxes;
         float wrapWidth = -1.f;
         bool wrapped = false;
         float fontSize = 0.f;
@@ -308,6 +330,12 @@ private:
     void markDirty();
     void rebuild() const;
     int primaryIndex() const;
+    // A line of a paragraph measured with its styles and inline boxes.
+    detail::MeasuredLine measureLine(int paragraph, int start, int end) const;
+    // Sorts the inline nodes into boxes by paragraph, with their widths.
+    void collectInlineBoxes() const;
+    const InlineBoxes& inlineBoxesOf(int paragraph) const;
+    void placeInlineNodes();
     Selection& primary();
     const Selection& primary() const;
     // The link under a window point that a click would follow, or empty.
@@ -362,6 +390,9 @@ private:
     std::function<void(const DocumentChange&)> onRich_;
     std::function<void(int)> onHover_;
     std::vector<TextMark> textMarks_;
+    std::vector<InlineNode> inlineNodes_;
+    // Only the paragraphs that have boxes, so a long text without any costs nothing.
+    mutable std::map<int, InlineBoxes> inlineBoxes_;
 
     LinkUnderline linkUnderline_ = LinkUnderline::Hover;
     std::string hoveredLink_;

@@ -189,6 +189,11 @@ const TextMark* WorstMark(const std::vector<TextMark>& marks, int lineStart, int
     return worst;
 }
 
+}  // namespace
+
+namespace detail {
+
+// One laid-out line: where each caret gap falls and the styled runs to draw.
 struct MeasuredLine {
     struct Piece {
         int begin = 0;
@@ -205,6 +210,34 @@ struct MeasuredLine {
     float height = 0.f;
     float ascent = 0.f;
 };
+
+}  // namespace detail
+
+namespace {
+
+using detail::MeasuredLine;
+
+// The width of the inline boxes sitting before column. boxes is sorted by column.
+float BoxWidthAt(const StyledTextArea::InlineBoxes& boxes, int column) {
+    float width = 0.f;
+    for (const std::pair<int, float>& box : boxes) {
+        if (box.first == column) {
+            width += box.second;
+        } else if (box.first > column) {
+            break;
+        }
+    }
+    return width;
+}
+
+bool HasBoxAt(const StyledTextArea::InlineBoxes& boxes, int column) {
+    for (const std::pair<int, float>& box : boxes) {
+        if (box.first >= column) {
+            return box.first == column;
+        }
+    }
+    return false;
+}
 
 float CaretX(const MeasuredLine& measured, int lineStart, int absolute) {
     int local = absolute - lineStart;
@@ -260,8 +293,12 @@ Font FontFor(const std::string& family, float baseSize, const TextStyle& style) 
     return Font(family, size > 0.f ? size : 1.f);
 }
 
+// An inline box takes its width before its column: the caret gap at that column sits
+// before the box, and the text after it. A box after the last character counts on the
+// line that ends the paragraph.
 MeasuredLine MeasureRange(const std::u32string& text, int start, int end, const std::string& family, float baseSize,
-                          int tabSize, const std::function<TextStyle(int)>& styleAt) {
+                          int tabSize, const std::function<TextStyle(int)>& styleAt,
+                          const StyledTextArea::InlineBoxes& boxes) {
     MeasuredLine measured;
     const Font base(family, baseSize > 0.f ? baseSize : 1.f);
     measured.height = std::max(1.f, base.lineHeight());
@@ -279,6 +316,7 @@ MeasuredLine MeasureRange(const std::u32string& text, int start, int end, const 
     float pen = 0.f;
     int index = start;
     while (index < end) {
+        pen += BoxWidthAt(boxes, index);
         const TextStyle style = styleAt(index);
         const Font font = FontFor(family, baseSize, style);
         measured.height = std::max(measured.height, font.lineHeight());
@@ -295,7 +333,8 @@ MeasuredLine MeasureRange(const std::u32string& text, int start, int end, const 
             continue;
         }
         int next = index + 1;
-        while (next < end && text[static_cast<std::size_t>(next)] != U'\t' && styleAt(next) == style) {
+        while (next < end && text[static_cast<std::size_t>(next)] != U'\t' && styleAt(next) == style &&
+               !HasBoxAt(boxes, next)) {
             ++next;
         }
         const std::u32string chunk = text.substr(static_cast<std::size_t>(index), static_cast<std::size_t>(next - index));
@@ -315,6 +354,9 @@ MeasuredLine MeasureRange(const std::u32string& text, int start, int end, const 
             }
         }
         index = next;
+    }
+    if (end == static_cast<int>(text.size())) {
+        pen += BoxWidthAt(boxes, end);
     }
     measured.width = pen;
     const int columns = end - start;
@@ -1507,8 +1549,7 @@ void StyledTextArea::moveVertical(int lines, bool select) {
             const Visual& line = visual[static_cast<std::size_t>(found)];
             const LineLayout& layout = view_.paragraphs[static_cast<std::size_t>(line.paragraph)].lines[static_cast<std::size_t>(line.line)];
             const MeasuredLine measured =
-                MeasureRange(content_.paragraph(line.paragraph).content(), layout.start, layout.end, font.family(), font.size(),
-                             tabSize_, [&](int column) { return resolveStyle(SpanStyle(content_.paragraph(line.paragraph), column)); });
+                measureLine(line.paragraph, layout.start, layout.end);
             const int local = std::max(0, std::min(static_cast<int>(measured.caret.size()) - 1, pos.column - layout.start));
             preferredX_ = measured.caret[static_cast<std::size_t>(local)];
         }
@@ -1522,8 +1563,7 @@ void StyledTextArea::moveVertical(int lines, bool select) {
         const Visual& line = visual[static_cast<std::size_t>(target)];
         const LineLayout& layout = view_.paragraphs[static_cast<std::size_t>(line.paragraph)].lines[static_cast<std::size_t>(line.line)];
         const MeasuredLine measured =
-            MeasureRange(content_.paragraph(line.paragraph).content(), layout.start, layout.end, font.family(), font.size(), tabSize_,
-                         [&](int column) { return resolveStyle(SpanStyle(content_.paragraph(line.paragraph), column)); });
+            measureLine(line.paragraph, layout.start, layout.end);
         int best = 0;
         float bestDistance = 1.0e9f;
         for (int i = 0; i < static_cast<int>(measured.caret.size()); ++i) {
@@ -1602,8 +1642,7 @@ void StyledTextArea::ensureCaretVisible() {
     }
     const Font font = areaFont();
     const MeasuredLine measured =
-        MeasureRange(content_.paragraph(pos.paragraph).content(), line->start, line->end, font.family(), font.size(), tabSize_,
-                     [&](int column) { return resolveStyle(SpanStyle(content_.paragraph(pos.paragraph), column)); });
+        measureLine(pos.paragraph, line->start, line->end);
     const int local = std::max(0, std::min(static_cast<int>(measured.caret.size()) - 1, pos.column - line->start));
     const float x = measured.caret[static_cast<std::size_t>(local)];
     if (!wrap_) {
@@ -1620,7 +1659,87 @@ void StyledTextArea::ensureCaretVisible() {
     scrollX_ = std::max(0.0, std::min(static_cast<double>(maxX), scrollX_));
 }
 
+MeasuredLine StyledTextArea::measureLine(int paragraph, int start, int end) const {
+    const Font font = areaFont();
+    const Paragraph& model = content_.paragraph(paragraph);
+    return MeasureRange(model.content(), start, end, font.family(), font.size(), tabSize_,
+                        [&](int column) { return resolveStyle(SpanStyle(model, column)); }, inlineBoxesOf(paragraph));
+}
+
+const StyledTextArea::InlineBoxes& StyledTextArea::inlineBoxesOf(int paragraph) const {
+    static const InlineBoxes kNone;
+    const auto found = inlineBoxes_.find(paragraph);
+    return found != inlineBoxes_.end() ? found->second : kNone;
+}
+
+void StyledTextArea::setInlineNodes(std::vector<InlineNode> nodes) {
+    for (const InlineNode& old : inlineNodes_) {
+        if (old.node != nullptr && old.node->getParent() == this) {
+            detachChild(old.node.get());
+        }
+    }
+    inlineNodes_ = std::move(nodes);
+    for (const InlineNode& inline_ : inlineNodes_) {
+        if (inline_.node != nullptr) {
+            children().add(inline_.node);
+        }
+    }
+    markDirty();
+}
+
+void StyledTextArea::collectInlineBoxes() const {
+    inlineBoxes_.clear();
+    for (const InlineNode& inline_ : inlineNodes_) {
+        if (inline_.node == nullptr) {
+            continue;
+        }
+        const TextPos at = content_.position(std::clamp(inline_.offset, 0, content_.length()));
+        const float width = static_cast<float>(inline_.node->measuredWidth(1.0e6));
+        inlineBoxes_[at.paragraph].emplace_back(at.column, width);
+    }
+    for (auto& entry : inlineBoxes_) {
+        std::sort(entry.second.begin(), entry.second.end());
+    }
+}
+
+void StyledTextArea::placeInlineNodes() {
+    for (const InlineNode& inline_ : inlineNodes_) {
+        if (inline_.node == nullptr) {
+            continue;
+        }
+        Node& node = *inline_.node;
+        const TextPos at = content_.position(std::clamp(inline_.offset, 0, content_.length()));
+        const std::size_t paragraph = static_cast<std::size_t>(at.paragraph);
+        bool shown = paragraph < view_.paragraphs.size() && !isHidden(at.paragraph);
+        const LineLayout* line = nullptr;
+        if (shown) {
+            const ParagraphLayout& layout = view_.paragraphs[paragraph];
+            for (const LineLayout& candidate : layout.lines) {
+                if (at.column >= candidate.start && (at.column < candidate.end || &candidate == &layout.lines.back())) {
+                    line = &candidate;
+                    break;
+                }
+            }
+            shown = line != nullptr;
+        }
+        if (shown) {
+            const MeasuredLine measured = measureLine(at.paragraph, line->start, line->end);
+            const int local = std::clamp(at.column - line->start, 0, static_cast<int>(measured.caret.size()) - 1);
+            const double width = node.measuredWidth(1.0e6);
+            const double height = std::min(node.measuredHeight(width, -1), static_cast<double>(line->height));
+            const double x = view_.textX + measured.caret[static_cast<std::size_t>(local)] - scrollX_;
+            const double top = view_.textY + view_.tops[paragraph] + line->y - scrollY_;
+            // Only a box wholly inside the text viewport shows, so none draws over the gutter or the bars.
+            shown = top >= view_.textY - 0.5 && top + line->height <= view_.textY + view_.textH + 0.5 &&
+                    x >= view_.textX - 0.5 && x + width <= view_.textX + view_.textW + 0.5;
+            node.performLayout(x, top + (line->height - height) * 0.5, width, height);
+        }
+        node.setVisible(shown);
+    }
+}
+
 void StyledTextArea::rebuild() const {
+    collectInlineBoxes();
     const Font font = areaFont();
     const float contentW = static_cast<float>(contentWidth());
     const float contentH = static_cast<float>(contentHeight());
@@ -1649,7 +1768,9 @@ void StyledTextArea::rebuild() const {
     auto buildParagraph = [&](int index, float wrapWidth) {
         ParagraphLayout& layout = layouts[static_cast<std::size_t>(index)];
         const Paragraph& paragraph = content_.paragraph(index);
-        const bool same = layout.revision == paragraph.revision() && std::fabs(layout.wrapWidth - wrapWidth) < 0.5f &&
+        const InlineBoxes& boxes = inlineBoxesOf(index);
+        const bool same = layout.revision == paragraph.revision() && layout.boxes == boxes &&
+                          std::fabs(layout.wrapWidth - wrapWidth) < 0.5f &&
                           layout.wrapped == wrap_ && std::fabs(layout.fontSize - font.size()) < 0.1f &&
                           layout.fontFamily == font.family() && layout.tabSize == tabSize_;
         if (same) {
@@ -1657,6 +1778,7 @@ void StyledTextArea::rebuild() const {
         }
         layout = ParagraphLayout{};
         layout.revision = paragraph.revision();
+        layout.boxes = boxes;
         layout.wrapWidth = wrapWidth;
         layout.wrapped = wrap_;
         layout.fontSize = font.size();
@@ -1677,7 +1799,8 @@ void StyledTextArea::rebuild() const {
             while (index < length) {
                 const TextStyle style = resolveStyle(SpanStyle(paragraph, index));
                 const Font face = FontFor(font.family(), font.size(), style);
-                const float advance = AdvanceOf(text[static_cast<std::size_t>(index)], pen, face, tabSize_, cache);
+                const float advance = BoxWidthAt(boxes, index) +
+                                      AdvanceOf(text[static_cast<std::size_t>(index)], pen, face, tabSize_, cache);
                 if (wrap_ && index > lineStart && pen + advance > limit) {
                     const int cut = breakAt > lineStart ? breakAt : index;
                     ranges.emplace_back(lineStart, cut);
@@ -1700,8 +1823,7 @@ void StyledTextArea::rebuild() const {
         float y = 0.f;
         for (const std::pair<int, int>& range : ranges) {
             const MeasuredLine measured =
-                MeasureRange(text, range.first, range.second, font.family(), font.size(), tabSize_,
-                             [&](int column) { return resolveStyle(SpanStyle(paragraph, column)); });
+measureLine(index, range.first, range.second);
             LineLayout line;
             line.start = range.first;
             line.end = range.second;
@@ -1834,8 +1956,7 @@ CharacterHit StyledTextArea::hit(double x, double y) const {
     const LineLayout& line = layout.lines[static_cast<std::size_t>(lineIndex)];
     const Font font = areaFont();
     const MeasuredLine measured =
-        MeasureRange(content_.paragraph(paragraph).content(), line.start, line.end, font.family(), font.size(), tabSize_,
-                     [&](int column) { return resolveStyle(SpanStyle(content_.paragraph(paragraph), column)); });
+        measureLine(paragraph, line.start, line.end);
     int best = 0;
     float bestDistance = 1.0e9f;
     for (int i = 0; i < static_cast<int>(measured.caret.size()); ++i) {
@@ -1887,8 +2008,7 @@ TextBounds StyledTextArea::caretBounds() const {
     }
     const Font font = areaFont();
     const MeasuredLine measured =
-        MeasureRange(content_.paragraph(pos.paragraph).content(), line->start, line->end, font.family(), font.size(), tabSize_,
-                     [&](int column) { return resolveStyle(SpanStyle(content_.paragraph(pos.paragraph), column)); });
+        measureLine(pos.paragraph, line->start, line->end);
     const int local = std::max(0, std::min(static_cast<int>(measured.caret.size()) - 1, pos.column - line->start));
     const float x = measured.caret[static_cast<std::size_t>(local)];
     const float top = view_.tops[static_cast<std::size_t>(pos.paragraph)] + line->y;
@@ -1928,6 +2048,7 @@ double StyledTextArea::preferredContentHeight(double) const { return std::max(1.
 
 void StyledTextArea::layoutChildren() {
     rebuild();
+    placeInlineNodes();
     if (caretDirty_) {
         ensureCaretVisible();
         caretDirty_ = false;
@@ -2378,8 +2499,7 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
         for (const LineLayout& line : layout.lines) {
             const float lineY = absY + view_.textY + top + line.y - viewTop;
             const MeasuredLine measured =
-                MeasureRange(model.content(), line.start, line.end, font.family(), font.size(), tabSize_,
-                             [&](int column) { return resolveStyle(SpanStyle(model, column)); });
+measureLine(paragraph, line.start, line.end);
             const int lineStart = content_.offset(paragraph, line.start);
             const int lineEnd = content_.offset(paragraph, line.end);
             for (const Selection& selection : selections_) {
@@ -2483,9 +2603,7 @@ void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
             if (line == nullptr) {
                 continue;
             }
-            const MeasuredLine measured = MeasureRange(
-                content_.paragraph(pos.paragraph).content(), line->start, line->end, font.family(), font.size(), tabSize_,
-                [&](int column) { return resolveStyle(SpanStyle(content_.paragraph(pos.paragraph), column)); });
+            const MeasuredLine measured = measureLine(pos.paragraph, line->start, line->end);
             const int local = std::max(0, std::min(static_cast<int>(measured.caret.size()) - 1, pos.column - line->start));
             const float x = absX + view_.textX + measured.caret[static_cast<std::size_t>(local)] - static_cast<float>(scrollX_);
             const float y = absY + view_.textY + view_.tops[static_cast<std::size_t>(pos.paragraph)] + line->y - viewTop;

@@ -487,6 +487,44 @@ void TestLinks() {
            "inline CSS keeps the link");
 }
 
+void TestInlineNodes() {
+    auto area = Editor("abc def\nsecond line", 300, 120);
+    auto scene = jadefx::make<jadefx::Scene>(area, 300, 120);
+    scene->layout(300, 120, 0);
+    area->moveTo(5);
+    const double before = area->caretBounds().x;
+
+    auto box = jadefx::make<jadefx::Pane>();
+    box->setPrefSize(12, 12);
+    int clicks = 0;
+    box->setOnMouseClicked([&](const jadefx::MouseEvent&) { ++clicks; });
+    area->setInlineNodes({{4, box}});
+    scene->layout(300, 120, 0.1);
+    area->moveTo(5);
+    Expect(std::fabs(area->caretBounds().x - before - 12) < 0.5, "the text after an inline node moves over by its width");
+    area->moveTo(4);
+    const jadefx::TextBounds gap = area->caretBounds();
+    Expect(box->isVisible() && std::fabs(box->getAbsoluteX() - gap.x) < 0.5, "the node sits right after the caret gap before it");
+    Expect(box->getAbsoluteY() >= gap.y && box->getAbsoluteY() + box->getHeight() <= gap.y + gap.height + 0.5,
+           "and within its line");
+
+    const double x = box->getAbsoluteX() + 6;
+    const double y = box->getAbsoluteY() + 6;
+    scene->noteButton(0, true, x, y, 0);
+    scene->noteButton(0, false, x, y, 0);
+    Expect(clicks == 1 && area->caretPosition() == 4, "a click on the node goes to the node, not the caret");
+
+    area->setInlineNodes({{10, box}});
+    scene->layout(300, 120, 0.2);
+    area->moveTo(10);
+    Expect(std::fabs(box->getAbsoluteX() - area->caretBounds().x) < 0.5, "setting the nodes again moves it to the second line");
+    area->moveTo(5);
+    Expect(std::fabs(area->caretBounds().x - before) < 0.5, "and the first line closes up");
+    area->setInlineNodes({});
+    scene->layout(300, 120, 0.3);
+    Expect(box->getParent() == nullptr, "clearing the nodes removes them");
+}
+
 }  // namespace
 
 int RunRichTextTests() {
@@ -503,5 +541,6 @@ int RunRichTextTests() {
     TestArrowEdges();
     TestTextMarks();
     TestLinks();
+    TestInlineNodes();
     return gFailures;
 }
