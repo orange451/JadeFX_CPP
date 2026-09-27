@@ -475,6 +475,41 @@ void TestLeavingTheSceneHides() {
     Expect(!combo->isShowing(), "leaving the scene hides the popup");
 }
 
+// Focus leaving the combo closes the list and commits typed text, as in JavaFX.
+void TestFocusLeavingCommitsAndCloses() {
+    auto combo = jadefx::make<jadefx::ComboBox>();
+    combo->getItems().add("One");
+    combo->setEditable(true);
+    auto other = jadefx::make<jadefx::TextField>();
+    Box box = Place(combo);
+    box.root->getChildren().add(other);
+    box.scene->layout(420, 360, 0);
+    int actions = 0;
+    combo->setOnAction([&](jadefx::ActionEvent&) { ++actions; });
+    jadefx::TextField* editor = combo->getEditor();
+    editor->requestFocus();
+    box.scene->noteText("typed");
+    combo->show();
+    other->requestFocus();
+    box.scene->layout(420, 360, 0.1);
+    Expect(!combo->isShowing(), "focus moving to another control closes the list");
+    ExpectEq(combo->getValue(), "typed", "and commits the typed text");
+    Expect(actions == 1, "committing on focus loss fires once");
+
+    editor->requestFocus();
+    box.scene->noteText("!");
+    box.scene->noteWindowFocus(false);
+    ExpectEq(combo->getValue(), "typed!", "the window losing the focus commits too");
+    Expect(actions == 2 && !editor->isFocused(), "and fires, leaving nothing focused");
+    box.scene->noteWindowFocus(true);
+    combo->show();
+    box.scene->noteWindowFocus(false);
+    box.scene->layout(420, 360, 0.2);
+    Expect(!combo->isShowing(), "the window losing the focus closes the list");
+    box.scene->noteWindowFocus(true);
+    Expect(editor->isFocused() && actions == 2, "focus comes back to the editor without another action");
+}
+
 }  // namespace
 
 int RunComboBoxTests() {
@@ -489,5 +524,6 @@ int RunComboBoxTests() {
     TestEscapeAndOutsideCommit();
     TestDisabledDoesNotOpen();
     TestLeavingTheSceneHides();
+    TestFocusLeavingCommitsAndCloses();
     return gFailures;
 }

@@ -13,7 +13,7 @@
 namespace jadefx {
 
 struct Stage::Event {
-    enum class Type { Move, Button, Scroll, Key, Text, Leave };
+    enum class Type { Move, Button, Scroll, Key, Text, Leave, Focus };
     Type type = Type::Move;
     double x = 0;
     double y = 0;
@@ -189,6 +189,13 @@ void Stage::setClipboardHandlers(std::function<void(const std::string&)> setText
     clipboardGet_ = std::move(getText);
 }
 
+void Stage::pushWindowFocus(bool focused) {
+    Event event;
+    event.type = Event::Type::Focus;
+    event.down = focused;
+    events_.push_back(std::move(event));
+}
+
 void Stage::pushText(std::string text) {
     Event event;
     event.type = Event::Type::Text;
@@ -231,6 +238,9 @@ void Stage::processEvents() {
                 if (!scene_->noteText(event.text) && onText_) {
                     onText_(event.text);
                 }
+                break;
+            case Event::Type::Focus:
+                scene_->noteWindowFocus(event.down);
                 break;
         }
     }

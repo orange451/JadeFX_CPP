@@ -16,7 +16,9 @@ namespace jadefx {
 // A press on the box toggles the popup. Space, F4, and Alt+Down or Alt+Up open
 // it from the keyboard, as in JavaFX. Escape or a press outside closes it, as
 // does hide(). An editable box has a TextField left of the arrow; a press there
-// types instead of opening. ComboBox, ColorPicker, and DatePicker are built on it.
+// types instead of opening. Focus moving outside the box and its popup, as Tab
+// does, or the window losing the focus, closes the popup too.
+// ComboBox, ColorPicker, and DatePicker are built on it.
 class ComboBoxBase : public Controls {
 public:
     ~ComboBoxBase() override;
@@ -63,8 +65,10 @@ protected:
     virtual std::string valueText() const { return {}; }
     // Enter in the editor.
     virtual void editorAction() {}
-    // The editor lost the focus.
+    // The editor lost the focus, to focusLeftControl() or to a part of the popup.
     virtual void editorFocusLost() {}
+    // True when the focus is outside the box and its popup, or the window lost it.
+    bool focusLeftControl() const;
     // Puts valueText and the prompt in the editor.
     void syncEditor();
     // True while syncEditor writes the editor, so its handlers can ignore that.

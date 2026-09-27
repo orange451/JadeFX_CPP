@@ -128,6 +128,13 @@ void OnClose(GLFWwindow* window) {
     }
 }
 
+void OnFocus(GLFWwindow* window, int focused) {
+    GlfwHost* host = HostOf(window);
+    if (Stage* stage = host != nullptr ? host->boundStage() : nullptr) {
+        stage->pushWindowFocus(focused == GLFW_TRUE);
+    }
+}
+
 void OnCursorEnter(GLFWwindow* window, int entered) {
     GlfwHost* host = HostOf(window);
     Stage* stage = host != nullptr ? host->boundStage() : nullptr;
@@ -363,6 +370,7 @@ void GlfwHost::bind(Stage* stage) {
     glfwSetWindowUserPointer(window_, this);
     glfwSetCursorPosCallback(window_, OnMove);
     glfwSetCursorEnterCallback(window_, OnCursorEnter);
+    glfwSetWindowFocusCallback(window_, OnFocus);
     glfwSetMouseButtonCallback(window_, OnButton);
     glfwSetScrollCallback(window_, OnScroll);
     glfwSetKeyCallback(window_, OnKey);

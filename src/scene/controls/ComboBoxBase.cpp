@@ -175,11 +175,27 @@ void ComboBoxBase::layoutChildren() {
         // The text box is the box's full height. Width still stops at the arrow.
         editor_->performLayout(left, 0.0, std::max(0.0, right - left), std::max(0.0, getHeight()));
     }
-    // Escape and an outside press close the popup in the scene, without calling hide().
-    // The next layout is where the control learns of it.
-    if (open_ && !isShowing()) {
+    // Escape, an outside press, and a window losing the focus close the popup in the
+    // scene, without calling hide(). The next layout is where the control learns of it,
+    // and of focus that moved on to another control.
+    if (open_ && (!isShowing() || focusLeftControl())) {
         hide();
     }
+}
+
+bool ComboBoxBase::focusLeftControl() const {
+    const Scene* scene = getScene();
+    if (scene == nullptr || !scene->isWindowFocused()) {
+        return true;
+    }
+    // A press on a part that takes no focus, such as a swatch or a day, leaves none.
+    const Node* owner = scene->focusedNode();
+    if (owner == nullptr) {
+        return false;
+    }
+    const bool inside = owner == this || isAncestorOf(owner);
+    const bool inPopup = popup_ != nullptr && (owner == popup_.get() || popup_->isAncestorOf(owner));
+    return !inside && !inPopup;
 }
 
 void ComboBoxBase::render(UiRenderer& renderer, float opacity) {

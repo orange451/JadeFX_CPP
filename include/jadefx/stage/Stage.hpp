@@ -50,6 +50,8 @@ public:
     void pushKey(int key, bool pressed);
     void pushKey(int key, bool pressed, int mods, bool repeat);
     void pushText(std::string text);
+    // The window gained or lost the system's keyboard focus.
+    void pushWindowFocus(bool focused);
 
     void setClipboardText(const std::string& text);
     std::string clipboardText() const;

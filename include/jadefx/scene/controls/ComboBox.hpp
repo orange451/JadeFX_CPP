@@ -49,6 +49,7 @@ protected:
     void popupHidden() override;
     std::string valueText() const override { return value_; }
     void editorAction() override { commitEditor(); }
+    void editorFocusLost() override;
     void layoutChildren() override;
     double preferredContentWidth(double innerAvailable) const override;
     void handleKey(KeyEvent& event) override;

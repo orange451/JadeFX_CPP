@@ -5,8 +5,10 @@
 namespace jadefx {
 
 // A labeled control that fires an action from a click, Space, or Enter.
-// The pointer has to be released inside the control. :active follows the mouse
-// press and a keyboard arm. Disabled controls ignore input.
+// The pointer has to be released inside the control. Enter fires on the press;
+// Space arms the control and fires on the release, as HTML and JavaFX buttons
+// do, so losing the focus while Space is held cancels. :active follows the
+// mouse press and the Space arm. Disabled controls ignore input.
 class ButtonBase : public Labeled {
 public:
     void setOnAction(ActionHandler handler) { onAction_ = std::move(handler); }
@@ -19,12 +21,14 @@ protected:
     void handleMousePressed(const MouseEvent& event) override;
     void handleMouseReleased(const MouseEvent& event) override;
     void handleKey(KeyEvent& event) override;
+    void handleFocusLost() override;
     void render(UiRenderer& renderer, float opacity) override;
     void renderContent(UiRenderer& renderer, float opacity) override;
 
 private:
     ActionHandler onAction_;
     bool armed_ = false;
+    bool keyArmed_ = false;
 };
 
 }  // namespace jadefx

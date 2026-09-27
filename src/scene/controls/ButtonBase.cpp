@@ -38,14 +38,32 @@ void ButtonBase::handleMouseReleased(const MouseEvent& event) {
 }
 
 void ButtonBase::handleKey(KeyEvent& event) {
-    if (isDisabled() || !event.pressed || event.repeat) {
+    if (isDisabled()) {
         return;
     }
-    if (event.key != Key::Space && event.key != Key::Enter && event.key != Key::KpEnter) {
+    if (event.key == Key::Space) {
+        if (event.pressed && !event.repeat) {
+            keyArmed_ = true;
+            setPressed(true);
+        } else if (!event.pressed && keyArmed_) {
+            keyArmed_ = false;
+            setPressed(false);
+            fire();
+        }
+        event.consume();
         return;
     }
-    fire();
-    event.consume();
+    if ((event.key == Key::Enter || event.key == Key::KpEnter) && event.pressed && !event.repeat) {
+        fire();
+        event.consume();
+    }
+}
+
+void ButtonBase::handleFocusLost() {
+    if (keyArmed_) {
+        keyArmed_ = false;
+        setPressed(false);
+    }
 }
 
 void ButtonBase::render(UiRenderer& renderer, float opacity) {

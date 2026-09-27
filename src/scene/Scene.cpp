@@ -380,8 +380,13 @@ bool Scene::noteText(const std::string& text) {
 void Scene::moveFocus(Node* next) {
     Node* const previous = focused_;
     clearFocus();
-    markFocused(next);
     focused_ = next;
+    // In a window without the system focus only the owner changes. Nothing is
+    // focused, and the owner already heard it lost the focus when the window did.
+    if (!windowFocused_) {
+        return;
+    }
+    markFocused(next);
     if (previous == next || isTearingDown()) {
         return;
     }
@@ -394,6 +399,39 @@ void Scene::moveFocus(Node* next) {
     if (next != nullptr && focused_ == next) {
         next->handleFocusGained();
         next->fireFocusChanged(true);
+    }
+}
+
+void Scene::noteWindowFocus(bool focused) {
+    if (focused == windowFocused_ || isTearingDown()) {
+        return;
+    }
+    windowFocused_ = focused;
+    if (focused_ != nullptr && focused_->getScene() != this) {
+        focused_ = nullptr;
+    }
+    if (!focused) {
+        keyMods_ = 0;
+        std::vector<Node*> dismiss;
+        for (const PopupRecord& popup : popups_) {
+            if (popup.node && (popup.autoHide || popup.hideOnPress)) {
+                dismiss.push_back(popup.node.get());
+            }
+        }
+        for (Node* popup : dismiss) {
+            hidePopup(popup);
+        }
+        clearFocus();
+        if (focused_ != nullptr) {
+            focused_->handleFocusLost();
+            focused_->fireFocusChanged(false);
+        }
+        return;
+    }
+    if (focused_ != nullptr) {
+        markFocused(focused_);
+        focused_->handleFocusGained();
+        focused_->fireFocusChanged(true);
     }
 }
 

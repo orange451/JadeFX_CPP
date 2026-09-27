@@ -64,6 +64,13 @@ public:
     bool noteText(const std::string& text);
     // Shift, control, alt, and super bits from the latest key event. See Key::ModShift.
     int modifierMask() const { return keyMods_; }
+    // The window gained or lost the system's keyboard focus, as JavaFX's Window.focused.
+    // While it is away the focus owner keeps its place but is not focused: it sees
+    // handleFocusLost and a focus change to false, and the reverse when the window
+    // comes back. Held modifier keys are forgotten, since they are released in
+    // another window, and popups that hide on an outside press close.
+    void noteWindowFocus(bool focused);
+    bool isWindowFocused() const { return windowFocused_; }
 
     void requestFocus(Node* node);
     Node* focusedNode() const { return focused_; }
@@ -127,6 +134,7 @@ private:
     double lastClickY_ = 0;
     Node* focused_ = nullptr;
     int keyMods_ = 0;
+    bool windowFocused_ = true;
     bool laidOut_ = false;
     std::string clipboard_;
     std::function<void(const std::string&)> clipboardSet_;

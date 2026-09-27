@@ -162,6 +162,7 @@ void TestKeysCycle() {
     Expect(box->isSelected() && clicks == 1, "the click checks the box");
 
     scene->noteKey(jadefx::Key::Space, true, false, 0);
+    scene->noteKey(jadefx::Key::Space, false, false, 0);
     Expect(!box->isSelected(), "Space clears the focused check box");
     Expect(clicks == 2, "Space fires the action");
     scene->noteKey(jadefx::Key::Enter, true, false, 0);

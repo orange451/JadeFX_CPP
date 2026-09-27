@@ -37,10 +37,27 @@ void TestButtonAction() {
 
     scene->noteKey(jadefx::Key::Enter, true, false, 0);
     Expect(clicks == 2, "Enter fires the focused button");
-    scene->noteKey(jadefx::Key::Space, true, true, 0);
-    Expect(clicks == 2, "a repeated Space does not fire again");
     scene->noteKey(jadefx::Key::Space, true, false, 0);
-    Expect(clicks == 3, "Space fires the focused button");
+    Expect(clicks == 2 && button->isPressed(), "Space arms the focused button");
+    scene->noteKey(jadefx::Key::Space, true, true, 0);
+    Expect(clicks == 2, "a repeated Space does not fire");
+    scene->noteKey(jadefx::Key::Space, false, false, 0);
+    Expect(clicks == 3 && !button->isPressed(), "releasing Space fires it");
+
+    // Losing the focus while Space is held cancels, whether to another node or another window.
+    scene->noteKey(jadefx::Key::Space, true, false, 0);
+    scene->requestFocus(nullptr);
+    scene->noteKey(jadefx::Key::Space, false, false, 0);
+    Expect(clicks == 3 && !button->isPressed(), "moving the focus away disarms Space");
+    button->requestFocus();
+    scene->noteKey(jadefx::Key::Space, true, false, 0);
+    scene->noteWindowFocus(false);
+    Expect(!button->isFocused() && scene->focusedNode() == button.get() && !button->isPressed(),
+           "a window losing the focus unfocuses and disarms the owner, which keeps its place");
+    scene->noteKey(jadefx::Key::Space, false, false, 0);
+    Expect(clicks == 3, "so the Space released elsewhere does not fire");
+    scene->noteWindowFocus(true);
+    Expect(button->isFocused(), "the owner is focused again when the window comes back");
 
     button->setDisable(true);
     scene->layout(200, 80, 0);

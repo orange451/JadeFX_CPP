@@ -250,6 +250,14 @@ void ComboBox::popupHidden() {
     }
 }
 
+void ComboBox::editorFocusLost() {
+    // Typed text is committed when the focus leaves the combo, as in JavaFX, but not
+    // when it only moves into the list.
+    if (focusLeftControl()) {
+        commitEditorIfDirty();
+    }
+}
+
 void ComboBox::closeCommitted() {
     commitSuppressed_ = true;
     hide();
