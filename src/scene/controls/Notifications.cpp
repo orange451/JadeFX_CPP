@@ -392,7 +392,7 @@ void Notifications::hideAll(Node& owner) {
     }
 }
 
-void Toast::show(Node& owner, std::string text, double seconds) {
+void Toast::show(Node& owner, std::string text, double seconds, Pos position) {
     Scene* scene = owner.getScene();
     if (scene == nullptr) {
         return;
@@ -400,7 +400,7 @@ void Toast::show(Node& owner, std::string text, double seconds) {
     auto toast = std::make_shared<Label>(std::move(text));
     toast->getClassList().add("toast");
     toast->setMouseTransparent(true);
-    NotificationCenter::of(*scene).add(toast, Pos::BottomCenter, seconds > 0 ? seconds : LENGTH_SHORT);
+    NotificationCenter::of(*scene).add(toast, position, seconds > 0 ? seconds : LENGTH_SHORT);
 }
 
 }  // namespace jadefx

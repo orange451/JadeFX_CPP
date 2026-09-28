@@ -69,15 +69,18 @@ private:
     Node* owner_ = nullptr;
 };
 
-// A short line of text that fades in at the bottom center and leaves after a
-// moment, as an Android toast. It takes no input: clicks pass through it.
+// A short line of text that fades in and leaves after a moment, as an Android
+// toast. It takes no input: clicks pass through it. It sits at the bottom
+// center unless position, like an Android toast's gravity, puts it elsewhere;
+// toasts stack from their position's corner as notification cards do.
 // A toast is a .toast label.
 class Toast {
 public:
     static constexpr double LENGTH_SHORT = 2.0;
     static constexpr double LENGTH_LONG = 3.5;
 
-    static void show(Node& owner, std::string text, double seconds = LENGTH_SHORT);
+    static void show(Node& owner, std::string text, double seconds = LENGTH_SHORT,
+                     Pos position = Pos::BottomCenter);
 };
 
 }  // namespace jadefx

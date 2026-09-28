@@ -75,6 +75,30 @@ void TestToast() {
     Expect(rig.find("toast").empty(), "and is gone once faded");
 }
 
+void TestToastPosition() {
+    Rig rig;
+    jadefx::Toast::show(*rig.root, "Saved", 2.0, jadefx::Pos::BottomRight);
+    jadefx::Toast::show(*rig.root, "Opened", 2.0, jadefx::Pos::BottomRight);
+    rig.settle(0);
+    jadefx::Node* saved = nullptr;
+    jadefx::Node* opened = nullptr;
+    for (jadefx::Node* node : rig.find("toast")) {
+        if (auto* label = dynamic_cast<jadefx::Label*>(node)) {
+            (label->getText() == "Saved" ? saved : opened) = node;
+        }
+    }
+    Expect(saved != nullptr && opened != nullptr, "toasts can be placed in another corner");
+    if (saved == nullptr || opened == nullptr) {
+        return;
+    }
+    Expect(Near(opened->getAbsoluteX() + opened->getWidth(), 600 - 16) &&
+               Near(opened->getAbsoluteY() + opened->getHeight(), 400 - 16),
+           "a bottom-right toast sits in that corner, inside the margin");
+    Expect(Near(saved->getAbsoluteX() + saved->getWidth(), 600 - 16) &&
+               Near(saved->getAbsoluteY() + saved->getHeight(), opened->getAbsoluteY() - 8),
+           "and an older one stacks above the newest");
+}
+
 void TestNotifications() {
     Rig rig;
     int actions = 0;
@@ -173,6 +197,7 @@ void TestNotifications() {
 int RunNotificationTests() {
     gFailures = 0;
     TestToast();
+    TestToastPosition();
     TestNotifications();
     if (gFailures == 0) {
         std::printf("notification tests passed\n");
