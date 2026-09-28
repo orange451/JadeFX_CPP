@@ -31,4 +31,9 @@ void UtilityWindow::setOnClosed(std::function<void()>) {}
 bool UtilityWindow::tryClose() { return false; }
 void UtilityWindow::close() {}
 
+bool moveStageTo(Stage&, double, double) { return false; }
+bool isStageMaximized(const Stage&) { return false; }
+bool maximizeStage(Stage&) { return false; }
+std::vector<ScreenArea> screenWorkAreas() { return {}; }
+
 }  // namespace jadefx

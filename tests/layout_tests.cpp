@@ -1811,11 +1811,27 @@ void TestUtilityWindow() {
         host.poll();
         Expect(jadefx::windowUnderScreen(screenX + 10, screenY + 10, hit, localX, localY) && hit == &utility->stage(),
                "the utility window is the window under its own screen point");
+        // moveStageTo puts window point 0, 0 where stageToScreen finds it.
+        Expect(jadefx::moveStageTo(utility->stage(), screenX + 30, screenY + 20), "a utility window moves");
+        host.poll();
+        double movedX = 0;
+        double movedY = 0;
+        Expect(jadefx::stageToScreen(utility->stage(), 0, 0, movedX, movedY) && std::abs(movedX - screenX - 30) < 1 &&
+                   std::abs(movedY - screenY - 20) < 1,
+               "moveStageTo is the inverse of stageToScreen");
         utility->setCanClose([]() { return false; });
         Expect(!utility->tryClose() && utility->isOpen(), "a refused close leaves the utility window open");
         utility->setCanClose([]() { return true; });
         Expect(utility->tryClose() && !utility->isOpen(), "an allowed close destroys the utility window");
     }
+    Expect(!jadefx::screenWorkAreas().empty(), "the desktop has an area for windows");
+    Expect(!jadefx::isStageMaximized(stage), "the primary window starts unmaximized");
+    Expect(jadefx::maximizeStage(stage), "the primary window maximizes");
+    host.poll();
+    Expect(jadefx::isStageMaximized(stage), "and then reads as maximized");
+    jadefx::Stage loose;
+    Expect(!jadefx::moveStageTo(loose, 0, 0) && !jadefx::isStageMaximized(loose) && !jadefx::maximizeStage(loose),
+           "a stage without a window has nothing to move or maximize");
     jadefx::shutdownDesktopWindows();
     stage.shutdownGraphics();
     host.destroy();

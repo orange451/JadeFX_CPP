@@ -227,18 +227,20 @@ void UtilityWindow::draw() {
     }
 }
 
-bool stageToScreen(const Stage& stage, double x, double y, double& screenX, double& screenY) {
-    GLFWwindow* native = nullptr;
+GLFWwindow* UtilityWindow::nativeOf(const Stage& stage) {
     if (gPrimary.stage == &stage && gPrimary.host != nullptr) {
-        native = gPrimary.host->handle();
-    } else {
-        for (UtilityWindow* window : gWindows) {
-            if (window != nullptr && window->isOpen() && &window->stage_ == &stage) {
-                native = window->native();
-                break;
-            }
+        return gPrimary.host->handle();
+    }
+    for (UtilityWindow* window : gWindows) {
+        if (window != nullptr && window->isOpen() && &window->stage_ == &stage) {
+            return window->native();
         }
     }
+    return nullptr;
+}
+
+bool stageToScreen(const Stage& stage, double x, double y, double& screenX, double& screenY) {
+    GLFWwindow* native = UtilityWindow::nativeOf(stage);
     if (native == nullptr) {
         return false;
     }
@@ -248,6 +250,47 @@ bool stageToScreen(const Stage& stage, double x, double y, double& screenX, doub
     screenX = static_cast<double>(originX) + x;
     screenY = static_cast<double>(originY) + y;
     return true;
+}
+
+bool moveStageTo(Stage& stage, double screenX, double screenY) {
+    GLFWwindow* native = UtilityWindow::nativeOf(stage);
+    if (native == nullptr) {
+        return false;
+    }
+    glfwSetWindowPos(native, static_cast<int>(std::lround(screenX)), static_cast<int>(std::lround(screenY)));
+    return true;
+}
+
+bool isStageMaximized(const Stage& stage) {
+    GLFWwindow* native = UtilityWindow::nativeOf(stage);
+    return native != nullptr && glfwGetWindowAttrib(native, GLFW_MAXIMIZED) == GLFW_TRUE;
+}
+
+bool maximizeStage(Stage& stage) {
+    GLFWwindow* native = UtilityWindow::nativeOf(stage);
+    if (native == nullptr) {
+        return false;
+    }
+    glfwMaximizeWindow(native);
+    return true;
+}
+
+std::vector<ScreenArea> screenWorkAreas() {
+    std::vector<ScreenArea> areas;
+    int count = 0;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    for (int i = 0; monitors != nullptr && i < count; ++i) {
+        int x = 0;
+        int y = 0;
+        int width = 0;
+        int height = 0;
+        glfwGetMonitorWorkarea(monitors[i], &x, &y, &width, &height);
+        if (width > 0 && height > 0) {
+            areas.push_back({static_cast<double>(x), static_cast<double>(y), static_cast<double>(width),
+                             static_cast<double>(height)});
+        }
+    }
+    return areas;
 }
 
 bool windowUnderScreen(double screenX, double screenY, Stage*& stage, double& localX, double& localY) {

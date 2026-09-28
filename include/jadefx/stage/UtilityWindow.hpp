@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 struct GLFWwindow;
 
@@ -39,6 +40,9 @@ private:
     friend bool drawDesktopWindows();
     friend bool stageToScreen(const Stage& stage, double x, double y, double& screenX, double& screenY);
     friend bool windowUnderScreen(double screenX, double screenY, Stage*& stage, double& localX, double& localY);
+    friend bool moveStageTo(Stage& stage, double screenX, double screenY);
+    friend bool isStageMaximized(const Stage& stage);
+    friend bool maximizeStage(Stage& stage);
 
     struct Host;
 
@@ -46,6 +50,8 @@ private:
     bool allowed() const;
     void draw();
     GLFWwindow* native() const;
+    // The primary window's, or an open utility window's. Null for any other stage.
+    static GLFWwindow* nativeOf(const Stage& stage);
 
     Stage stage_;
     std::unique_ptr<Host> host_;
@@ -59,5 +65,26 @@ bool stageToScreen(const Stage& stage, double x, double y, double& screenX, doub
 
 // The top-most window that contains the screen point. localX/localY are window points.
 bool windowUnderScreen(double screenX, double screenY, Stage*& stage, double& localX, double& localY);
+
+// Moves the stage's window so window point 0, 0 is at this screen point, the
+// inverse of stageToScreen. False when the stage has no desktop window.
+bool moveStageTo(Stage& stage, double screenX, double screenY);
+
+// Whether the stage's window is maximized: zoomed, on macOS. False when it has no desktop window.
+bool isStageMaximized(const Stage& stage);
+// Maximizes the stage's window. False when it has no desktop window.
+bool maximizeStage(Stage& stage);
+
+// A rectangle of the desktop, in the units stageToScreen uses.
+struct ScreenArea {
+    double x = 0;
+    double y = 0;
+    double width = 0;
+    double height = 0;
+};
+
+// Each display's area for windows, without the menu bar, dock, or taskbar.
+// Empty without a desktop.
+std::vector<ScreenArea> screenWorkAreas();
 
 }  // namespace jadefx
