@@ -10,7 +10,7 @@
 namespace jadefx {
 
 // A color editor laid out like Paint.NET's color window: a hue and saturation
-// wheel with a before-and-after swatch, the preset palette, and recent colors
+// wheel, always drawn at full brightness, with a before-and-after swatch, the preset palette, and recent colors
 // on the left; red, green, blue, the hex code, hue, saturation, value, and
 // alpha on the right, each channel a slider over its own gradient with a
 // number box beside it. Every part follows the others as any one changes.

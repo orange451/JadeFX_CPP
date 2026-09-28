@@ -58,8 +58,8 @@ std::string Narrow(const wchar_t* text) {
     return narrow;
 }
 
-// The common item dialog. Open picks a folder; Save names one. Modal to the
-// active window, so input to the IDE waits until it closes.
+// The common item dialog. Open picks a folder, or a file; Save names one.
+// Modal to the active window, so input to the IDE waits until it closes.
 DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
     const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     // S_FALSE means COM was already up on this thread; it still needs a matching uninit.
@@ -76,10 +76,21 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
         flags |= FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR;
         if (options.save) {
             flags &= ~static_cast<FILEOPENDIALOGOPTIONS>(FOS_OVERWRITEPROMPT);
+        } else if (options.file) {
+            flags |= FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST;
         } else {
             flags |= FOS_PICKFOLDERS | FOS_PATHMUSTEXIST;
         }
         dialog->SetOptions(flags);
+        // One filter of every allowed extension, such as "*.css;*.txt".
+        std::wstring patterns;
+        for (const std::string& extension : options.extensions) {
+            patterns += (patterns.empty() ? L"*." : L";*.") + Widen(extension);
+        }
+        if (!options.save && options.file && !patterns.empty()) {
+            const COMDLG_FILTERSPEC filter = {patterns.c_str(), patterns.c_str()};
+            dialog->SetFileTypes(1, &filter);
+        }
         if (!options.title.empty()) {
             dialog->SetTitle(Widen(options.title).c_str());
         }
@@ -192,14 +203,30 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
     // A trailing slash starts zenity inside the directory instead of selecting it.
     const std::string start =
         options.save ? JoinPath(options.directory, options.name) : JoinPath(options.directory, std::string());
+    // Patterns such as "*.css *.txt", which both tools take as one filter.
+    std::string patterns;
+    for (const std::string& extension : options.extensions) {
+        patterns += (patterns.empty() ? "*." : " *.") + extension;
+    }
+    const bool pickFile = options.file && !options.save;
     std::vector<std::string> zenity = {"zenity", "--file-selection", "--title=" + title};
-    zenity.push_back(options.save ? "--save" : "--directory");
+    if (options.save) {
+        zenity.push_back("--save");
+    } else if (!pickFile) {
+        zenity.push_back("--directory");
+    }
     if (!start.empty()) {
         zenity.push_back("--filename=" + start);
     }
+    if (pickFile && !patterns.empty()) {
+        zenity.push_back("--file-filter=" + patterns);
+    }
     std::vector<std::string> kdialog = {"kdialog", "--title", title};
-    kdialog.push_back(options.save ? "--getsavefilename" : "--getexistingdirectory");
+    kdialog.push_back(options.save ? "--getsavefilename" : pickFile ? "--getopenfilename" : "--getexistingdirectory");
     kdialog.push_back(start.empty() ? std::string(".") : start);
+    if (pickFile && !patterns.empty()) {
+        kdialog.push_back(patterns);
+    }
     // KDE sessions get kdialog first; everything else tries zenity first.
     const char* desktop = std::getenv("XDG_CURRENT_DESKTOP");
     const bool kde = desktop != nullptr && std::string(desktop).find("KDE") != std::string::npos;

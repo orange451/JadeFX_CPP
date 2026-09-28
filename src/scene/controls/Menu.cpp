@@ -31,6 +31,18 @@ std::string KeyName(int key) {
         return std::string(1, static_cast<char>(key));
     }
     switch (key) {
+        // Punctuation keys are numbered by the character, as GLFW numbers them.
+        case Key::Apostrophe:
+        case Key::Comma:
+        case Key::Minus:
+        case Key::Period:
+        case Key::Slash:
+        case Key::Semicolon:
+        case Key::Equal:
+        case Key::LeftBracket:
+        case Key::Backslash:
+        case Key::RightBracket:
+            return std::string(1, static_cast<char>(key));
         case Key::Space:
             return "Space";
         case Key::Enter:

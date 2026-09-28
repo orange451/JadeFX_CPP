@@ -21,8 +21,8 @@ NSString* Text(const std::string& value) {
     return text != nil ? text : @"";
 }
 
-// NSOpenPanel picks an existing folder. NSSavePanel names a new one. Both run
-// modal on the main thread, which is where runLater tasks run.
+// NSOpenPanel picks an existing folder or file. NSSavePanel names a new one.
+// Both run modal on the main thread, which is where runLater tasks run.
 DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
     @autoreleasepool {
         NSWindow* key = [NSApp keyWindow];
@@ -36,11 +36,22 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
             panel = save;
         } else {
             NSOpenPanel* open = [NSOpenPanel openPanel];
-            open.canChooseFiles = NO;
-            open.canChooseDirectories = YES;
+            open.canChooseFiles = options.file ? YES : NO;
+            open.canChooseDirectories = options.file ? NO : YES;
             open.allowsMultipleSelection = NO;
-            open.canCreateDirectories = YES;
+            open.canCreateDirectories = options.file ? NO : YES;
             open.prompt = @"Open";
+            if (options.file && !options.extensions.empty()) {
+                NSMutableArray<NSString*>* types = [NSMutableArray array];
+                for (const std::string& extension : options.extensions) {
+                    [types addObject:Text(extension)];
+                }
+                // allowedContentTypes replaces this from macOS 11, but needs UniformTypeIdentifiers.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+                open.allowedFileTypes = types;
+#pragma clang diagnostic pop
+            }
             panel = open;
         }
         if (!options.title.empty()) {

@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace jadefx {
 
@@ -14,14 +15,19 @@ struct FolderDialogOptions {
     bool save = false;
     // Save only. The name the dialog suggests.
     std::string name;
+    // Open only. The user picks an existing file instead of a folder.
+    bool file = false;
+    // A file pick's allowed extensions, without the dot, such as "css". Empty allows any file.
+    std::vector<std::string> extensions;
 };
 
 enum class DialogResult { Chosen, Cancelled, Unavailable };
 
 using FolderDialogHandler = std::function<void(DialogResult result, const std::string& path)>;
 
-// Shows the system folder dialog: NSOpenPanel or NSSavePanel on macOS, the
-// common item dialog on Windows, zenity or kdialog on Linux and the BSDs.
+// Shows the system folder dialog, or its file dialog when options.file is set:
+// NSOpenPanel or NSSavePanel on macOS, the common item dialog on Windows,
+// zenity or kdialog on Linux and the BSDs.
 // Returns at once. done runs later on the UI thread, through runLater. path is
 // a UTF-8 absolute path when the result is Chosen. Unavailable means this
 // platform has no system dialog: iOS, Android, the web, or a Linux desktop

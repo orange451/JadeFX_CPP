@@ -85,8 +85,9 @@ void StrokeCircle(UiRenderer& renderer, float centerX, float centerY, float radi
     renderer.strokeRounded(centerX - radius, centerY - radius, radius * 2.f, radius * 2.f, corners, sides, color);
 }
 
-// Hue and saturation on a disc. Brightness dims the disc, and the ring marks the color.
-// The arrow keys turn the hue (Left and Right) and move the saturation (Up and Down).
+// Hue and saturation on a disc, always at full brightness: brightness is the V
+// slider's, so a dark color leaves the wheel as bright as ever. The ring marks the
+// color. The arrow keys turn the hue (Left and Right) and move the saturation (Up and Down).
 class ColorWheel : public Controls {
 public:
     ColorWheel() {
@@ -96,10 +97,9 @@ public:
 
     const char* getElementType() const override { return "color-wheel"; }
 
-    void show(double hue, double saturation, double brightness) {
+    void show(double hue, double saturation) {
         hue_ = hue;
         saturation_ = saturation;
-        brightness_ = brightness;
     }
     void setOnPick(std::function<void(double hue, double saturation)> handler) { onPick_ = std::move(handler); }
 
@@ -112,10 +112,6 @@ protected:
             return;
         }
         renderer.drawImage(WheelImage(), centerX - radius, centerY - radius, radius * 2.f, radius * 2.f, opacity);
-        const float corners[4] = {radius, radius, radius, radius};
-        const float at = 0.f;
-        const Color dim = Color::rgba(0.f, 0.f, 0.f, static_cast<float>(1.0 - brightness_) * opacity);
-        renderer.fillRounded(centerX - radius, centerY - radius, radius * 2.f, radius * 2.f, corners, &dim, &at, 1, 0.f);
         StrokeCircle(renderer, centerX, centerY, radius, 1.f, chrome::Themed(*this, ThemeColor::Border, opacity));
 
         const double angle = hue_ * kPi / 180.0;
@@ -187,7 +183,6 @@ private:
 
     double hue_ = 0;
     double saturation_ = 0;
-    double brightness_ = 1;
     std::function<void(double, double)> onPick_;
 };
 
@@ -681,7 +676,7 @@ void ColorChooser::refresh() {
         return;
     }
     syncing_ = true;
-    parts.wheel->show(hue_, saturation_, brightness_);
+    parts.wheel->show(hue_, saturation_);
     parts.before->setColor(original_);
     parts.after->setColor(value_);
     const Color opaque = Color::rgba(value_.r, value_.g, value_.b, 1.f);
