@@ -55,6 +55,23 @@ struct TextMark {
     }
 };
 
+// Which part of the vertical scroll bar's width a scroll mark covers.
+enum class ScrollMarkLane { Full, Left, Right };
+
+// A band on the vertical scroll bar at the height of a code-point range, as in VS Code's
+// overview ruler, so marks anywhere in the text show at once.
+struct ScrollMark {
+    int start = 0;
+    int end = 0;
+    Color color;
+    ScrollMarkLane lane = ScrollMarkLane::Full;
+
+    bool operator==(const ScrollMark& other) const {
+        return start == other.start && end == other.end && lane == other.lane && color.r == other.color.r &&
+               color.g == other.color.g && color.b == other.color.b && color.a == other.color.a;
+    }
+};
+
 // A click on a link: its href and the run of text it covers.
 struct LinkEvent {
     std::string href;
@@ -202,6 +219,14 @@ public:
     void setTextMarks(std::vector<TextMark> marks);
     const std::vector<TextMark>& textMarks() const { return textMarks_; }
 
+    // Bands on the vertical scroll bar, drawn over its thumb, a later mark over an
+    // earlier one. Each is at least a few points tall. While there are any, the bar
+    // keeps its lane even when the text fits, and then each band sits beside its
+    // line. A click on a band scrolls its text to the middle of the view. Like text
+    // marks, they do not follow edits; set them again after the text changes.
+    void setScrollMarks(std::vector<ScrollMark> marks);
+    const std::vector<ScrollMark>& scrollMarks() const { return scrollMarks_; }
+
     // A node that sits in the text before the code point at offset, as an inline
     // object in RichTextFX: it takes its preferred width in the line, the caret and
     // wrapping step over it, and it takes its own clicks. It is not part of the text,
@@ -307,6 +332,17 @@ private:
 
     enum class Drag { None, Text, Word, Paragraph, VerticalBar, HorizontalBar };
 
+    // A scroll mark placed on the vertical bar. top and bottom are points down the
+    // track. textTop and textBottom are the lines it covers, in content points.
+    struct ScrollBand {
+        float top = 0.f;
+        float bottom = 0.f;
+        float textTop = 0.f;
+        float textBottom = 0.f;
+        ScrollMarkLane lane = ScrollMarkLane::Full;
+        Color color;
+    };
+
     Font areaFont() const;
     ParagraphStyle paragraphStyleForInsertion(int offset) const;
     void commit(UndoEntry entry);
@@ -332,6 +368,11 @@ private:
     void ensureCaretVisible();
     void markDirty();
     void rebuild() const;
+    // The bands for the scroll marks, placed again when the marks are set or the layout moves them.
+    const std::vector<ScrollBand>& scrollBands() const;
+    void renderScrollMarks(UiRenderer& renderer, float absoluteX, float absoluteY, float opacity) const;
+    // The scroll offset that centers the band under a press on the vertical bar, or -1 off every band.
+    double scrollBandOffset(float localY) const;
     int primaryIndex() const;
     // A line of a paragraph measured with its styles and inline boxes.
     detail::MeasuredLine measureLine(int paragraph, int start, int end) const;
@@ -393,6 +434,13 @@ private:
     std::function<void(const DocumentChange&)> onRich_;
     std::function<void(int)> onHover_;
     std::vector<TextMark> textMarks_;
+    std::vector<ScrollMark> scrollMarks_;
+    mutable std::vector<ScrollBand> scrollBands_;
+    // What the bands were placed for. Setting the marks, even to the same ones, places them again.
+    mutable bool scrollBandsDirty_ = true;
+    mutable float scrollBandsContent_ = -1.f;
+    mutable float scrollBandsTrack_ = -1.f;
+    mutable int scrollBandsParagraphs_ = -1;
     std::vector<InlineNode> inlineNodes_;
     // Only the paragraphs that have boxes, so a long text without any costs nothing.
     mutable std::map<int, InlineBoxes> inlineBoxes_;

@@ -374,6 +374,50 @@ void Click(jadefx::Scene& scene, double x, double y, int mods = 0) {
     scene.noteButton(0, false, x, y, mods);
 }
 
+void TestScrollMarks() {
+    constexpr double kSize = 160;
+    auto code = jadefx::make<jadefx::CodeArea>();
+    code->setStyle("padding: 0px; border-width: 0px;");
+    code->setPrefSize(kSize, kSize);
+    auto scene = jadefx::make<jadefx::Scene>(code, kSize, kSize);
+    std::string text;
+    int line80 = 0;
+    for (int line = 0; line < 100; ++line) {
+        if (line == 80) {
+            line80 = static_cast<int>(text.size());
+        }
+        text += "line " + std::to_string(line) + "\n";
+    }
+    code->setText(text);
+    scene->layout(kSize, kSize, 0);
+    const double lineHeight = code->caretBounds().height;
+
+    jadefx::ScrollMark mark;
+    mark.start = line80;
+    mark.end = line80 + 4;
+    mark.color = jadefx::Color::rgba(1.f, 0.f, 0.f, 1.f);
+    code->setScrollMarks({mark});
+    Expect(code->scrollMarks().size() == 1, "a code area keeps its scroll marks");
+    scene->layout(kSize, kSize, 0.1);
+
+    // The trailing newline makes 101 lines. Line 80's band is centered 80.5/101 of the way
+    // down the bar, well below the thumb at the top.
+    const double barX = code->getAbsoluteX() + code->getWidth() - 4;
+    const double bandY = code->getAbsoluteY() + kSize * (80.5 / 101.0);
+    Click(*scene, barX, bandY);
+    const double centered = 80.5 * lineHeight - kSize * 0.5;
+    Expect(std::fabs(code->getScrollY() - centered) < 1.0, "a click on a scroll mark centers its line");
+
+    // The press lands off the mark's line on the band, which is taller than the line's share of the bar.
+    code->scrollTo(0, 0);
+    scene->layout(kSize, kSize, 0.2);
+    Click(*scene, barX, bandY + 1);
+    Expect(std::fabs(code->getScrollY() - centered) < 1.0, "anywhere on the band goes to the same line");
+
+    code->setScrollMarks({});
+    Expect(code->scrollMarks().empty(), "clearing the scroll marks removes them");
+}
+
 void TestLinks() {
     // "see docs here\nand more": docs is 4-8, here is 9-13, and more is 14-22.
     auto area = Editor("see docs here\nand more", 300, 120);
@@ -581,6 +625,7 @@ int RunRichTextTests() {
     TestCharacterStyleShortcuts();
     TestArrowEdges();
     TestTextMarks();
+    TestScrollMarks();
     TestLinks();
     TestHitPastTheLines();
     TestInlineNodes();

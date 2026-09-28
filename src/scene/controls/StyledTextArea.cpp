@@ -1858,7 +1858,8 @@ measureLine(index, range.first, range.second);
                 contentWidth = std::max(contentWidth, layouts[static_cast<std::size_t>(i)].width);
             }
         }
-        const bool needVertical = contentHeight > textH + 0.5f;
+        // Scroll marks keep the bar's lane even when the text fits, so they stay beside their lines.
+        const bool needVertical = contentHeight > textH + 0.5f || !scrollMarks_.empty();
         const bool needHorizontal = !wrap_ && contentWidth > textW + 0.5f;
         if (needVertical == vertical && needHorizontal == horizontal) {
             break;
@@ -2035,6 +2036,139 @@ void StyledTextArea::setTextMarks(std::vector<TextMark> marks) {
     textMarks_ = std::move(marks);
 }
 
+void StyledTextArea::setScrollMarks(std::vector<ScrollMark> marks) {
+    // The same marks may sit on text that has moved since, so the bands are placed again either way.
+    scrollBandsDirty_ = true;
+    if (marks == scrollMarks_) {
+        return;
+    }
+    scrollMarks_ = std::move(marks);
+    markDirty();
+}
+
+const std::vector<StyledTextArea::ScrollBand>& StyledTextArea::scrollBands() const {
+    const int count = content_.paragraphCount();
+    const float track = verticalScroll_.track;
+    if (!scrollBandsDirty_ && scrollBandsContent_ == view_.contentHeight && scrollBandsTrack_ == track &&
+        scrollBandsParagraphs_ == count) {
+        return scrollBands_;
+    }
+    scrollBandsDirty_ = false;
+    scrollBandsContent_ = view_.contentHeight;
+    scrollBandsTrack_ = track;
+    scrollBandsParagraphs_ = count;
+    scrollBands_.clear();
+    // Text shorter than the view maps one to one, so each band is beside its line.
+    const float span = std::max(view_.contentHeight, view_.textH);
+    if (scrollMarks_.empty() || !view_.verticalBar || track <= 0.f || span <= 0.f || count <= 0 ||
+        static_cast<int>(view_.paragraphs.size()) != count || static_cast<int>(view_.tops.size()) != count + 1) {
+        return scrollBands_;
+    }
+    // Where each paragraph starts, so a mark finds its paragraph without walking the text.
+    std::vector<int> starts(static_cast<std::size_t>(count));
+    int length = 0;
+    for (int i = 0; i < count; ++i) {
+        starts[static_cast<std::size_t>(i)] = length;
+        length += content_.paragraph(i).length() + 1;
+    }
+    // The top of the line holding offset, or its bottom, in content points.
+    auto lineY = [&](int offset, bool bottom) {
+        offset = std::max(0, std::min(offset, length - 1));
+        const int paragraph = static_cast<int>(std::upper_bound(starts.begin(), starts.end(), offset) - starts.begin()) - 1;
+        const float top = view_.tops[static_cast<std::size_t>(paragraph)];
+        const ParagraphLayout& layout = view_.paragraphs[static_cast<std::size_t>(paragraph)];
+        // A folded paragraph has no height. It marks the bottom of its fold's header.
+        if (isHidden(paragraph) || layout.lines.empty()) {
+            return top + (bottom && !isHidden(paragraph) ? layout.height : 0.f);
+        }
+        const int column = offset - starts[static_cast<std::size_t>(paragraph)];
+        const LineLayout* line = &layout.lines.back();
+        for (const LineLayout& candidate : layout.lines) {
+            if (column < candidate.end) {
+                line = &candidate;
+                break;
+            }
+        }
+        return top + line->y + (bottom ? line->height : 0.f);
+    };
+    constexpr float kMinBand = 3.f;
+    const float scale = track / span;
+    for (const ScrollMark& mark : scrollMarks_) {
+        const float textTop = lineY(mark.start, false);
+        // end is past the last code point marked. An empty mark is the line it is on.
+        const float textBottom = std::max(textTop, lineY(mark.end > mark.start ? mark.end - 1 : mark.start, true));
+        float top = textTop * scale;
+        float bottom = textBottom * scale;
+        if (bottom - top < kMinBand) {
+            top = (top + bottom - kMinBand) * 0.5f;
+            bottom = top + kMinBand;
+        }
+        if (top < 0.f) {
+            bottom -= top;
+            top = 0.f;
+        }
+        if (bottom > track) {
+            top = std::max(0.f, top - (bottom - track));
+            bottom = track;
+        }
+        // Marks in text order often land on the same points. One band covers a run of them.
+        if (!scrollBands_.empty()) {
+            ScrollBand& last = scrollBands_.back();
+            const bool same = last.lane == mark.lane && last.color.r == mark.color.r && last.color.g == mark.color.g &&
+                              last.color.b == mark.color.b && last.color.a == mark.color.a;
+            if (same && top <= last.bottom + 0.5f && bottom >= last.top - 0.5f) {
+                last.top = std::min(last.top, top);
+                last.bottom = std::max(last.bottom, bottom);
+                last.textTop = std::min(last.textTop, textTop);
+                last.textBottom = std::max(last.textBottom, textBottom);
+                continue;
+            }
+        }
+        scrollBands_.push_back({top, bottom, textTop, textBottom, mark.lane, mark.color});
+    }
+    return scrollBands_;
+}
+
+void StyledTextArea::renderScrollMarks(UiRenderer& renderer, float absoluteX, float absoluteY, float opacity) const {
+    if (scrollMarks_.empty() || !view_.verticalBar) {
+        return;
+    }
+    const ScrollTrack& bar = verticalScroll_;
+    const float half = bar.thickness * 0.5f;
+    const float radius[4] = {};
+    const float at = 0.f;
+    for (const ScrollBand& band : scrollBands()) {
+        const float x = bar.cross + (band.lane == ScrollMarkLane::Right ? half : 0.f);
+        const float width = band.lane == ScrollMarkLane::Full ? bar.thickness : half;
+        Color color = band.color;
+        color.a *= opacity;
+        renderer.fillRounded(absoluteX + x, absoluteY + bar.origin + band.top, width, band.bottom - band.top, radius,
+                             &color, &at, 1, 0.f);
+    }
+}
+
+double StyledTextArea::scrollBandOffset(float localY) const {
+    const float along = localY - verticalScroll_.origin;
+    const std::vector<ScrollBand>& bands = scrollBands();
+    // The band drawn last is on top.
+    for (auto it = bands.rbegin(); it != bands.rend(); ++it) {
+        if (along < it->top - ScrollTrack::kHitSlop || along > it->bottom + ScrollTrack::kHitSlop) {
+            continue;
+        }
+        // A band that fits in the view is centered. A taller one follows the press, staying on its lines.
+        float y = (it->textTop + it->textBottom) * 0.5f;
+        if (it->textBottom - it->textTop > view_.textH) {
+            const float span = std::max(view_.contentHeight, view_.textH);
+            const float under = along * span / std::max(1.f, verticalScroll_.track);
+            const float half = view_.textH * 0.5f;
+            y = std::max(it->textTop + half, std::min(it->textBottom - half, under));
+        }
+        const double limit = std::max(0.0, static_cast<double>(view_.contentHeight - view_.textH));
+        return std::max(0.0, std::min(limit, static_cast<double>(y - view_.textH * 0.5f)));
+    }
+    return -1.0;
+}
+
 int StyledTextArea::visualLineCount() const {
     rebuild();
     int count = 0;
@@ -2098,9 +2232,13 @@ void StyledTextArea::handleMousePressed(const MouseEvent& event) {
         if (verticalPart == ScrollTrack::Part::Thumb) {
             scrollGrab_ = localY - verticalScroll_.thumb;
         } else {
-            scrollY_ = verticalScroll_.offsetFromPage(scrollY_, verticalPart == ScrollTrack::Part::After);
+            // A scroll mark goes to its text. Anywhere else on the track pages.
+            const double marked = scrollBandOffset(localY);
+            scrollY_ = marked >= 0.0 ? marked
+                                     : verticalScroll_.offsetFromPage(scrollY_, verticalPart == ScrollTrack::Part::After);
             rebuild();
-            scrollGrab_ = verticalScroll_.thumbLength * 0.5f;
+            // Dragging on from a mark keeps its text where the press put it.
+            scrollGrab_ = marked >= 0.0 ? localY - verticalScroll_.thumb : verticalScroll_.thumbLength * 0.5f;
         }
         return;
     }
@@ -2668,6 +2806,7 @@ measureLine(paragraph, line.start, line.end);
     const Color thumb = themeColor(ThemeColor::Scrollbar);
     verticalScroll_.draw(renderer, absX, absY, opacity, thumb);
     horizontalScroll_.draw(renderer, absX, absY, opacity, thumb);
+    renderScrollMarks(renderer, absX, absY, opacity);
     renderer.popClip();
 }
 
