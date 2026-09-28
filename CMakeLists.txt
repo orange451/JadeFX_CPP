@@ -121,6 +121,8 @@ FetchContent_Declare(
     URL https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_truetype.h
     URL_HASH SHA256=ecd30b05e0dd4fea3a13c26810dd9e1992dc379049482c393d5a19e6b5090aab
     DOWNLOAD_NO_EXTRACT TRUE
+    # CMake before 3.18 leaves an unextracted download outside SOURCE_DIR.
+    DOWNLOAD_DIR "${FETCHCONTENT_BASE_DIR}/stb_truetype-src"
 )
 FetchContent_GetProperties(stb_truetype)
 if(NOT stb_truetype_POPULATED)
@@ -135,6 +137,8 @@ FetchContent_Declare(
     URL https://raw.githubusercontent.com/nothings/stb/2c980bb59875b0d32144a71867fbdebb2f77cd20/stb_image.h
     URL_HASH SHA256=594c2fe35d49488b4382dbfaec8f98366defca819d916ac95becf3e75f4200b3
     DOWNLOAD_NO_EXTRACT TRUE
+    # CMake before 3.18 leaves an unextracted download outside SOURCE_DIR.
+    DOWNLOAD_DIR "${FETCHCONTENT_BASE_DIR}/stb_image-src"
 )
 FetchContent_GetProperties(stb_image)
 if(NOT stb_image_POPULATED)

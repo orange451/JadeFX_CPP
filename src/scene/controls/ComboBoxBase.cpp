@@ -4,6 +4,8 @@
 #include "gl/UiRenderer.hpp"
 #include "jadefx/scene/Scene.hpp"
 
+#include <algorithm>
+
 namespace jadefx {
 namespace {
 
