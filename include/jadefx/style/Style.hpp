@@ -187,6 +187,13 @@ struct ComputedStyle {
     Pos alignment = Pos::Ancestor;
     bool alignmentFromCss = false;
     float opacity = 1.f;
+    // image-color. An image-view fills its bitmap's alpha with this color instead
+    // of drawing the bitmap's own colors, so one white icon can take any color.
+    // currentColor is the node's color, which a graphic inherits from its label,
+    // so the icon follows the text. none, the default, draws the bitmap as it is.
+    bool imageColorSet = false;
+    bool imageColorCurrent = false;
+    Color imageColor;
     // Resolved cursor for this node. Inherit and Auto do not appear after styling.
     Cursor cursor = Cursor::Default;
     SizeSpec width;

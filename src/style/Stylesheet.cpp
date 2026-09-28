@@ -1325,6 +1325,23 @@ void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration
             if (ok) {
                 style.color = color;
             }
+        } else if (property == "image-color") {
+            const std::string mode = lowerCopy(trimCopy(value));
+            if (mode == "none") {
+                style.imageColorSet = false;
+                style.imageColorCurrent = false;
+            } else if (mode == "currentcolor") {
+                style.imageColorSet = true;
+                style.imageColorCurrent = true;
+            } else {
+                bool ok = false;
+                const Color color = Color::parse(value, &ok);
+                if (ok) {
+                    style.imageColorSet = true;
+                    style.imageColorCurrent = false;
+                    style.imageColor = color;
+                }
+            }
         } else if (property == "width") {
             SetSize(style.width, value);
         } else if (property == "height") {

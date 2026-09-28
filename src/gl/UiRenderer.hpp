@@ -34,7 +34,9 @@ public:
     void text(float x, float y, const std::string& utf8, const std::string& family, float fontSize, const Color& color,
               bool subpixel);
     // Straight-alpha RGBA, top row first. x and y are the top left in window points.
-    void drawImage(const std::shared_ptr<ImageData>& image, float x, float y, float width, float height, float opacity);
+    // A tint draws only the image's alpha, filled with that color.
+    void drawImage(const std::shared_ptr<ImageData>& image, float x, float y, float width, float height, float opacity,
+                   const Color* tint = nullptr);
     // Clip later draws to this rectangle in window points, origin top left.
     // Clips nest by intersection. popClip restores the previous one.
     void pushClip(float x, float y, float width, float height);
@@ -83,6 +85,8 @@ private:
     int imageViewport_ = -1;
     int imageOpacity_ = -1;
     int imageSampler_ = -1;
+    int imageTint_ = -1;
+    int imageTinted_ = -1;
     struct GpuImage {
         std::weak_ptr<ImageData> data;
         unsigned texture = 0;

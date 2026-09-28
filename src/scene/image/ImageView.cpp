@@ -22,8 +22,11 @@ void ImageView::renderContent(UiRenderer& renderer, float opacity) {
     if (!image_ || !image_->data_) {
         return;
     }
+    const ComputedStyle& style = computedStyle();
+    const Color tint = style.imageColorCurrent ? style.color : style.imageColor;
     renderer.drawImage(image_->data_, static_cast<float>(getAbsoluteX()), static_cast<float>(getAbsoluteY()),
-                       static_cast<float>(getWidth()), static_cast<float>(getHeight()), opacity);
+                       static_cast<float>(getWidth()), static_cast<float>(getHeight()), opacity,
+                       style.imageColorSet ? &tint : nullptr);
 }
 
 }  // namespace jadefx

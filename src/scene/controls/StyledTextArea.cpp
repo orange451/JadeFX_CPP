@@ -1921,6 +1921,8 @@ CharacterHit StyledTextArea::hit(double x, double y) const {
     const float localY = static_cast<float>(y - getAbsoluteY());
     float contentY = localY - view_.textY + static_cast<float>(scrollY_);
     float contentX = localX - view_.textX + static_cast<float>(scrollX_);
+    // The last line ends at its own bottom, not at the bottom of the area.
+    const bool onLine = contentY >= 0.f && !view_.tops.empty() && contentY < view_.tops.back();
     if (contentY < 0.f) {
         contentY = 0.f;
     }
@@ -1983,7 +1985,8 @@ CharacterHit StyledTextArea::hit(double x, double y) const {
     result.insertionIndex = content_.offset(paragraph, column);
     // Leading is the left half of the glyph, where the nearest gap is the glyph's own start.
     result.leading = glyph == best;
-    if (line.start + glyph < line.end) {
+    result.onLine = onLine;
+    if (onLine && line.start + glyph < line.end) {
         result.characterIndex = content_.offset(paragraph, line.start + glyph);
     } else {
         result.characterIndex = -1;

@@ -8,7 +8,9 @@
 namespace jadefx {
 
 // Draws an Image in this node's box. The preferred size is the bitmap size in
-// points. The bitmap stretches to the laid-out box.
+// points. The bitmap stretches to the laid-out box. With the CSS image-color,
+// the bitmap's alpha is filled with that color: image-color: currentColor makes
+// a white icon take the text color, as an icon font would.
 class ImageView : public Node {
 public:
     ImageView();

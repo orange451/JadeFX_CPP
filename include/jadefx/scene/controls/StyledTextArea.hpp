@@ -20,6 +20,8 @@ struct MeasuredLine;
 // Where a pointer landed in the text. insertionIndex is the caret gap nearest the pointer,
 // and column is that gap's column in paragraph. characterIndex is the code point whose glyph
 // is under the pointer, or -1 past the end of a line. leading is true on the left half of it.
+// onLine is false above the first line and below the last. There no glyph is under the pointer,
+// and insertionIndex is still the nearest gap on that line, so a click there places the caret.
 struct CharacterHit {
     bool valid = false;
     int insertionIndex = 0;
@@ -27,6 +29,7 @@ struct CharacterHit {
     int paragraph = 0;
     int column = 0;
     bool leading = true;
+    bool onLine = false;
 };
 
 // A rectangle in window points. valid is false when the caret is outside the viewport.

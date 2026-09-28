@@ -86,33 +86,35 @@ void TestTreeIcon() {
     Expect(tree->getSelectedItem() == next.get(), "arrow keys still move the selection after an icon click");
 }
 
-int CountRed(const std::vector<unsigned char>& pixels) {
-    int red = 0;
+// Pixels whose channels are near r, g, and b.
+int CountColor(const std::vector<unsigned char>& pixels, int r, int g, int b) {
+    int count = 0;
     for (std::size_t i = 0; i + 2 < pixels.size(); i += 3) {
-        if (pixels[i] > 200 && pixels[i + 1] < 80 && pixels[i + 2] < 80) {
-            ++red;
+        if (std::abs(pixels[i] - r) < 60 && std::abs(pixels[i + 1] - g) < 60 && std::abs(pixels[i + 2] - b) < 60) {
+            ++count;
         }
     }
-    return red;
+    return count;
 }
 
-void TestImageFrame() {
+int CountRed(const std::vector<unsigned char>& pixels) { return CountColor(pixels, 255, 0, 0); }
+
+// Draws root in a window twice and returns the last frame's RGB rows. Empty when
+// the window, the context, or the dump failed; ok says whether GL reported an error.
+std::vector<unsigned char> RenderFrame(const std::shared_ptr<jadefx::Node>& root, bool& ok) {
+    ok = false;
     jadefx::GlfwHost host;
     if (!host.create(240, 160, "image")) {
         Expect(false, "image window opens");
-        return;
+        return {};
     }
     jadefx::Stage stage;
     if (!stage.initializeGraphics(&jadefx::GlfwHost::proc)) {
         Expect(false, "image context");
         host.destroy();
-        return;
+        return {};
     }
-
-    const std::shared_ptr<jadefx::Image> image = jadefx::Image::load(kRedPng, sizeof kRedPng);
-    auto view = jadefx::make<jadefx::ImageView>(image);
-    view->setPrefSize(80, 80);
-    stage.setScene(jadefx::make<jadefx::Scene>(view, 240, 160));
+    stage.setScene(jadefx::make<jadefx::Scene>(root, 240, 160));
 
     const char* path = "jadefx-image.ppm";
 #if defined(_WIN32)
@@ -150,11 +152,45 @@ void TestImageFrame() {
         std::fclose(file);
     }
     std::remove(path);
+    ok = first && second && stage.graphicsOk();
     stage.shutdownGraphics();
     host.destroy();
+    return pixels;
+}
 
-    Expect(first && second && stage.graphicsOk() && !pixels.empty(), "an image frame draws without a GL error");
+void TestImageFrame() {
+    const std::shared_ptr<jadefx::Image> image = jadefx::Image::load(kRedPng, sizeof kRedPng);
+    auto view = jadefx::make<jadefx::ImageView>(image);
+    view->setPrefSize(80, 80);
+    bool ok = false;
+    const std::vector<unsigned char> pixels = RenderFrame(view, ok);
+    Expect(ok && !pixels.empty(), "an image frame draws without a GL error");
     Expect(CountRed(pixels) > 1000, "the bitmap is visible in the window");
+}
+
+void TestImageColor() {
+    const std::shared_ptr<jadefx::Image> image = jadefx::Image::load(kRedPng, sizeof kRedPng);
+    auto view = jadefx::make<jadefx::ImageView>(image);
+    view->setPrefSize(80, 80);
+    view->setStyle("image-color: #0000ff;");
+    bool ok = false;
+    std::vector<unsigned char> pixels = RenderFrame(view, ok);
+    Expect(ok && CountColor(pixels, 0, 0, 255) > 1000 && CountRed(pixels) == 0,
+           "image-color fills the bitmap's shape with that color");
+
+    // A graphic inherits its label's color, and currentColor follows it.
+    auto icon = jadefx::make<jadefx::ImageView>(image);
+    icon->setPrefSize(80, 80);
+    auto label = jadefx::make<jadefx::Label>("");
+    label->setGraphic(icon);
+    label->setStylesheet("label { color: #00ff00; } image-view { image-color: currentColor; }");
+    pixels = RenderFrame(label, ok);
+    Expect(ok && CountColor(pixels, 0, 255, 0) > 1000 && CountRed(pixels) == 0,
+           "image-color: currentColor takes the text color");
+
+    view->setStyle("image-color: none;");
+    pixels = RenderFrame(view, ok);
+    Expect(ok && CountRed(pixels) > 1000, "image-color: none draws the bitmap's own colors");
 }
 
 }  // namespace
@@ -163,5 +199,6 @@ int RunImageTests() {
     TestDecode();
     TestTreeIcon();
     TestImageFrame();
+    TestImageColor();
     return gFailures;
 }

@@ -596,9 +596,16 @@ void TextField::renderContent(UiRenderer& renderer, float opacity) {
     const Node* parent = getParent();
     const bool hosted = dynamic_cast<const ComboBoxBase*>(parent) != nullptr || dynamic_cast<const Spinner*>(parent) != nullptr;
     if (!hosted) {
-        chrome::DrawBorder(renderer, *this, opacity);
+        // A CSS border-radius shapes the border and the focus ring, as it does the background.
+        const ComputedStyle& style = computedStyle();
+        float corner = 4.f;
+        if (style.radius[0].set()) {
+            const double basis = std::min(getWidth(), getHeight());
+            corner = static_cast<float>(std::clamp(resolveSize(style.radius[0], basis, style.fontSize), 0.0, basis * 0.5));
+        }
+        chrome::DrawBorder(renderer, *this, opacity, corner);
         if (isFocused()) {
-            chrome::DrawFocusRing(renderer, *this, opacity);
+            chrome::DrawFocusRing(renderer, *this, opacity, corner);
         }
     }
 

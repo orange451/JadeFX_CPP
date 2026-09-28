@@ -487,6 +487,41 @@ void TestLinks() {
            "inline CSS keeps the link");
 }
 
+// The last line is as tall as it is drawn. Below it the caret still goes to that line, but no glyph is hit.
+void TestHitPastTheLines() {
+    auto area = Editor("first\nlast word", 300, 200);
+    area->setStyle("padding: 12px;");
+    auto scene = jadefx::make<jadefx::Scene>(area, 300, 200);
+    scene->layout(300, 200, 0);
+    area->setLink(10, 14, "#word");
+    // Read-only, so the link hovers without a key.
+    area->setEditable(false);
+    double x = 0;
+    double y = 0;
+    Expect(GlyphCenter(*area, 11, x, y), "the last line is on screen");
+    const double lineHeight = area->caretBounds().height;
+    const jadefx::CharacterHit on = area->hit(x, y);
+    Expect(on.valid && on.onLine && on.characterIndex == 11, "a glyph on the last line is hit");
+    Expect(area->cursorAt(x, y) == jadefx::Cursor::Pointer, "the link on it shows a pointer");
+
+    const double below = y + lineHeight * 3;
+    const jadefx::CharacterHit under = area->hit(x, below);
+    Expect(under.valid && !under.onLine && under.characterIndex < 0, "below the last line no glyph is hit");
+    Expect(under.paragraph == 1 && under.insertionIndex == on.insertionIndex, "but the caret gap is still on it");
+    Expect(area->cursorAt(x, below) == jadefx::Cursor::Text, "a link on the last line does not reach below it");
+
+    double firstX = 0;
+    double firstY = 0;
+    Expect(GlyphCenter(*area, 1, firstX, firstY), "the first line is on screen");
+    const jadefx::CharacterHit above = area->hit(firstX, area->getAbsoluteY() + 4);
+    Expect(above.valid && !above.onLine && above.characterIndex < 0 && above.paragraph == 0,
+           "above the first line no glyph is hit either");
+
+    area->moveTo(0);
+    Click(*scene, x, below);
+    Expect(area->caretPosition() == on.insertionIndex, "a click below the text puts the caret on the last line");
+}
+
 void TestInlineNodes() {
     auto area = Editor("abc def\nsecond line", 300, 120);
     auto scene = jadefx::make<jadefx::Scene>(area, 300, 120);
@@ -547,6 +582,7 @@ int RunRichTextTests() {
     TestArrowEdges();
     TestTextMarks();
     TestLinks();
+    TestHitPastTheLines();
     TestInlineNodes();
     return gFailures;
 }

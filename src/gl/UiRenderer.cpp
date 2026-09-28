@@ -107,6 +107,8 @@ bool UiRenderer::initialize() {
     imageViewport_ = Location(imageProgram_, "uViewport");
     imageOpacity_ = Location(imageProgram_, "uOpacity");
     imageSampler_ = Location(imageProgram_, "uTex");
+    imageTint_ = Location(imageProgram_, "uTint");
+    imageTinted_ = Location(imageProgram_, "uTinted");
 
     const float quad[] = {0.f, 0.f, 1.f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f, 1.f, 0.f, 1.f};
     glGenVertexArrays(1, &boxVao_);
@@ -624,7 +626,7 @@ unsigned UiRenderer::imageTexture(const std::shared_ptr<ImageData>& image) {
 }
 
 void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, float y, float width, float height,
-                           float opacity) {
+                           float opacity, const Color* tint) {
     if (!ready_ || imageProgram_ == 0 || opacity <= 0.f || width <= 0.f || height <= 0.f || viewportW_ <= 0 ||
         viewportH_ <= 0) {
         return;
@@ -649,6 +651,10 @@ void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, flo
     glUniform2f(imageViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
     glUniform1f(imageOpacity_, opacity);
     glUniform1i(imageSampler_, 0);
+    if (tint != nullptr) {
+        glUniform4f(imageTint_, tint->r, tint->g, tint->b, tint->a);
+    }
+    glUniform1f(imageTinted_, tint != nullptr ? 1.f : 0.f);
     glBindTexture(GL_TEXTURE_2D, texture);
     glBindVertexArray(textVao_);
     glBindBuffer(GL_ARRAY_BUFFER, textVbo_);
