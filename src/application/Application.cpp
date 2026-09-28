@@ -7,10 +7,49 @@
 #include <cstdlib>
 #include <cstdio>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <timeapi.h>
+#endif
+
 namespace jadefx {
 namespace {
 
 MobileChrome gChrome;
+
+// Windows wakes a waiting thread on its timer tick, about 15.6 ms unless the
+// program asks for less. The frame loop waits for each frame, so at that tick
+// 120 fps came out near 80. One millisecond while the app runs keeps the
+// frame rate at what the stage asks for. The period covers the whole process,
+// so other threads' sleeps wake on time too.
+class TimerPeriod {
+public:
+    TimerPeriod() {
+#ifdef _WIN32
+        set_ = timeBeginPeriod(1) == TIMERR_NOERROR;
+#endif
+    }
+    ~TimerPeriod() {
+#ifdef _WIN32
+        if (set_) {
+            timeEndPeriod(1);
+        }
+#endif
+    }
+    TimerPeriod(const TimerPeriod&) = delete;
+    TimerPeriod& operator=(const TimerPeriod&) = delete;
+
+#ifdef _WIN32
+private:
+    bool set_ = false;
+#endif
+};
 
 }  // namespace
 
@@ -73,6 +112,7 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
     }
     const Size size = app->defaultWindowSize();
     const std::string title = app->defaultTitle();
+    const TimerPeriod timer;
     GlfwHost host;
     if (!host.create(static_cast<int>(size.width), static_cast<int>(size.height), title.c_str())) {
         return 1;

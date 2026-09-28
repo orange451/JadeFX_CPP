@@ -215,6 +215,8 @@ else()
     if(WIN32)
         # The common item dialog behind showFolderDialog.
         target_link_libraries(jadefx PUBLIC ole32 shell32 uuid)
+        # timeBeginPeriod, so the frame loop's wait wakes on time.
+        target_link_libraries(jadefx PUBLIC winmm)
     endif()
     if(APPLE)
         target_link_libraries(jadefx PUBLIC "-framework Cocoa")
