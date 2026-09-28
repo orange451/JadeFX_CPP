@@ -346,10 +346,13 @@ void HoverRow(MenuItem* item, Node* row) {
     }
 }
 
-double GraphicExtent(const Node& node) {
+// A graphic measures with its own sizes and spacing only once it is styled.
+// One shown for the first time has not been yet, so it is styled here.
+double GraphicExtent(Node& node) {
     if (!node.isVisible()) {
         return 0;
     }
+    node.applyCss();
     return std::max(0.0, std::max(node.getPrefWidth(), node.measuredWidth(-1)));
 }
 

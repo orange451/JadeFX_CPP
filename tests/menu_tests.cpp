@@ -524,6 +524,49 @@ void TestGraphicSurvivesReopen() {
     Expect(!file->isShowing(), "the last click hides the menu");
 }
 
+// A graphic's own sizes and spacing only count once it is styled, and the
+// first open measures it before it has been. That open must come out as wide
+// as every later one, with the label in the same place.
+void TestFirstOpenMeasuresStyledGraphic() {
+    auto graphic = jadefx::make<jadefx::HBox>();
+    graphic->setSpacing(4);
+    for (int i = 0; i < 2; ++i) {
+        auto part = jadefx::make<jadefx::Pane>();
+        part->setPrefSize(16, 16);
+        graphic->getChildren().add(part);
+    }
+    auto item = jadefx::make<jadefx::MenuItem>("Open Recent");
+    item->setGraphic(graphic);
+    auto file = jadefx::make<jadefx::Menu>("File");
+    file->getItems().add(item);
+    auto bar = jadefx::make<jadefx::MenuBar>();
+    bar->getMenus().add(file);
+    auto root = FullRoot();
+    root->getChildren().add(bar);
+    auto scene = jadefx::make<jadefx::Scene>(root, 720, 420);
+    scene->layout(720, 420, 0);
+    jadefx::Node* title = scene->getElementById("menu:File");
+    if (title == nullptr) {
+        Expect(false, "the File title exists");
+        return;
+    }
+    double widths[2] = {};
+    double labels[2] = {};
+    for (int round = 0; round < 2; ++round) {
+        ClickNode(*scene, *title);
+        scene->layout(720, 420, 0);
+        const std::vector<jadefx::Node*> popups = Popups(*scene);
+        jadefx::Node* label = scene->getElementById("menu-label:Open Recent");
+        widths[round] = popups.size() == 1 ? popups[0]->getWidth() : -1;
+        labels[round] = label != nullptr ? label->getAbsoluteX() : -1;
+        ClickNode(*scene, *title);
+        scene->layout(720, 420, 0);
+    }
+    Expect(widths[0] > 0 && std::abs(widths[0] - widths[1]) < 0.5, "the first open is as wide as the next");
+    Expect(labels[0] > 0 && std::abs(labels[0] - labels[1]) < 0.5, "the first open puts the label where the next does");
+    Expect(labels[0] - graphic->getAbsoluteX() > 36, "the label starts past the styled graphic");
+}
+
 void TestMenuShowAtPoint() {
     auto menu = jadefx::make<jadefx::Menu>();
     int fires = 0;
@@ -576,6 +619,7 @@ int RunMenuTests() {
     TestEscapeHidesMenu();
     TestMenuItemGraphic();
     TestGraphicSurvivesReopen();
+    TestFirstOpenMeasuresStyledGraphic();
     TestMenuShowAtPoint();
     return gFailures;
 }
