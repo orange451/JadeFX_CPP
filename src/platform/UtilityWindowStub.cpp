@@ -26,6 +26,7 @@ const Stage& UtilityWindow::stage() const {
 }
 
 void UtilityWindow::setTitle(const std::string&) {}
+void UtilityWindow::toFront() {}
 void UtilityWindow::setCanClose(std::function<bool()>) {}
 void UtilityWindow::setOnClosed(std::function<void()>) {}
 bool UtilityWindow::tryClose() { return false; }

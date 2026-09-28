@@ -25,6 +25,9 @@ public:
 
     void setTitle(const std::string& title);
     bool isOpen() const { return open_; }
+    // Brings the window in front of the others, restoring it when minimized,
+    // and gives it the keyboard.
+    void toFront();
 
     // False keeps the window. An empty hook allows the close.
     void setCanClose(std::function<bool()> canClose);

@@ -151,6 +151,18 @@ const Stage& UtilityWindow::stage() const { return stage_; }
 
 void UtilityWindow::setTitle(const std::string& title) { stage_.setTitle(title); }
 
+void UtilityWindow::toFront() {
+    GLFWwindow* window = native();
+    if (window == nullptr) {
+        return;
+    }
+    if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0) {
+        glfwRestoreWindow(window);
+    }
+    glfwShowWindow(window);
+    glfwFocusWindow(window);
+}
+
 void UtilityWindow::setCanClose(std::function<bool()> canClose) { canClose_ = std::move(canClose); }
 
 void UtilityWindow::setOnClosed(std::function<void()> onClosed) { onClosed_ = std::move(onClosed); }
