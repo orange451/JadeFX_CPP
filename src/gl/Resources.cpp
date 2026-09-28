@@ -188,14 +188,16 @@ std::string Preamble(const char* filename) {
 
 std::string LoadShaderSource(const char* filename) {
     const fs::path exeDir = ExecutableDirectory();
-    fs::path candidates[8];
+    fs::path candidates[10];
     std::size_t count = 0;
     if (!exeDir.empty()) {
         candidates[count++] = exeDir / ".." / "Resources" / "shaders" / filename;
         candidates[count++] = exeDir / "shaders" / filename;
+        candidates[count++] = exeDir / "resources" / "shaders" / filename;
         candidates[count++] = exeDir / ".." / "shaders" / filename;
     }
     candidates[count++] = fs::path("shaders") / filename;
+    candidates[count++] = fs::path("resources") / "shaders" / filename;
     candidates[count++] = fs::path("res") / "shaders" / filename;
 #if defined(JADEFX_SOURCE_DIR)
     candidates[count++] = fs::path(JADEFX_SOURCE_DIR) / "res" / "shaders" / filename;

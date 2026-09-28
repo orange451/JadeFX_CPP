@@ -5,6 +5,7 @@
 #include <string>
 
 // Shader files live in res/shaders. A Mac app looks in Contents/Resources/shaders.
+// Other programs look in shaders/ or resources/shaders/ beside the executable.
 // There is no built-in copy. An empty result means the file could not be read.
 std::string LoadShaderSource(const char* filename);
 
