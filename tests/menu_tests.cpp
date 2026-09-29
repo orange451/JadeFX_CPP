@@ -349,6 +349,66 @@ void TestAcceleratorWhileClosed() {
     Expect(!button->isShowing(), "the accelerator hides the open menu");
 }
 
+// Takes every key but F, as a terminal takes Ctrl+S for the program in it.
+class KeyGrabber : public jadefx::Pane {
+public:
+    KeyGrabber() { setCapturesKeys(true); }
+    void handleKey(jadefx::KeyEvent& event) override {
+        if (event.pressed) {
+            ++seen;
+        }
+        if (event.key != jadefx::Key::F) {
+            event.consume();
+        }
+    }
+    int seen = 0;
+};
+
+void TestCapturedKeysBeforeAccelerators() {
+    int saves = 0;
+    int finds = 0;
+    auto save = jadefx::make<jadefx::MenuItem>("Save");
+    save->setAccelerator(jadefx::Key::S, jadefx::Key::ModControl);
+    save->setOnAction([&](jadefx::ActionEvent&) { ++saves; });
+    auto find = jadefx::make<jadefx::MenuItem>("Find");
+    find->setAccelerator(jadefx::Key::F, jadefx::Key::ModControl);
+    find->setOnAction([&](jadefx::ActionEvent&) { ++finds; });
+    auto button = jadefx::make<jadefx::MenuButton>("Edit");
+    button->getItems().add(save);
+    button->getItems().add(find);
+    auto grabber = jadefx::make<KeyGrabber>();
+    grabber->setPrefSize(200, 100);
+    auto inner = jadefx::make<jadefx::Pane>();
+    grabber->getChildren().add(inner);
+    auto root = FullRoot();
+    root->getChildren().add(button);
+    root->getChildren().add(grabber);
+    auto scene = jadefx::make<jadefx::Scene>(root, 720, 420);
+    scene->layout(720, 420, 0);
+    int hooked = 0;
+    scene->addKeyHook([&](jadefx::KeyEvent& event) {
+        if (event.pressed && !event.consumed) {
+            ++hooked;
+        }
+    });
+
+    grabber->requestFocus();
+    scene->noteKey(jadefx::Key::S, true, false, jadefx::Key::ModControl);
+    Expect(saves == 0 && grabber->seen == 1, "a node that captures keys takes Ctrl+S before its accelerator");
+    Expect(hooked == 0, "a captured key does not reach the scene's key hooks");
+    scene->noteKey(jadefx::Key::F, true, false, jadefx::Key::ModControl);
+    Expect(finds == 1, "a key the node leaves goes on to the accelerator");
+    Expect(grabber->seen == 2, "the node sees a key it leaves only once");
+
+    inner->requestFocus();
+    scene->noteKey(jadefx::Key::S, true, false, jadefx::Key::ModControl);
+    Expect(saves == 0 && grabber->seen == 3, "a node inside one that captures keys is covered too");
+
+    root->requestFocus();
+    scene->noteKey(jadefx::Key::S, true, false, jadefx::Key::ModControl);
+    Expect(saves == 1 && grabber->seen == 3, "without a capturing node focused, the accelerator comes first");
+}
+
 void TestRebuildWhileOpen() {
     auto button = jadefx::make<jadefx::MenuButton>("File");
     button->getItems().add(jadefx::make<jadefx::MenuItem>("Save"));
@@ -614,6 +674,7 @@ int RunMenuTests() {
     TestMenuBarSwitchesOnMove();
     TestSubmenuOpensRight();
     TestAcceleratorWhileClosed();
+    TestCapturedKeysBeforeAccelerators();
     TestRebuildWhileOpen();
     TestLeavingScene();
     TestEscapeHidesMenu();

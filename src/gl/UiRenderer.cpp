@@ -300,7 +300,8 @@ void UiRenderer::popClip() {
 
 void UiRenderer::drawBox(float x, float y, float width, float height, float boxX, float boxY, float boxW, float boxH,
                          const float radius[4], const Color* stops, const float* stopAt, int stopCount, float mode,
-                         const float sides[4], float blur, float angleDeg, const float* clip, const float* clipRadii) {
+                         const float sides[4], float blur, float angleDeg, const float* clip, const float* clipRadii,
+                         bool exact) {
     if (!ready_ || width <= 0.f || height <= 0.f || viewportW_ <= 0 || viewportH_ <= 0 || stops == nullptr ||
         stopCount <= 0) {
         return;
@@ -313,7 +314,7 @@ void UiRenderer::drawBox(float x, float y, float width, float height, float boxX
     glUniform2f(boxViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
     glUniform4f(boxBox_, boxX * s, boxY * s, boxW * s, boxH * s);
     glUniform4f(boxRadii_, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s);
-    glUniform4f(boxParams_, mode, 0.f, std::max(blur * s, 0.f), angleDeg);
+    glUniform4f(boxParams_, mode, exact ? 1.f : 0.f, std::max(blur * s, 0.f), angleDeg);
     const float top = sides != nullptr ? sides[0] : 0.f;
     const float right = sides != nullptr ? sides[1] : 0.f;
     const float bottom = sides != nullptr ? sides[2] : 0.f;
@@ -356,6 +357,19 @@ void UiRenderer::fillRounded(float x, float y, float width, float height, const 
     }
     drawBox(x, y, width, height, 0.f, 0.f, width, height, radius, stops, stopAt, stopCount, 0.f, nullptr, 0.f,
             angleDeg);
+}
+
+void UiRenderer::fillRect(float x, float y, float width, float height, const Color& color) {
+    if (width <= 0.f || height <= 0.f || color.a <= 0.f) {
+        return;
+    }
+    // A pixel on each side, so a pixel an edge crosses is drawn whichever
+    // box it belongs to, and the shader covers it by the part inside.
+    const float pad = scale_ > 0.f ? 1.f / scale_ : 1.f;
+    const float radius[4] = {};
+    const float at = 0.f;
+    drawBox(x - pad, y - pad, width + 2.f * pad, height + 2.f * pad, pad, pad, width, height, radius, &color, &at, 1,
+            0.f, nullptr, 0.f, 0.f, nullptr, nullptr, true);
 }
 
 void UiRenderer::strokeRounded(float x, float y, float width, float height, const float radius[4], const float sides[4],

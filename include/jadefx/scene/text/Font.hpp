@@ -37,6 +37,9 @@ public:
     float ascent() const;
     float lineHeight() const;
     float measureWidth(const std::string& text) const;
+    // False when the face has no glyph for the code point, so a caller can
+    // draw it in another family. Text drawn without one shows nothing there.
+    bool hasGlyph(char32_t codepoint) const;
     ShapedText shape(const std::string& text) const;
 
 private:

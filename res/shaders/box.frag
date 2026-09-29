@@ -12,7 +12,10 @@ uniform float uStopAt[8];
 
 out vec4 fragColor;
 
-// uParams: mode, unused, blur radius, gradient angle in degrees.
+// uParams: mode, exact edges, blur radius, gradient angle in degrees.
+// Exact edges cover each pixel by the area inside the box, so an edge on a whole
+// pixel is sharp and two boxes that share one meet without a seam. Otherwise
+// edges soften over a pixel and a half.
 // uBorder: top, right, bottom, left.
 // uClip: element x, y, width, height in the same local pixels as uBox.
 // mode 0 fills, 1 is a border ring, 2 is an outer shadow, 3 is an inset shadow.
@@ -118,7 +121,7 @@ void main() {
     vec2 outerCenter = uBox.xy + outerHalf;
     vec2 point = vLocal - outerCenter;
     float dist = roundedDistance(point, outerHalf, uRadii);
-    float cover = 1.0 - smoothstep(-0.75, 0.75, dist);
+    float cover = uParams.y > 0.5 ? clamp(0.5 - dist, 0.0, 1.0) : 1.0 - smoothstep(-0.75, 0.75, dist);
 
     float angle = radians(uParams.w);
     vec2 direction = vec2(sin(angle), -cos(angle));

@@ -20,6 +20,7 @@ set(JADEFX_SOURCES
     src/style/Stylesheet.cpp
     src/style/Theme.cpp
     src/scene/Node.cpp
+    src/scene/Painter.cpp
     src/scene/layout/Region.cpp
     src/scene/layout/Pane.cpp
     src/scene/layout/StackPane.cpp

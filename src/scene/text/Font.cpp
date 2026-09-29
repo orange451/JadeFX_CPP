@@ -144,6 +144,11 @@ bool Font::loadFile(const std::string& family, const std::string& path) {
     return loadBytes(family, bytes.data(), static_cast<int>(bytes.size()));
 }
 
+bool Font::hasGlyph(char32_t codepoint) const {
+    const FontFace* face = ReadyFace(family_);
+    return face != nullptr && face->ready && stbtt_FindGlyphIndex(&face->info, static_cast<int>(codepoint)) != 0;
+}
+
 float Font::ascent() const {
     const FontFace* face = ReadyFace(family_);
     if (face == nullptr || !face->ready) {
