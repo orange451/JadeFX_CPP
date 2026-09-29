@@ -61,6 +61,9 @@ public:
 
     void setSafeInsets(const Insets& insets) { safe_ = insets; }
 
+    static void setZoom(double zoom);
+    static double getZoom();
+
     // pointWidth/pointHeight are CSS pixels. framebufferWidth/Height are the drawable.
     // Returns false when OpenGL reported an error while drawing the frame.
     // The color buffer is cleared unless setClearsColor(false) was called. An existing

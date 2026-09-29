@@ -12,6 +12,14 @@
 
 namespace jadefx {
 
+namespace {
+double gZoom = 1.0;
+}
+
+void Stage::setZoom(double zoom) { gZoom = zoom > 0.05 ? zoom : 1.0; }
+
+double Stage::getZoom() { return gZoom; }
+
 struct Stage::Event {
     enum class Type { Move, Button, Scroll, Key, Text, Leave, Focus, Drop };
     Type type = Type::Move;
@@ -216,8 +224,12 @@ void Stage::pushText(std::string text) {
 }
 
 void Stage::processEvents() {
-    const std::vector<Event> events = std::move(events_);
+    std::vector<Event> events = std::move(events_);
     events_.clear();
+    for (Event& event : events) {
+        event.x /= gZoom;
+        event.y /= gZoom;
+    }
     for (const Event& event : events) {
         switch (event.type) {
             case Event::Type::Move:
@@ -276,18 +288,21 @@ bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int fra
     }
     pointWidth_ = pointWidth;
     pointHeight_ = pointHeight;
+    const double zoom = gZoom;
+    const double layoutWidth = static_cast<double>(pointWidth) / zoom;
+    const double layoutHeight = static_cast<double>(pointHeight) / zoom;
     if (frames_ == 0) {
         scene_->setSafeInsets(safe_);
-        scene_->layout(pointWidth, pointHeight);
+        scene_->layout(layoutWidth, layoutHeight);
     }
     // Before input, so a task queued by this frame's click runs after that click has finished.
     drainRunLater();
     processEvents();
     scene_->setSafeInsets(safe_);
-    scene_->layout(pointWidth, pointHeight);
+    scene_->layout(layoutWidth, layoutHeight);
     syncCursor();
 
-    const float scale = static_cast<float>(framebufferWidth) / static_cast<float>(pointWidth);
+    const float scale = static_cast<float>(static_cast<double>(framebufferWidth) / layoutWidth);
     renderer_->begin(framebufferWidth, framebufferHeight, scale, scene_->themeColor(ThemeColor::Background), clearColor_);
     scene_->render(*renderer_, 1.f);
     if (afterUi_) {
