@@ -41,6 +41,7 @@ GLint (*jadefx_glGetUniformLocation)(GLuint, const GLchar*) = nullptr;
 void (*jadefx_glUniform1f)(GLint, GLfloat) = nullptr;
 void (*jadefx_glUniform1i)(GLint, GLint) = nullptr;
 void (*jadefx_glUniform2f)(GLint, GLfloat, GLfloat) = nullptr;
+void (*jadefx_glUniform3f)(GLint, GLfloat, GLfloat, GLfloat) = nullptr;
 void (*jadefx_glUniform4f)(GLint, GLfloat, GLfloat, GLfloat, GLfloat) = nullptr;
 void (*jadefx_glEnable)(GLenum) = nullptr;
 void (*jadefx_glDisable)(GLenum) = nullptr;
@@ -103,6 +104,7 @@ bool jadefx_load_gl(GlGetProcAddress get_proc) {
     LOAD(Uniform1f);
     LOAD(Uniform1i);
     LOAD(Uniform2f);
+    LOAD(Uniform3f);
     LOAD(Uniform4f);
     LOAD(Enable);
     LOAD(Disable);

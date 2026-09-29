@@ -7,8 +7,8 @@
 namespace jadefx {
 
 // One pixel on an LCD is three vertical stripes, red then green then blue.
-// Coverage is rasterized at three samples per pixel and then blurred with the
-// FreeType light filter {0, 85, 86, 85, 0} / 256. The weights sum to 256, so a
+// Coverage is rasterized at three samples per pixel and then blurred with a
+// FreeType light or default filter (weights / 256). The weights sum to 256, so a
 // solid run stays neutral gray; color remains only where the outline crosses a
 // stripe. originSubX is the stripe index of samples[0] on that same grid.
 struct SubpixelBitmap {
@@ -46,12 +46,15 @@ inline int SubpixelPhase(float pixelX, int& pixel) {
     return phase;
 }
 
-inline SubpixelBitmap PackSubpixelCoverage(const unsigned char* samples, int sampleWidth, int sampleHeight,
-                                           int stride, int originSubX, int originY) {
-    // FreeType FT_LCD_FILTER_LIGHT. Outer taps are zero; the window is still
-    // five wide so a heavier filter can drop in without moving the bounds.
-    constexpr int kFilter[5] = {0, 85, 86, 85, 0};
+// FreeType FT_LCD_FILTER_LIGHT. Outer taps are zero; the window is still five
+// wide so the default filter shares the same bounds.
+constexpr int kLcdFilterLight[5] = {0, 85, 86, 85, 0};
+// FreeType FT_LCD_FILTER_DEFAULT, what fontconfig's lcddefault selects on Linux.
+constexpr int kLcdFilterDefault[5] = {8, 77, 86, 77, 8};
 
+inline SubpixelBitmap PackSubpixelCoverage(const unsigned char* samples, int sampleWidth, int sampleHeight,
+                                           int stride, int originSubX, int originY,
+                                           const int (&filter)[5] = kLcdFilterLight) {
     SubpixelBitmap image;
     image.yoff = originY;
     if (samples == nullptr || sampleWidth <= 0 || sampleHeight <= 0 || stride < sampleWidth) {
@@ -62,10 +65,10 @@ inline SubpixelBitmap PackSubpixelCoverage(const unsigned char* samples, int sam
         int sum = 0;
         for (int tap = 0; tap < 5; ++tap) {
             const int sampleIndex = index + tap - 2;
-            if (kFilter[tap] == 0 || sampleIndex < 0 || sampleIndex >= sampleWidth) {
+            if (filter[tap] == 0 || sampleIndex < 0 || sampleIndex >= sampleWidth) {
                 continue;
             }
-            sum += kFilter[tap] * static_cast<int>(row[sampleIndex]);
+            sum += filter[tap] * static_cast<int>(row[sampleIndex]);
         }
         const int value = (sum + 128) >> 8;
         return value > 255 ? 255 : value;

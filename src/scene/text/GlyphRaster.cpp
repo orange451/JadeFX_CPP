@@ -5,7 +5,12 @@
 #include <algorithm>
 #include <vector>
 
-#if defined(_WIN32)
+// JADEFX_FREETYPE is the CMake option of the same name, on for Linux and Android.
+#if defined(JADEFX_FREETYPE)
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include FT_OUTLINE_H
+#elif defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -19,7 +24,100 @@
 
 namespace jadefx {
 
-#if defined(_WIN32)
+#if defined(JADEFX_FREETYPE)
+
+struct NativeFace {
+    FT_Face face = nullptr;
+    ~NativeFace() {
+        if (face != nullptr) {
+            FT_Done_Face(face);
+        }
+    }
+};
+
+namespace {
+
+FT_Library SharedFreeType() {
+    static FT_Library library = [] {
+        FT_Library made = nullptr;
+        return FT_Init_FreeType(&made) == 0 ? made : nullptr;
+    }();
+    return library;
+}
+
+FT_Face NativeFontFace(const FontFace& face) {
+    if (face.native) {
+        return face.native->face;
+    }
+    face.native = std::make_shared<NativeFace>();
+    FT_Library library = SharedFreeType();
+    if (library == nullptr || face.bytes.empty()) {
+        return nullptr;
+    }
+    // FreeType reads the face's own bytes in place. They outlive native, which is declared after them.
+    if (FT_New_Memory_Face(library, face.bytes.data(), static_cast<FT_Long>(face.bytes.size()), 0,
+                           &face.native->face) != 0) {
+        face.native->face = nullptr;
+    }
+    return face.native->face;
+}
+
+// Chrome on Linux draws with fontconfig's usual hintslight and lcddefault:
+// FreeType light hinting, which snaps baselines, x-heights, and crossbars in y
+// and leaves widths alone, then the default LCD filter across the stripes.
+bool RasterizeNative(const FontFace& face, int codepoint, int pixelSize, int phase, bool lcd,
+                     SubpixelBitmap& image) {
+    FT_Face ft = NativeFontFace(face);
+    if (ft == nullptr || FT_Set_Pixel_Sizes(ft, 0, static_cast<FT_UInt>(pixelSize)) != 0) {
+        return false;
+    }
+    const FT_UInt index = FT_Get_Char_Index(ft, static_cast<FT_ULong>(codepoint));
+    if (FT_Load_Glyph(ft, index, FT_LOAD_TARGET_LIGHT | FT_LOAD_NO_BITMAP) != 0 ||
+        ft->glyph->format != FT_GLYPH_FORMAT_OUTLINE) {
+        return false;
+    }
+    FT_Outline& outline = ft->glyph->outline;
+    // Stripe coverage is an ordinary render of the outline stretched to three samples per pixel.
+    const int samples = lcd ? 3 : 1;
+    if (lcd) {
+        FT_Matrix stretch{3 * 0x10000L, 0, 0, 0x10000L};
+        FT_Outline_Transform(&outline, &stretch);
+    }
+    // Outline units are 1/64 of a sample.
+    FT_Outline_Translate(&outline, phase * samples * 64 / kSubpixelPhases, 0);
+    if (FT_Render_Glyph(ft->glyph, FT_RENDER_MODE_NORMAL) != 0) {
+        return false;
+    }
+    const FT_Bitmap& bitmap = ft->glyph->bitmap;
+    const int width = static_cast<int>(bitmap.width);
+    const int height = static_cast<int>(bitmap.rows);
+    const int left = ft->glyph->bitmap_left;
+    const int top = -ft->glyph->bitmap_top;
+    if (lcd) {
+        image = PackSubpixelCoverage(width > 0 ? bitmap.buffer : nullptr, width, height, bitmap.pitch, left, top,
+                                     kLcdFilterDefault);
+        return true;
+    }
+    image.xoff = left;
+    image.yoff = top;
+    if (width <= 0 || height <= 0) {
+        return true;
+    }
+    image.width = width;
+    image.height = height;
+    image.rgb.resize(static_cast<std::size_t>(width * height * 3));
+    for (int y = 0; y < height; ++y) {
+        const unsigned char* row = bitmap.buffer + static_cast<std::ptrdiff_t>(y) * bitmap.pitch;
+        for (int x = 0; x < width; ++x) {
+            std::fill_n(image.rgb.begin() + static_cast<std::ptrdiff_t>((y * width + x) * 3), 3, row[x]);
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+#elif defined(_WIN32)
 
 using Microsoft::WRL::ComPtr;
 
@@ -77,8 +175,8 @@ IDWriteFontFace* NativeFontFace(const FontFace& face) {
     return face.native->face.Get();
 }
 
-bool RasterizeDirectWrite(const FontFace& face, int codepoint, int pixelSize, int phase, bool lcd,
-                          SubpixelBitmap& image) {
+bool RasterizeNative(const FontFace& face, int codepoint, int pixelSize, int phase, bool lcd,
+                     SubpixelBitmap& image) {
     IDWriteFontFace* fontFace = NativeFontFace(face);
     if (fontFace == nullptr) {
         return false;
@@ -196,9 +294,9 @@ SubpixelBitmap RasterizeStb(const FontFace& face, int codepoint, int pixelSize, 
 }  // namespace
 
 SubpixelBitmap RasterizeGlyph(const FontFace& face, int codepoint, int pixelSize, int phase, bool lcd) {
-#if defined(_WIN32)
+#if defined(JADEFX_FREETYPE) || defined(_WIN32)
     SubpixelBitmap image;
-    if (RasterizeDirectWrite(face, codepoint, pixelSize, phase, lcd, image)) {
+    if (RasterizeNative(face, codepoint, pixelSize, phase, lcd, image)) {
         return image;
     }
 #endif

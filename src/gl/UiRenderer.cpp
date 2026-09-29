@@ -18,6 +18,28 @@
 namespace jadefx {
 namespace {
 
+// Skia's mask gamma as Chromium builds it for each platform (skia/BUILD.gn), so
+// text weighs what it does in the browser there. Gamma 0 is the sRGB curve.
+struct TextGamma {
+    float gamma;
+    float contrast;
+};
+#if defined(_WIN32)
+constexpr TextGamma kStripeGamma{0.f, 1.f};
+#elif defined(__APPLE__)
+constexpr TextGamma kStripeGamma{0.f, 0.f};
+#elif defined(__ANDROID__)
+constexpr TextGamma kStripeGamma{1.4f, 0.f};
+#else
+constexpr TextGamma kStripeGamma{1.2f, 0.2f};
+#endif
+// Skia leaves grayscale masks uncorrected unless built with SK_GAMMA_APPLY_TO_A8, as Android is.
+#if defined(__ANDROID__)
+constexpr TextGamma kGrayGamma = kStripeGamma;
+#else
+constexpr TextGamma kGrayGamma{1.f, 0.f};
+#endif
+
 int Location(GLuint program, const char* name) {
     return glGetUniformLocation(program, name);
 }
@@ -528,8 +550,8 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
     }
     glUniform2f(textViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
     glUniform4f(textColor_, color.r, color.g, color.b, color.a);
-    // Chosen by comparing frames against Edge drawing the same text with the same font.
-    glUniform2f(textGamma_, 2.2f, 1.0f);
+    const TextGamma& gamma = lcd ? kStripeGamma : kGrayGamma;
+    glUniform3f(textGamma_, gamma.gamma, gamma.contrast, lcd ? 0.f : 1.f);
     glUniform1i(textSampler_, 0);
     glBindTexture(GL_TEXTURE_2D, atlas_);
     glBindVertexArray(textVao_);

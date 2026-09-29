@@ -12,8 +12,9 @@ struct FontFace;
 // place the top left pixel relative to the pen pixel and the baseline.
 //
 // Windows rasterizes with DirectWrite, which applies the font's vertical hints
-// and its own ClearType filter, as Edge and Chrome do. Elsewhere, or when
-// DirectWrite cannot read the font, stb_truetype draws an unhinted outline.
+// and its own ClearType filter, as Edge and Chrome do. Linux and Android use
+// FreeType with light hinting, as Chrome does there. Elsewhere, or when the
+// platform rasterizer cannot read the font, stb_truetype draws an unhinted outline.
 SubpixelBitmap RasterizeGlyph(const FontFace& face, int codepoint, int pixelSize, int phase, bool lcd);
 
 }  // namespace jadefx

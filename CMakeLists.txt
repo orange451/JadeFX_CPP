@@ -150,6 +150,40 @@ if(NOT stb_image_POPULATED)
 endif()
 target_include_directories(jadefx PRIVATE "${stb_truetype_SOURCE_DIR}" "${stb_image_SOURCE_DIR}")
 
+# FreeType rasterizes glyphs on Linux and Android with light hinting, as Chrome
+# does there. Windows uses DirectWrite; Apple platforms and the web keep stb_truetype.
+if(WIN32 OR APPLE OR EMSCRIPTEN)
+    set(JADEFX_FREETYPE_DEFAULT OFF)
+else()
+    set(JADEFX_FREETYPE_DEFAULT ON)
+endif()
+option(JADEFX_FREETYPE "Rasterize glyphs with FreeType" ${JADEFX_FREETYPE_DEFAULT})
+if(JADEFX_FREETYPE)
+    # Prefer the system FreeType (apt's libfreetype-dev). Otherwise download 2.13.3.
+    if(NOT ANDROID)
+        find_package(Freetype QUIET)
+    endif()
+    if(TARGET Freetype::Freetype)
+        target_link_libraries(jadefx PRIVATE Freetype::Freetype)
+    else()
+        FetchContent_Declare(
+            freetype
+            URL https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz
+            URL_HASH SHA256=0550350666d427c74daeb85d5ac7bb353acba5f76956395995311a9c6f063289
+        )
+        # Outlines only. The optional compressed, bitmap, and shaping formats are not needed.
+        set(FT_DISABLE_ZLIB ON CACHE BOOL "" FORCE)
+        set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+        set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+        set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+        set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+        set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(freetype)
+        target_link_libraries(jadefx PRIVATE freetype)
+    endif()
+    target_compile_definitions(jadefx PRIVATE JADEFX_FREETYPE)
+endif()
+
 if(JADEFX_GLFM)
     target_compile_definitions(jadefx PUBLIC JADEFX_GLFM JADEFX_GLES)
     include(FetchContent)
@@ -219,7 +253,9 @@ else()
         # timeBeginPeriod, so the frame loop's wait wakes on time.
         target_link_libraries(jadefx PUBLIC winmm)
         # Glyph rasterization, hinted the way Edge draws text.
-        target_link_libraries(jadefx PUBLIC dwrite)
+        if(NOT JADEFX_FREETYPE)
+            target_link_libraries(jadefx PUBLIC dwrite)
+        endif()
     endif()
     if(APPLE)
         target_link_libraries(jadefx PUBLIC "-framework Cocoa")

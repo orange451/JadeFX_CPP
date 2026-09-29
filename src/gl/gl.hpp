@@ -208,6 +208,7 @@ extern GLint (*jadefx_glGetUniformLocation)(GLuint program, const GLchar* name);
 extern void (*jadefx_glUniform1f)(GLint location, GLfloat v0);
 extern void (*jadefx_glUniform1i)(GLint location, GLint v0);
 extern void (*jadefx_glUniform2f)(GLint location, GLfloat v0, GLfloat v1);
+extern void (*jadefx_glUniform3f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
 extern void (*jadefx_glUniform4f)(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
 extern void (*jadefx_glEnable)(GLenum cap);
 extern void (*jadefx_glDisable)(GLenum cap);
@@ -254,6 +255,7 @@ extern void (*jadefx_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height)
 #define glUniform1f jadefx_glUniform1f
 #define glUniform1i jadefx_glUniform1i
 #define glUniform2f jadefx_glUniform2f
+#define glUniform3f jadefx_glUniform3f
 #define glUniform4f jadefx_glUniform4f
 #define glEnable jadefx_glEnable
 #define glDisable jadefx_glDisable
