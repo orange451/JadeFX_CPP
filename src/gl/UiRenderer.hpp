@@ -2,6 +2,7 @@
 
 #include "jadefx/paint/Color.hpp"
 
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -80,6 +81,7 @@ private:
     int boxStopAt_[8] = {};
     int textViewport_ = -1;
     int textColor_ = -1;
+    int textGamma_ = -1;
     int textSampler_ = -1;
     unsigned imageProgram_ = 0;
     int imageViewport_ = -1;
@@ -105,11 +107,15 @@ private:
         bool empty = true;
     };
     struct GlyphKey {
+        const FontFace* face = nullptr;
         int pixelSize = 0;
         int codepoint = 0;
         int phase = 0;
         bool subpixel = false;
         bool operator<(const GlyphKey& other) const {
+            if (face != other.face) {
+                return std::less<const FontFace*>()(face, other.face);
+            }
             if (pixelSize != other.pixelSize) {
                 return pixelSize < other.pixelSize;
             }

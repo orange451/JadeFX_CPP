@@ -517,9 +517,10 @@ const unsigned char* PixelAt(const jadefx::SubpixelBitmap& image, int pixelX) {
 void TestSubpixelCoverage() {
     int pixel = -1;
     Expect(jadefx::SubpixelPhase(10.f, pixel) == 0 && pixel == 10, "exact pixel stays on phase 0");
-    Expect(jadefx::SubpixelPhase(10.2f, pixel) == 1 && pixel == 10, "0.2 snaps to the one-third stripe");
+    Expect(jadefx::SubpixelPhase(10.2f, pixel) == 1 && pixel == 10, "0.2 snaps to the quarter pixel");
+    Expect(jadefx::SubpixelPhase(10.5f, pixel) == 2 && pixel == 10, "0.5 is the half pixel");
     Expect(jadefx::SubpixelPhase(10.9f, pixel) == 0 && pixel == 11, "0.9 carries onto the next pixel");
-    Expect(jadefx::SubpixelPhase(-1.2f, pixel) == 2 && pixel == -2, "negative positions snap to a stripe");
+    Expect(jadefx::SubpixelPhase(-1.2f, pixel) == 3 && pixel == -2, "negative positions snap to a quarter");
 
     unsigned char blank[6] = {};
     const jadefx::SubpixelBitmap empty = jadefx::PackSubpixelCoverage(blank, 6, 1, 6, 0, 4);

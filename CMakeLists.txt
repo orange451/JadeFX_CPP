@@ -56,6 +56,7 @@ set(JADEFX_SOURCES
     src/scene/image/Image.cpp
     src/scene/image/ImageView.cpp
     src/scene/text/Font.cpp
+    src/scene/text/GlyphRaster.cpp
     src/scene/text/StyledDocument.cpp
     src/scene/controls/StyledTextArea.cpp
     src/scene/controls/StyleClassedTextArea.cpp
@@ -217,6 +218,8 @@ else()
         target_link_libraries(jadefx PUBLIC ole32 shell32 uuid)
         # timeBeginPeriod, so the frame loop's wait wakes on time.
         target_link_libraries(jadefx PUBLIC winmm)
+        # Glyph rasterization, hinted the way Edge draws text.
+        target_link_libraries(jadefx PUBLIC dwrite)
     endif()
     if(APPLE)
         target_link_libraries(jadefx PUBLIC "-framework Cocoa")

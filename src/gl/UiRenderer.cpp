@@ -6,6 +6,7 @@
 #include "platform/ErrorDialog.hpp"
 #include "scene/image/ImageData.hpp"
 #include "scene/text/FontInternal.hpp"
+#include "scene/text/GlyphRaster.hpp"
 #include "jadefx/scene/text/Font.hpp"
 
 #include <algorithm>
@@ -103,6 +104,7 @@ bool UiRenderer::initialize() {
     }
     textViewport_ = Location(textProgram_, "uViewport");
     textColor_ = Location(textProgram_, "uColor");
+    textGamma_ = Location(textProgram_, "uGamma");
     textSampler_ = Location(textProgram_, "uTex");
     imageViewport_ = Location(imageProgram_, "uViewport");
     imageOpacity_ = Location(imageProgram_, "uOpacity");
@@ -399,7 +401,7 @@ const UiRenderer::Glyph* UiRenderer::glyphFor(int codepoint, int pixelSize, int 
     if (!lcd) {
         phase = 0;
     }
-    const GlyphKey key{pixelSize, codepoint, phase, lcd};
+    const GlyphKey key{face, pixelSize, codepoint, phase, lcd};
     const auto found = glyphs_.find(key);
     if (found != glyphs_.end()) {
         return &found->second;
@@ -408,74 +410,30 @@ const UiRenderer::Glyph* UiRenderer::glyphFor(int codepoint, int pixelSize, int 
         return nullptr;
     }
 
-    const float raster = stbtt_ScaleForMappingEmToPixels(&face->info, static_cast<float>(pixelSize));
+    // Grayscale glyphs share the stripe atlas and blend when there is one. Equal channels are plain coverage.
+    const SubpixelBitmap raster = RasterizeGlyph(*face, codepoint, pixelSize, phase, lcd);
+    const int width = raster.width;
+    const int height = raster.height;
     Glyph glyph;
+    glyph.xoff = static_cast<float>(raster.xoff);
+    glyph.yoff = static_cast<float>(raster.yoff);
+    glyph.width = static_cast<float>(width);
+    glyph.height = static_cast<float>(height);
+    glyph.empty = width <= 0 || height <= 0 || raster.rgb.empty();
     std::vector<unsigned char> upload;
-    int width = 0;
-    int height = 0;
-    if (lcd) {
-        // Rasterize one sample per stripe. phase/3 is where this glyph sits inside its pixel.
-        const float shift = static_cast<float>(phase) / 3.f;
-        int ix0 = 0;
-        int iy0 = 0;
-        int ix1 = 0;
-        int iy1 = 0;
-        stbtt_GetCodepointBitmapBoxSubpixel(&face->info, codepoint, raster * 3.f, raster, shift * 3.f, 0.f, &ix0, &iy0,
-                                            &ix1, &iy1);
-        const int sampleWidth = std::max(0, ix1 - ix0);
-        const int sampleHeight = std::max(0, iy1 - iy0);
-        std::vector<unsigned char> samples;
-        if (sampleWidth > 0 && sampleHeight > 0) {
-            samples.assign(static_cast<std::size_t>(sampleWidth * sampleHeight), 0);
-            stbtt_MakeCodepointBitmapSubpixel(&face->info, samples.data(), sampleWidth, sampleHeight, sampleWidth,
-                                              raster * 3.f, raster, shift * 3.f, 0.f, codepoint);
-        }
-        const SubpixelBitmap packed = PackSubpixelCoverage(samples.empty() ? nullptr : samples.data(), sampleWidth,
-                                                           sampleHeight, sampleWidth, ix0, iy0);
-        glyph.xoff = static_cast<float>(packed.xoff);
-        glyph.yoff = static_cast<float>(packed.yoff);
-        width = packed.width;
-        height = packed.height;
-        glyph.width = static_cast<float>(width);
-        glyph.height = static_cast<float>(height);
-        glyph.empty = width <= 0 || height <= 0 || packed.rgb.empty();
-        if (!glyph.empty) {
-            upload.resize(static_cast<std::size_t>(width * height * 4));
-            for (int i = 0; i < width * height; ++i) {
-                upload[static_cast<std::size_t>(i * 4)] = packed.rgb[static_cast<std::size_t>(i * 3)];
-                upload[static_cast<std::size_t>(i * 4 + 1)] = packed.rgb[static_cast<std::size_t>(i * 3 + 1)];
-                upload[static_cast<std::size_t>(i * 4 + 2)] = packed.rgb[static_cast<std::size_t>(i * 3 + 2)];
-                upload[static_cast<std::size_t>(i * 4 + 3)] = 255;
-            }
-        }
-    } else {
-        int x0 = 0;
-        int y0 = 0;
-        int x1 = 0;
-        int y1 = 0;
-        stbtt_GetCodepointBitmapBox(&face->info, codepoint, raster, raster, &x0, &y0, &x1, &y1);
-        width = std::max(0, x1 - x0);
-        height = std::max(0, y1 - y0);
-        glyph.xoff = static_cast<float>(x0);
-        glyph.yoff = static_cast<float>(y0);
-        glyph.width = static_cast<float>(width);
-        glyph.height = static_cast<float>(height);
-        glyph.empty = width <= 0 || height <= 0;
-        if (!glyph.empty) {
-            std::vector<unsigned char> coverage(static_cast<std::size_t>(width * height));
-            stbtt_MakeCodepointBitmap(&face->info, coverage.data(), width, height, width, raster, raster, codepoint);
+    if (!glyph.empty) {
+        const int texelBytes = subpixel_ ? 4 : 1;
+        upload.resize(static_cast<std::size_t>(width * height * texelBytes));
+        for (int i = 0; i < width * height; ++i) {
+            const unsigned char* rgb = raster.rgb.data() + static_cast<std::size_t>(i * 3);
+            unsigned char* texel = upload.data() + static_cast<std::size_t>(i * texelBytes);
             if (subpixel_) {
-                // Same atlas and blend as stripe glyphs. Equal channels are ordinary grayscale coverage.
-                upload.resize(static_cast<std::size_t>(width * height * 4));
-                for (int i = 0; i < width * height; ++i) {
-                    const unsigned char value = coverage[static_cast<std::size_t>(i)];
-                    upload[static_cast<std::size_t>(i * 4)] = value;
-                    upload[static_cast<std::size_t>(i * 4 + 1)] = value;
-                    upload[static_cast<std::size_t>(i * 4 + 2)] = value;
-                    upload[static_cast<std::size_t>(i * 4 + 3)] = 255;
-                }
+                texel[0] = rgb[0];
+                texel[1] = rgb[1];
+                texel[2] = rgb[2];
+                texel[3] = 255;
             } else {
-                upload = std::move(coverage);
+                texel[0] = rgb[0];
             }
         }
     }
@@ -573,6 +531,8 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
     }
     glUniform2f(textViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
     glUniform4f(textColor_, color.r, color.g, color.b, color.a);
+    // Chosen by comparing frames against Edge drawing the same text with the same font.
+    glUniform2f(textGamma_, 2.2f, 1.0f);
     glUniform1i(textSampler_, 0);
     glBindTexture(GL_TEXTURE_2D, atlas_);
     glBindVertexArray(textVao_);

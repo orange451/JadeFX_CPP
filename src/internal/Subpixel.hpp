@@ -27,13 +27,17 @@ inline int FloorDiv3(int value) {
     return quot;
 }
 
-// Nearest stripe phase of a device-pixel position. pixel is the integer pixel
-// the glyph quad should sit on; the returned phase is 0, 1, or 2 thirds.
+// Glyphs are cached at this many horizontal positions per pixel. Skia, and so
+// Edge and Chrome, use quarter pixels.
+constexpr int kSubpixelPhases = 4;
+
+// Nearest phase of a device-pixel position. pixel is the integer pixel the
+// glyph quad should sit on; the glyph sits phase / kSubpixelPhases to its right.
 inline int SubpixelPhase(float pixelX, int& pixel) {
     pixel = static_cast<int>(std::floor(pixelX));
     const float fraction = pixelX - static_cast<float>(pixel);
-    int phase = static_cast<int>(std::floor(fraction * 3.f + 0.5f));
-    if (phase >= 3) {
+    int phase = static_cast<int>(std::floor(fraction * static_cast<float>(kSubpixelPhases) + 0.5f));
+    if (phase >= kSubpixelPhases) {
         phase = 0;
         ++pixel;
     } else if (phase < 0) {
