@@ -11,6 +11,14 @@
 
 namespace jadefx {
 
+// What font-smoothing: auto means on this platform. macOS, iOS, and Android draw
+// text in grayscale, as their browsers do; elsewhere text uses LCD stripes.
+#if defined(__APPLE__) || defined(__ANDROID__)
+inline constexpr bool kSubpixelByDefault = false;
+#else
+inline constexpr bool kSubpixelByDefault = true;
+#endif
+
 enum class BorderStyle { None, Solid };
 
 // Mouse cursor. Inherit and Auto are specified values; a resolved style uses a shape.
@@ -173,7 +181,7 @@ struct ComputedStyle {
     float fontSize = 16.f;
     std::string fontFamily = "Open Sans";
     // font-smoothing. True is subpixel-antialiased; false is grayscale.
-    bool subpixel = true;
+    bool subpixel = kSubpixelByDefault;
     SizeSpec radius[4] = {};
     Insets padding;
     Insets border;

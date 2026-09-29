@@ -338,7 +338,7 @@ private:
     bool fontExplicit_ = false;
     Color textFill_ = Color::black();
     bool fillExplicit_ = false;
-    bool subpixel_ = true;
+    bool subpixel_ = kSubpixelByDefault;
     bool subpixelExplicit_ = false;
     Cursor cursor_ = Cursor::Inherit;
     bool cursorExplicit_ = false;

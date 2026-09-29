@@ -147,9 +147,10 @@ namespace {
 
 SubpixelBitmap RasterizeStb(const FontFace& face, int codepoint, int pixelSize, int phase, bool lcd) {
     const float raster = stbtt_ScaleForMappingEmToPixels(&face.info, static_cast<float>(pixelSize));
+    // Where this glyph sits inside its pixel.
+    const float shift = static_cast<float>(phase) / static_cast<float>(kSubpixelPhases);
     if (lcd) {
-        // Rasterize one sample per stripe, shifted to where this glyph sits inside its pixel.
-        const float shift = static_cast<float>(phase) / static_cast<float>(kSubpixelPhases);
+        // Rasterize one sample per stripe.
         int ix0 = 0;
         int iy0 = 0;
         int ix1 = 0;
@@ -172,7 +173,7 @@ SubpixelBitmap RasterizeStb(const FontFace& face, int codepoint, int pixelSize, 
     int y0 = 0;
     int x1 = 0;
     int y1 = 0;
-    stbtt_GetCodepointBitmapBox(&face.info, codepoint, raster, raster, &x0, &y0, &x1, &y1);
+    stbtt_GetCodepointBitmapBoxSubpixel(&face.info, codepoint, raster, raster, shift, 0.f, &x0, &y0, &x1, &y1);
     const int width = std::max(0, x1 - x0);
     const int height = std::max(0, y1 - y0);
     image.xoff = x0;
@@ -181,7 +182,8 @@ SubpixelBitmap RasterizeStb(const FontFace& face, int codepoint, int pixelSize, 
         return image;
     }
     std::vector<unsigned char> coverage(static_cast<std::size_t>(width * height));
-    stbtt_MakeCodepointBitmap(&face.info, coverage.data(), width, height, width, raster, raster, codepoint);
+    stbtt_MakeCodepointBitmapSubpixel(&face.info, coverage.data(), width, height, width, raster, raster, shift, 0.f,
+                                      codepoint);
     image.width = width;
     image.height = height;
     image.rgb.resize(static_cast<std::size_t>(width * height * 3));

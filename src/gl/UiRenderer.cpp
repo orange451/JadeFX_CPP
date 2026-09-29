@@ -398,7 +398,8 @@ const UiRenderer::Glyph* UiRenderer::glyphFor(int codepoint, int pixelSize, int 
         return nullptr;
     }
     const bool lcd = subpixel_ && wantSubpixel;
-    if (!lcd) {
+    if (!subpixel_) {
+        // The grayscale-only atlas filters linearly, so its quads carry the fraction instead.
         phase = 0;
     }
     const GlyphKey key{face, pixelSize, codepoint, phase, lcd};
@@ -487,14 +488,15 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
         float left = 0.f;
         float top = 0.f;
         const Glyph* glyph = nullptr;
-        if (lcd) {
+        if (subpixel_) {
+            // The shared atlas is sampled at texel centers, so the pen's fraction of a pixel is
+            // baked into the bitmap and the quad itself sits on a pixel. Stripe and grayscale alike.
             int penPixel = 0;
             const int phase = SubpixelPhase((x + placed.x) * scale_, penPixel);
-            glyph = glyphFor(static_cast<int>(placed.codepoint), pixelSize, phase, face, true);
+            glyph = glyphFor(static_cast<int>(placed.codepoint), pixelSize, phase, face, lcd);
             if (glyph == nullptr || glyph->empty) {
                 continue;
             }
-            // The stripe phase is baked into the bitmap, so the quad itself sits on a pixel.
             const float baseline = std::round((y + placed.lineTop + font.ascent()) * scale_);
             left = static_cast<float>(penPixel) + glyph->xoff;
             top = baseline + glyph->yoff;
@@ -505,11 +507,6 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
             }
             left = (x + placed.x) * scale_ + glyph->xoff;
             top = (y + placed.lineTop) * scale_ + font.ascent() * scale_ + glyph->yoff;
-            if (subpixel_) {
-                // The shared atlas is sampled at texel centers, so a grayscale quad has to sit on a pixel.
-                left = std::round(left);
-                top = std::round(top);
-            }
         }
         const float right = left + glyph->width;
         const float bottom = top + glyph->height;

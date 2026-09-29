@@ -565,7 +565,7 @@ void TestFontSmoothing() {
     auto label = jadefx::make<jadefx::Label>("H");
     auto scene = jadefx::make<jadefx::Scene>(label, 200, 80);
     scene->layout(200, 80, 0);
-    Expect(label->isSubpixelRendering(), "subpixel rendering starts on");
+    Expect(label->isSubpixelRendering() == jadefx::kSubpixelByDefault, "subpixel rendering starts at the platform default");
 
     label->setSubpixelRendering(false);
     Expect(!label->isSubpixelRendering(), "the setter turns subpixel rendering off");
@@ -583,7 +583,7 @@ void TestFontSmoothing() {
 
     label->setStyle("font-smoothing: AUTO;");
     scene->layout(200, 80, 0);
-    Expect(label->isSubpixelRendering(), "auto keeps subpixel rendering");
+    Expect(label->isSubpixelRendering() == jadefx::kSubpixelByDefault, "auto is the platform default");
 
     label->setStyle("font-smoothing: none;");
     scene->layout(200, 80, 0);
@@ -698,7 +698,7 @@ GlyphShot CaptureGlyph(const char* path, const char* style) {
 }
 
 void TestSubpixelFrame() {
-    const GlyphShot shot = CaptureGlyph("jadefx-subpixel.ppm", nullptr);
+    const GlyphShot shot = CaptureGlyph("jadefx-subpixel.ppm", "font-smoothing: subpixel-antialiased;");
     Expect(shot.ok, "subpixel frame draws without a GL error");
     Expect(shot.fringe > 20, "glyph edges carry separate red, green, and blue coverage");
     Expect(shot.dark > 20, "glyph interior is covered");

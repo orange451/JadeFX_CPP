@@ -1312,9 +1312,12 @@ void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration
             }
             ApplyBackgroundImage(style, value);
         } else if (property == "font-smoothing") {
-            // auto | subpixel-antialiased keep stripe coverage. antialiased, none, and grayscale do not.
+            // subpixel-antialiased keeps stripe coverage. antialiased, none, and grayscale do not.
+            // auto is the platform's own choice.
             const std::string mode = lowerCopy(trimCopy(value));
-            if (mode == "auto" || mode == "subpixel-antialiased") {
+            if (mode == "auto") {
+                style.subpixel = kSubpixelByDefault;
+            } else if (mode == "subpixel-antialiased") {
                 style.subpixel = true;
             } else if (mode == "antialiased" || mode == "none" || mode == "grayscale") {
                 style.subpixel = false;

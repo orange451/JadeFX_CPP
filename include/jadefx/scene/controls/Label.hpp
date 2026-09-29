@@ -11,7 +11,7 @@ public:
     Label();
     explicit Label(std::string text);
 
-    // Stripe coverage is on unless this or font-smoothing turns it off.
+    // Stripe coverage follows kSubpixelByDefault unless this or font-smoothing sets it.
     void setSubpixelRendering(bool enabled);
     bool isSubpixelRendering() const { return computedStyle().subpixel; }
 
