@@ -705,6 +705,92 @@ void TestSubpixelFrame() {
     Expect(shot.light > 20, "background stays light");
 }
 
+// Two rectangles on each side of x = 20, and one that ends at x = 50.5.
+class MeetingRects : public jadefx::Pane {
+protected:
+    void renderContent(jadefx::UiRenderer& renderer, float) override {
+        jadefx::Painter painter(renderer);
+        const jadefx::Color red = jadefx::Color::rgb8(200, 40, 40);
+        painter.fillRect(10.f, 10.f, 10.f, 20.f, red);
+        painter.fillRect(20.f, 10.f, 10.f, 20.f, red);
+        painter.fillRect(40.f, 10.f, 10.5f, 20.f, red);
+    }
+};
+
+void TestPainterRectsMeet() {
+    jadefx::GlfwHost host;
+    if (!host.create(240, 160, "rects")) {
+        Expect(false, "rect window opens");
+        return;
+    }
+    jadefx::Stage stage;
+    if (!stage.initializeGraphics(&jadefx::GlfwHost::proc)) {
+        host.destroy();
+        Expect(false, "rect graphics start");
+        return;
+    }
+    auto root = jadefx::make<MeetingRects>();
+    root->setStyle("background-color: white;");
+    stage.setScene(jadefx::make<jadefx::Scene>(root, 240, 160));
+    const char* path = "jadefx-rects.ppm";
+#if defined(_WIN32)
+    _putenv_s("JADEFX_DUMP_PPM", path);
+#else
+    setenv("JADEFX_DUMP_PPM", path, 1);
+#endif
+    int pointWidth = 0;
+    int pointHeight = 0;
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    host.windowSize(pointWidth, pointHeight);
+    host.framebufferSize(framebufferWidth, framebufferHeight);
+    stage.frame(pointWidth, pointHeight, framebufferWidth, framebufferHeight);
+    stage.frame(pointWidth, pointHeight, framebufferWidth, framebufferHeight);
+#if defined(_WIN32)
+    _putenv_s("JADEFX_DUMP_PPM", "");
+#else
+    unsetenv("JADEFX_DUMP_PPM");
+#endif
+    FILE* file = std::fopen(path, "rb");
+    int width = 0;
+    int height = 0;
+    std::vector<unsigned char> pixels;
+    if (file != nullptr && std::fscanf(file, "P6\n%d %d\n255\n", &width, &height) == 2 && width > 0 && height > 0) {
+        pixels.resize(static_cast<std::size_t>(width * height * 3));
+        if (std::fread(pixels.data(), 1, pixels.size(), file) != pixels.size()) {
+            pixels.clear();
+        }
+    }
+    if (file != nullptr) {
+        std::fclose(file);
+    }
+    std::remove(path);
+    stage.shutdownGraphics();
+    host.destroy();
+    if (pixels.empty() || pointWidth <= 0) {
+        Expect(false, "the rect frame is read back");
+        return;
+    }
+    const int scale = width / pointWidth;
+    auto red_at = [&](int x) {
+        const std::size_t at = static_cast<std::size_t>(((20 * scale) * width + x * scale) * 3);
+        return std::abs(pixels[at] - 200) <= 2 && std::abs(pixels[at + 1] - 40) <= 2 && std::abs(pixels[at + 2] - 40) <= 2;
+    };
+    // The background, well away from every rectangle.
+    const std::size_t clear = static_cast<std::size_t>(((20 * scale) * width + 100 * scale) * 3);
+    auto background_at = [&](int x) {
+        const std::size_t at = static_cast<std::size_t>(((20 * scale) * width + x * scale) * 3);
+        return pixels[at] == pixels[clear] && pixels[at + 1] == pixels[clear + 1] && pixels[at + 2] == pixels[clear + 2];
+    };
+    Expect(red_at(10) && red_at(29), "a rectangle on whole pixels is solid to its edges");
+    Expect(red_at(19) && red_at(20), "two rectangles that share a whole-pixel edge meet without a seam");
+    Expect(background_at(9) && background_at(30), "a rectangle on whole pixels does not bleed past them");
+    const std::size_t half = static_cast<std::size_t>(((20 * scale) * width + 50 * scale) * 3);
+    const int midway = (200 + pixels[clear]) / 2;
+    Expect(red_at(49) && std::abs(pixels[half] - midway) <= 8,
+           "a pixel an edge halves is covered by half, not all or nothing");
+}
+
 void TestResizeRedraws() {
     jadefx::GlfwHost host;
     if (!host.create(240, 160, "resize")) {
@@ -1875,6 +1961,7 @@ int main() {
     TestSubpixelCoverage();
     TestFontSmoothing();
     TestSubpixelFrame();
+    TestPainterRectsMeet();
     TestResizeRedraws();
     TestGrayscaleFrame();
     TestStylesheetHover();

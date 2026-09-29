@@ -188,6 +188,12 @@ public:
     void setFocusTraversable(bool value) { focusTraversable_ = value; }
     bool isFocusTraversable() const { return focusTraversable_; }
 
+    // A node that captures keys, as a terminal does, gets them while it or a
+    // node inside it is focused before the scene's key hooks and menu
+    // accelerators do. A key it does not consume goes on to them.
+    void setCapturesKeys(bool value) { capturesKeys_ = value; }
+    bool capturesKeys() const { return capturesKeys_; }
+
     // Focus this node. Keys and text input are delivered here until another press.
     void requestFocus();
 
@@ -385,6 +391,7 @@ private:
     bool selected_ = false;
     bool disable_ = false;
     bool focusTraversable_ = true;
+    bool capturesKeys_ = false;
     std::vector<std::string> pseudoStates_;
     // Unset means a SplitPane may resize this item with the pane.
     std::optional<bool> resizableWithParent_;

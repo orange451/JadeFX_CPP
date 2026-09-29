@@ -24,6 +24,9 @@ public:
     // stops are along the gradient. One stop draws a solid color. stopAt is 0 at the start.
     void fillRounded(float x, float y, float width, float height, const float radius[4], const Color* stops,
                      const float* stopAt, int stopCount, float angleDeg);
+    // A solid rectangle with exact edges: sharp on whole pixels, so one beside
+    // it on the same pixel edge meets it without a seam, for grids of cells.
+    void fillRect(float x, float y, float width, float height, const Color& color);
     // sides are top, right, bottom, left, in points.
     void strokeRounded(float x, float y, float width, float height, const float radius[4], const float sides[4],
                        const Color& color);
@@ -42,6 +45,8 @@ public:
     // Clips nest by intersection. popClip restores the previous one.
     void pushClip(float x, float y, float width, float height);
     void popClip();
+    // Device pixels in one point, as begin set it.
+    float pixelsPerPoint() const { return scale_; }
     void end();
     bool writePpm(const char* path) const;
 
@@ -51,7 +56,7 @@ private:
     void drawBox(float x, float y, float width, float height, float boxX, float boxY, float boxW, float boxH,
                  const float radius[4], const Color* stops, const float* stopAt, int stopCount, float mode,
                  const float sides[4], float blur, float angleDeg, const float* clip = nullptr,
-                 const float* clipRadii = nullptr);
+                 const float* clipRadii = nullptr, bool exact = false);
     const Glyph* glyphFor(int codepoint, int pixelSize, int phase, const struct FontFace* face, bool wantSubpixel);
     unsigned imageTexture(const std::shared_ptr<ImageData>& image);
 

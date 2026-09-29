@@ -367,6 +367,22 @@ bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
     event.control = (mods & Key::ModControl) != 0;
     event.alt = (mods & Key::ModAlt) != 0;
     event.meta = (mods & Key::ModSuper) != 0;
+    // A node that captures keys, and the nodes inside it, see the key before
+    // the hooks. What it leaves goes on from its parent after them.
+    Node* resume = focused_;
+    for (Node* node = focused_; node != nullptr; node = node->getParent()) {
+        if (!node->capturesKeys()) {
+            continue;
+        }
+        for (Node* inside = focused_; inside != node->getParent(); inside = inside->getParent()) {
+            inside->handleKey(event);
+            if (event.consumed) {
+                return true;
+            }
+        }
+        resume = node->getParent();
+        break;
+    }
     const std::vector<HookRecord> hooks = keyHooks_;
     for (const HookRecord& hook : hooks) {
         if (hook.hook) {
@@ -388,7 +404,7 @@ bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
             }
         }
     }
-    for (Node* node = focused_; node != nullptr; node = node->getParent()) {
+    for (Node* node = resume; node != nullptr; node = node->getParent()) {
         node->handleKey(event);
         if (event.consumed) {
             return true;
