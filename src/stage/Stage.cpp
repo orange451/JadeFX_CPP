@@ -21,7 +21,7 @@ void Stage::setZoom(double zoom) { gZoom = zoom > 0.05 ? zoom : 1.0; }
 double Stage::getZoom() { return gZoom; }
 
 struct Stage::Event {
-    enum class Type { Move, Button, Scroll, Key, Text, Leave, Focus, Drop };
+    enum class Type { Move, Button, Scroll, Key, Text, Leave, Focus, Drop, PointerDelta };
     Type type = Type::Move;
     double x = 0;
     double y = 0;
@@ -53,6 +53,11 @@ void Stage::hookClipboard() {
     }
     scene_->setClipboardBridge([this](const std::string& text) { setClipboardText(text); },
                                [this]() { return clipboardText(); });
+    scene_->setPointerLockBridge([this](bool locked) {
+        if (onPointerLock_) {
+            onPointerLock_(locked);
+        }
+    });
 }
 
 void Stage::setScene(std::shared_ptr<Scene> scene) {
@@ -134,6 +139,14 @@ void Stage::pushMove(double x, double y) {
     event.type = Event::Type::Move;
     event.x = x;
     event.y = y;
+    events_.push_back(std::move(event));
+}
+
+void Stage::pushPointerDelta(double dx, double dy) {
+    Event event;
+    event.type = Event::Type::PointerDelta;
+    event.x = dx;
+    event.y = dy;
     events_.push_back(std::move(event));
 }
 
@@ -265,6 +278,9 @@ void Stage::processEvents() {
                 break;
             case Event::Type::Focus:
                 scene_->noteWindowFocus(event.down);
+                break;
+            case Event::Type::PointerDelta:
+                scene_->notePointerDelta(event.x, event.y);
                 break;
             case Event::Type::Drop:
                 scene_->noteFileDrop(event.x, event.y, event.paths);

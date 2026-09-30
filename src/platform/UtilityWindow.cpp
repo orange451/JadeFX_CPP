@@ -124,6 +124,11 @@ std::shared_ptr<UtilityWindow> UtilityWindow::open(std::string title, int width,
             raw->host_->glfw.setCursor(cursor);
         }
     });
+    raw->stage_.setPointerLockHandler([raw](bool locked) {
+        if (raw->host_) {
+            raw->host_->glfw.setPointerLocked(locked);
+        }
+    });
     raw->host_->glfw.setRedraw([raw]() {
         if (!raw->isOpen()) {
             return;

@@ -45,6 +45,15 @@ public:
     void bind(Stage* stage);
     Stage* boundStage() const { return stage_; }
     void setCursor(Cursor cursor);
+    // Hides the pointer and holds it where it is. Moves become Stage::pushPointerDelta,
+    // presses and scrolls are reported where the lock began, and cursor shapes wait
+    // for the unlock, which puts the pointer back there.
+    void setPointerLocked(bool locked);
+    bool pointerLocked() const { return locked_; }
+    // The motion since the last move while locked. Updates the last position.
+    void lockedMove(double x, double y, double& dx, double& dy);
+    // Where presses land: the lock's point while locked, else the cursor.
+    void pointerPosition(double& x, double& y) const;
 
     // Cocoa and Win32 do not return from event polling while the user resizes the window.
     // The redraw runs from the callbacks those nested loops already invoke.
@@ -60,6 +69,13 @@ private:
     std::function<void()> redraw_;
     bool redrawing_ = false;
     int swapInterval_ = 1;
+    bool locked_ = false;
+    double lockX_ = 0;
+    double lockY_ = 0;
+    double lastX_ = 0;
+    double lastY_ = 0;
+    // The shape asked for last, applied again at the unlock.
+    Cursor cursor_ = Cursor::Default;
 };
 
 }  // namespace jadefx

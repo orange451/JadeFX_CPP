@@ -26,7 +26,7 @@ struct PopupOptions {
 // The root of one window. Layout is in CSS pixels (window points), origin top left.
 class Scene : public Node {
 public:
-    explicit Scene(std::shared_ptr<Node> root);
+    explicit Scene(std::shared_ptr<Node> root = nullptr);
     Scene(std::shared_ptr<Node> root, double prefWidth, double prefHeight);
     ~Scene() override;
 
@@ -72,6 +72,18 @@ public:
     // another window, and popups that hide on an outside press close.
     void noteWindowFocus(bool focused);
     bool isWindowFocused() const { return windowFocused_; }
+    // Pointer lock, for a view that turns a camera by the mouse's motion. While
+    // locked the host hides the system pointer and holds it where it was, moves
+    // are not delivered, and the motion adds up for takePointerDelta. Stage
+    // passes the lock to its host through the bridge; with no bridge, as in a
+    // test, the lock is only recorded. Losing the window's focus ends the lock.
+    void setPointerLocked(bool locked);
+    bool isPointerLocked() const { return pointerLocked_; }
+    // The motion since the last take, in window points. Zero while unlocked.
+    void takePointerDelta(double& dx, double& dy);
+    // The host's side: Stage sets the bridge and forwards the motion.
+    void setPointerLockBridge(std::function<void(bool)> bridge);
+    void notePointerDelta(double dx, double dy);
     // Files dropped on the window from the system, at a point in window points. The node
     // there sees them as a drag with no source: entered, over, then dropped if it
     // accepts, and exited. Returns true when a node completed the drop.
@@ -182,6 +194,10 @@ private:
     std::string clipboard_;
     std::function<void(const std::string&)> clipboardSet_;
     std::function<std::string()> clipboardGet_;
+    std::function<void(bool)> pointerLockBridge_;
+    bool pointerLocked_ = false;
+    double pointerDeltaX_ = 0;
+    double pointerDeltaY_ = 0;
 
     struct PopupRecord {
         std::shared_ptr<Node> node;

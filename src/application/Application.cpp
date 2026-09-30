@@ -125,6 +125,7 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
     stage.setHostHandlers([&](int width, int height) { host.setSize(width, height); }, [&]() { host.show(); },
                           [&](const std::string& next) { host.setTitle(next.c_str()); });
     stage.setCursorHandler([&](Cursor cursor) { host.setCursor(cursor); });
+    stage.setPointerLockHandler([&](bool locked) { host.setPointerLocked(locked); });
     // The OS close asks the stage. Stage::close() sets the flag directly and does not ask.
     host.setCloseHook([&stage]() { return stage.closeRequested(); });
     stage.setCloseHandler([&host]() { host.requestClose(); });

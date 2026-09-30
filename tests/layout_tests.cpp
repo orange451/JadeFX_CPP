@@ -1929,6 +1929,7 @@ void TestUtilityWindow() {
 int RunRichTextTests();
 int RunButtonTests();
 int RunCursorTests();
+int RunPointerLockTests();
 int RunToggleTests();
 int RunRadioButtonTests();
 int RunCheckBoxTests();
@@ -1978,6 +1979,7 @@ int main() {
     gFailures += RunRunLaterTests();
     gFailures += RunButtonTests();
     gFailures += RunCursorTests();
+    gFailures += RunPointerLockTests();
     gFailures += RunToggleTests();
     gFailures += RunRadioButtonTests();
     gFailures += RunCheckBoxTests();

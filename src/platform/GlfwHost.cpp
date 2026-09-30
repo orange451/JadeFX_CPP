@@ -51,6 +51,15 @@ GlfwHost* HostOf(GLFWwindow* window) {
 void OnMove(GLFWwindow* window, double x, double y) {
     if (GlfwHost* host = HostOf(window)) {
         if (Stage* stage = host->boundStage()) {
+            if (host->pointerLocked()) {
+                double dx = 0;
+                double dy = 0;
+                host->lockedMove(x, y, dx, dy);
+                if (dx != 0 || dy != 0) {
+                    stage->pushPointerDelta(dx, dy);
+                }
+                return;
+            }
             stage->pushMove(x, y);
         }
     }
@@ -61,7 +70,7 @@ void OnButton(GLFWwindow* window, int button, int action, int mods) {
         if (Stage* stage = host->boundStage()) {
             double x = 0;
             double y = 0;
-            glfwGetCursorPos(window, &x, &y);
+            host->pointerPosition(x, y);
             stage->pushButton(button, action == GLFW_PRESS, x, y, mods);
         }
     }
@@ -72,7 +81,7 @@ void OnScroll(GLFWwindow* window, double dx, double dy) {
         if (Stage* stage = host->boundStage()) {
             double x = 0;
             double y = 0;
-            glfwGetCursorPos(window, &x, &y);
+            host->pointerPosition(x, y);
             stage->pushScroll(x, y, dx, dy);
         }
     }
@@ -134,6 +143,10 @@ void OnClose(GLFWwindow* window) {
 void OnFocus(GLFWwindow* window, int focused) {
     GlfwHost* host = HostOf(window);
     if (Stage* stage = host != nullptr ? host->boundStage() : nullptr) {
+        if (focused == GLFW_FALSE) {
+            // The Scene's own unlock, through the bridge, then finds it already unlocked.
+            host->setPointerLocked(false);
+        }
         stage->pushWindowFocus(focused == GLFW_TRUE);
     }
 }
@@ -155,6 +168,10 @@ void OnCursorEnter(GLFWwindow* window, int entered) {
     GlfwHost* host = HostOf(window);
     Stage* stage = host != nullptr ? host->boundStage() : nullptr;
     if (stage == nullptr) {
+        return;
+    }
+    if (host->pointerLocked()) {
+        // A captured pointer's enter and leave say nothing about hover.
         return;
     }
     if (entered == GLFW_FALSE) {
@@ -425,8 +442,53 @@ void GlfwHost::bind(Stage* stage) {
     glfwSetWindowCloseCallback(window_, OnClose);
 }
 
+void GlfwHost::setPointerLocked(bool locked) {
+    if (window_ == nullptr || locked == locked_) {
+        return;
+    }
+    if (locked) {
+        glfwGetCursorPos(window_, &lockX_, &lockY_);
+        glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        if (glfwRawMouseMotionSupported()) {
+            glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+        }
+        // Disabling may move the virtual cursor; motion is measured from where it is now.
+        glfwGetCursorPos(window_, &lastX_, &lastY_);
+        locked_ = true;
+        return;
+    }
+    locked_ = false;
+    if (glfwRawMouseMotionSupported()) {
+        glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
+    }
+    glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    glfwSetCursorPos(window_, lockX_, lockY_);
+    setCursor(cursor_);
+}
+
+void GlfwHost::lockedMove(double x, double y, double& dx, double& dy) {
+    dx = x - lastX_;
+    dy = y - lastY_;
+    lastX_ = x;
+    lastY_ = y;
+}
+
+void GlfwHost::pointerPosition(double& x, double& y) const {
+    if (locked_) {
+        x = lockX_;
+        y = lockY_;
+        return;
+    }
+    glfwGetCursorPos(window_, &x, &y);
+}
+
 void GlfwHost::setCursor(Cursor cursor) {
     if (window_ == nullptr) {
+        return;
+    }
+    cursor_ = cursor;
+    // Any mode change here would end a lock. The shape is applied at the unlock.
+    if (locked_) {
         return;
     }
     const CursorShape shape = cursorShape(cursor);

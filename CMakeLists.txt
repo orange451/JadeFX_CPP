@@ -349,6 +349,7 @@ if(NOT JADEFX_GLFM)
         tests/rich_text_tests.cpp
         tests/button_tests.cpp
         tests/cursor_tests.cpp
+        tests/pointer_lock_tests.cpp
         tests/toggle_tests.cpp
         tests/radio_button_tests.cpp
         tests/check_box_tests.cpp

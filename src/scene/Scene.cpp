@@ -466,6 +466,10 @@ void Scene::moveFocus(Node* next) {
 }
 
 void Scene::noteWindowFocus(bool focused) {
+    // The system takes the pointer back when the window goes to the background.
+    if (!focused) {
+        setPointerLocked(false);
+    }
     if (focused == windowFocused_ || isTearingDown()) {
         return;
     }
@@ -536,6 +540,35 @@ std::string Scene::clipboardText() const {
 void Scene::setClipboardBridge(std::function<void(const std::string&)> setText, std::function<std::string()> getText) {
     clipboardSet_ = std::move(setText);
     clipboardGet_ = std::move(getText);
+}
+
+void Scene::setPointerLocked(bool locked) {
+    if (locked == pointerLocked_) {
+        return;
+    }
+    pointerLocked_ = locked;
+    pointerDeltaX_ = 0;
+    pointerDeltaY_ = 0;
+    if (pointerLockBridge_) {
+        pointerLockBridge_(locked);
+    }
+}
+
+void Scene::takePointerDelta(double& dx, double& dy) {
+    dx = pointerDeltaX_;
+    dy = pointerDeltaY_;
+    pointerDeltaX_ = 0;
+    pointerDeltaY_ = 0;
+}
+
+void Scene::setPointerLockBridge(std::function<void(bool)> bridge) { pointerLockBridge_ = std::move(bridge); }
+
+void Scene::notePointerDelta(double dx, double dy) {
+    if (!pointerLocked_) {
+        return;
+    }
+    pointerDeltaX_ += dx;
+    pointerDeltaY_ += dy;
 }
 
 Scene::PopupRecord* Scene::findPopup(const Node* popup) {

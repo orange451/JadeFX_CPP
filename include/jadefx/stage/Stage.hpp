@@ -103,6 +103,10 @@ public:
     void setCloseHandler(std::function<void()> handler) { onClose_ = std::move(handler); }
     // Called when the cursor over the window changes. The GLFW host sets the system cursor.
     void setCursorHandler(CursorHandler handler);
+    // Called when the scene locks or unlocks the pointer. The GLFW host captures it.
+    void setPointerLockHandler(std::function<void(bool)> handler) { onPointerLock_ = std::move(handler); }
+    // The host's pointer motion while locked, delivered to the scene with the other events.
+    void pushPointerDelta(double dx, double dy);
 
     // Forwarded to the current scene, and to a scene installed later with setScene.
     // The pump returns 1 after one turn, 0 when a frame is already running, and -1 to stop.
@@ -127,6 +131,7 @@ private:
     std::function<void()> onClose_;
     TitleHandler onTitle_;
     CursorHandler onCursor_;
+    std::function<void(bool)> onPointerLock_;
     Cursor cursor_ = Cursor::Default;
     bool cursorApplied_ = false;
     std::function<void(int, bool)> onKey_;
