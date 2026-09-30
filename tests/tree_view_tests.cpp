@@ -1,5 +1,6 @@
 #include "jadefx/jadefx.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -419,6 +420,38 @@ void TestEscapeCancelsDrag() {
     Expect(rig.drops.size() == 1, "the next press drags again");
 }
 
+void TestDragViewFollowsPointer() {
+    DragRig rig;
+    auto view = jadefx::make<jadefx::Label>("view");
+    const jadefx::TreeItem* built_for = nullptr;
+    rig.tree->setDragView(
+        [&](jadefx::TreeItem& grabbed) {
+            built_for = &grabbed;
+            return view;
+        },
+        4, 6);
+    rig.press(rig.a.get());
+    const auto over_c = rig.at(rig.c.get(), 0.5);
+    rig.move(over_c);
+    Expect(built_for == rig.a.get(), "the drag view is built for the grabbed row");
+    Expect(rig.scene->isPopupShowing(view.get()) && view->isMouseTransparent(),
+           "the drag view shows and lets the pointer through");
+    Expect(std::abs(view->getAbsoluteX() - (over_c.first - 4)) < 0.5 &&
+               std::abs(view->getAbsoluteY() - (over_c.second - 6)) < 0.5,
+           "the drag view's offset sits under the pointer");
+    rig.release(over_c);
+    rig.frame();
+    Expect(!rig.scene->isPopupShowing(view.get()), "the release takes the drag view down");
+
+    rig.press(rig.a.get());
+    rig.move(rig.at(rig.c.get(), 0.5));
+    Expect(rig.scene->isPopupShowing(view.get()), "the next drag shows it again");
+    rig.scene->noteKey(jadefx::Key::Escape, true, false, 0);
+    rig.frame();
+    Expect(!rig.scene->isPopupShowing(view.get()), "Escape takes the drag view down");
+    rig.release(rig.at(rig.c.get(), 0.5));
+}
+
 }  // namespace
 
 int RunTreeViewTests() {
@@ -436,5 +469,6 @@ int RunTreeViewTests() {
     TestDropRefusals();
     TestDragDoesNotClick();
     TestEscapeCancelsDrag();
+    TestDragViewFollowsPointer();
     return gFailures;
 }

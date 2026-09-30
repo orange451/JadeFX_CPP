@@ -133,6 +133,12 @@ public:
     // and the release drops nothing. A place inside or beside a dragged row, or
     // beside a row with no parent, is refused before this is asked.
     void setDropAcceptor(std::function<bool(const TreeDrop&)> acceptor);
+    // Builds the node that follows the pointer while rows are dragged, from the
+    // row the drag started on, as a Dragboard's drag view does. The offset is the
+    // point of the node that sits under the pointer. Null, or a factory that
+    // returns null, draws nothing there.
+    void setDragView(std::function<std::shared_ptr<Node>(TreeItem& grabbed)> factory, double offsetX = 0,
+                     double offsetY = 0);
     // True from the moment a row drag starts until its release or Escape.
     bool isDraggingItems() const;
     // The landing place the release would drop on. Empty items when there is none.
@@ -178,6 +184,9 @@ private:
     void eachVisible(const std::function<void(TreeItem*)>& visit) const;
     std::shared_ptr<TreeItem> findShared(const TreeItem* item) const;
     void cancelDrag();
+    // Shows the drag view at the pointer, or takes it down.
+    void placeDragView();
+    void hideDragView();
     std::vector<std::shared_ptr<TreeItem>> draggedItems(TreeItem& grabbed);
     // Finds the landing place under a point in window points.
     void aimDrop(double x, double y);

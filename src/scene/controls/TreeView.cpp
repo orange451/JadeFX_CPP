@@ -2,6 +2,7 @@
 
 #include "jadefx/paint/Color.hpp"
 #include "jadefx/scene/controls/Label.hpp"
+#include "jadefx/scene/Scene.hpp"
 #include "ScrollSupport.hpp"
 #include "jadefx/scene/text/Font.hpp"
 #include "gl/UiRenderer.hpp"
@@ -40,6 +41,8 @@ constexpr double kSpringOpenSeconds = 0.7;
 constexpr double kAutoScrollRows = 14;
 constexpr double kDropLine = 2;
 constexpr double kDropRing = 4;
+// The drag view is see-through, as a Dragboard's is.
+constexpr float kDragViewOpacity = 0.75f;
 // Full-grown diameter, in row heights. The circle is larger than the row and clipped to it.
 constexpr float kRippleDiameter = 7.f;
 
@@ -655,6 +658,11 @@ struct TreeView::Impl {
     double pointerX = 0;
     double pointerY = 0;
     double lastTick = 0;
+    // The node at the pointer while rows are dragged, and what builds it.
+    std::function<std::shared_ptr<Node>(TreeItem&)> dragViewFactory;
+    double dragViewOffsetX = 0;
+    double dragViewOffsetY = 0;
+    std::shared_ptr<Node> dragView;
     TreeItem* holdTarget = nullptr;
     double holdStart = 0;
 };
@@ -680,6 +688,8 @@ TreeView::~TreeView() {
     impl_->dropAcceptor = nullptr;
     impl_->dragItems.clear();
     impl_->dropTarget.reset();
+    impl_->dragViewFactory = nullptr;
+    hideDragView();
     if (impl_->watched != nullptr) {
         impl_->watched->setStructureListener(nullptr);
         impl_->watched = nullptr;
@@ -1660,6 +1670,16 @@ void TreeView::setDropAcceptor(std::function<bool(const TreeDrop&)> acceptor) {
     }
 }
 
+void TreeView::setDragView(std::function<std::shared_ptr<Node>(TreeItem&)> factory, double offsetX,
+                           double offsetY) {
+    if (!impl_) {
+        return;
+    }
+    impl_->dragViewFactory = std::move(factory);
+    impl_->dragViewOffsetX = offsetX;
+    impl_->dragViewOffsetY = offsetY;
+}
+
 bool TreeView::isDraggingItems() const { return impl_ && impl_->dragging; }
 
 TreeDrop TreeView::getPendingDrop() const {
@@ -1699,10 +1719,43 @@ void TreeView::dragRow(TreeItem& item, const MouseEvent& event) {
         impl_->dragging = true;
         impl_->lastTick = Now();
         impl_->holdTarget = nullptr;
+        if (impl_->dragViewFactory) {
+            const std::function<std::shared_ptr<Node>(TreeItem&)> factory = impl_->dragViewFactory;
+            std::shared_ptr<Node> view = factory(item);
+            if (!impl_ || !impl_->alive) {
+                return;
+            }
+            if (view) {
+                view->setMouseTransparent(true);
+                view->setOpacity(kDragViewOpacity);
+            }
+            impl_->dragView = std::move(view);
+        }
     }
     impl_->pointerX = event.x;
     impl_->pointerY = event.y;
+    placeDragView();
     aimDrop(event.x, event.y);
+}
+
+void TreeView::placeDragView() {
+    Scene* scene = getScene();
+    if (!impl_->dragView || scene == nullptr) {
+        return;
+    }
+    PopupOptions options;
+    options.autoHide = false;
+    scene->showPopup(impl_->dragView, impl_->pointerX - impl_->dragViewOffsetX,
+                     impl_->pointerY - impl_->dragViewOffsetY, -1, -1, options);
+}
+
+void TreeView::hideDragView() {
+    const std::shared_ptr<Node> view = std::move(impl_->dragView);
+    impl_->dragView.reset();
+    Scene* scene = getScene();
+    if (view && scene != nullptr) {
+        scene->hidePopup(view.get());
+    }
 }
 
 bool TreeView::releaseRow() {
@@ -1725,6 +1778,7 @@ bool TreeView::releaseRow() {
     impl_->dragging = false;
     impl_->dropValid = false;
     impl_->holdTarget = nullptr;
+    hideDragView();
     if (!drop.items.empty() && impl_->onDrop) {
         const std::function<void(const TreeDrop&)> handler = impl_->onDrop;
         handler(drop);
@@ -1743,6 +1797,7 @@ void TreeView::cancelDrag() {
     impl_->dropTarget.reset();
     impl_->dropValid = false;
     impl_->holdTarget = nullptr;
+    hideDragView();
 }
 
 std::vector<std::shared_ptr<TreeItem>> TreeView::draggedItems(TreeItem& grabbed) {
