@@ -1,10 +1,69 @@
 #include "jadefx/jadefx.hpp"
 #include "jadefx/scene/controls/Tooltip.hpp"
 
+#include <cstddef>
 #include <cstdio>
+#include <memory>
 #include <string>
 
+#if defined(_WIN32)
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+// windows.h defines these, and jadefx::near is a function.
+#undef near
+#undef far
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
 namespace {
+
+// Memory that faults on any touch once freed, so a read through a pointer to a
+// destroyed node fails every time instead of reading what happens to be left.
+// Each block is its own pages, and freeing leaves them reserved but unreadable.
+template <typename T>
+struct GuardedAllocator {
+    using value_type = T;
+    GuardedAllocator() = default;
+    template <typename U>
+    GuardedAllocator(const GuardedAllocator<U>&) {}
+
+    T* allocate(std::size_t count) {
+        const std::size_t bytes = count * sizeof(T);
+#if defined(_WIN32)
+        void* block = VirtualAlloc(nullptr, bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+#else
+        void* block = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (block == MAP_FAILED) {
+            block = nullptr;
+        }
+#endif
+        if (block == nullptr) {
+            throw std::bad_alloc();
+        }
+        return static_cast<T*>(block);
+    }
+
+    void deallocate(T* block, std::size_t count) {
+#if defined(_WIN32)
+        (void)count;
+        VirtualFree(block, 0, MEM_DECOMMIT);
+#else
+        mprotect(block, count * sizeof(T), PROT_NONE);
+#endif
+    }
+
+    template <typename U>
+    bool operator==(const GuardedAllocator<U>&) const {
+        return true;
+    }
+    template <typename U>
+    bool operator!=(const GuardedAllocator<U>&) const {
+        return false;
+    }
+};
 
 int gFailures = 0;
 
@@ -183,6 +242,31 @@ void TestTooltipLifetime() {
     Expect(tag->getHoverPopup() == nullptr, "clearing the popup drops the tooltip");
 }
 
+// The scene keeps the hovered node's popup, so a tooltip can outlive its host,
+// as it does when an app holds the tooltip and rebuilds the row it sat on.
+void TestTooltipOutlivesHost() {
+    auto box = jadefx::make<jadefx::VBox>();
+    auto tip = jadefx::make<jadefx::Tooltip>("Path");
+    auto scene = jadefx::make<jadefx::Scene>(box, 200, 120);
+    {
+        auto tag = std::allocate_shared<jadefx::Label>(GuardedAllocator<jadefx::Label>(), "Row");
+        tag->setPrefSize(80, 24);
+        jadefx::Tooltip::install(tag.get(), tip);
+        box->getChildren().add(tag);
+        scene->layout(200, 120, 0);
+        scene->noteMove(tag->getAbsoluteX() + 4, tag->getAbsoluteY() + 4);
+        scene->layout(200, 120, 1.1);
+        Expect(scene->isPopupShowing(tip.get()), "the tooltip shows over its host");
+        box->getChildren().clear();
+    }
+    // The host is gone. Neither a delay change nor the tooltip's end may reach it.
+    tip->setShowDelay(2);
+    scene->layout(200, 120, 1.2);
+    Expect(!scene->isPopupShowing(tip.get()), "a tooltip whose host is gone does not show");
+    scene.reset();
+    tip.reset();
+}
+
 }  // namespace
 
 int RunTooltipTests() {
@@ -192,5 +276,6 @@ int RunTooltipTests() {
     TestUpdatedDelays();
     TestInstallMovesHost();
     TestTooltipLifetime();
+    TestTooltipOutlivesHost();
     return gFailures;
 }

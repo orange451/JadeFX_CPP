@@ -115,4 +115,10 @@ void Tooltip::renderContent(UiRenderer& renderer, float opacity) {
     Labeled::renderContent(renderer, opacity);
 }
 
+void Tooltip::hoverHostReleased(const Node* host) {
+    if (host_ == host) {
+        host_ = nullptr;
+    }
+}
+
 }  // namespace jadefx

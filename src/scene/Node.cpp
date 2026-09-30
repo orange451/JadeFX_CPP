@@ -133,6 +133,10 @@ Node::Node() {
 }
 
 Node::~Node() {
+    // A hover popup the scene or the application still holds outlives this node.
+    if (hoverPopup_ && hoverPopup_->content) {
+        hoverPopup_->content->hoverHostReleased(this);
+    }
     children_.setAddCallback(nullptr);
     children_.setRemoveCallback(nullptr);
     // A child can outlive this node, such as a menu item's graphic shared by
@@ -226,13 +230,25 @@ bool Node::isAncestorOf(const Node* node) const {
 
 void Node::setHoverPopup(HoverPopup popup) {
     if (!popup.content) {
-        hoverPopup_.reset();
+        clearHoverPopup();
         return;
     }
+    // Republishing the same content, as new delays do, keeps it on this host.
+    std::shared_ptr<Node> previous = hoverPopup_ ? hoverPopup_->content : nullptr;
     hoverPopup_ = std::move(popup);
+    if (previous && previous != hoverPopup_->content) {
+        previous->hoverHostReleased(this);
+    }
 }
 
-void Node::clearHoverPopup() { hoverPopup_.reset(); }
+void Node::clearHoverPopup() {
+    // Held until the host has let go, so the notice reaches a live popup.
+    std::shared_ptr<Node> previous = hoverPopup_ ? hoverPopup_->content : nullptr;
+    hoverPopup_.reset();
+    if (previous) {
+        previous->hoverHostReleased(this);
+    }
+}
 
 const HoverPopup* Node::getHoverPopup() const {
     return hoverPopup_ ? &*hoverPopup_ : nullptr;

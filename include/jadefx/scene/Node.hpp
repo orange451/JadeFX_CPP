@@ -266,6 +266,11 @@ protected:
     virtual void sceneChanged(Scene*) {}
     // This node's style is resolved. Children are styled after this returns.
     virtual void styleDidApply() {}
+    // host no longer holds this node as its hover popup: its popup was replaced
+    // or cleared, or host is being destroyed. The popup can outlive host, since
+    // the scene and the application may hold it too, so a popup that keeps a
+    // pointer to its host lets go of it here.
+    virtual void hoverHostReleased(const Node* /*host*/) {}
 
     double contentLeft() const;
     double contentTop() const;

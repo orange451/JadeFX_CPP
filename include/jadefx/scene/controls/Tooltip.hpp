@@ -32,6 +32,7 @@ public:
 
 protected:
     void renderContent(UiRenderer& renderer, float opacity) override;
+    void hoverHostReleased(const Node* host) override;
 
 private:
     void publish(std::shared_ptr<Node> content);
@@ -40,7 +41,9 @@ private:
     double showDelay_ = 1;
     double hideDelay_ = 0.2;
     double showDuration_ = 5;
-    // Raw host, not a shared_ptr: the host's hover popup already owns this tooltip.
+    // Raw host, not a shared_ptr: the host's hover popup owns this tooltip. The
+    // scene and the application may hold it too, so it can outlive the host;
+    // the host clears this through hoverHostReleased when it lets go.
     Node* host_ = nullptr;
 };
 
