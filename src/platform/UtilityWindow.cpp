@@ -259,8 +259,8 @@ bool stageToScreen(const Stage& stage, double x, double y, double& screenX, doub
     int originX = 0;
     int originY = 0;
     glfwGetWindowPos(native, &originX, &originY);
-    screenX = static_cast<double>(originX) + x;
-    screenY = static_cast<double>(originY) + y;
+    screenX = static_cast<double>(originX) + x * Stage::getZoom();
+    screenY = static_cast<double>(originY) + y * Stage::getZoom();
     return true;
 }
 
@@ -322,8 +322,8 @@ bool windowUnderScreen(double screenX, double screenY, Stage*& stage, double& lo
             return false;
         }
         stage = candidate;
-        localX = x;
-        localY = y;
+        localX = x / Stage::getZoom();
+        localY = y / Stage::getZoom();
         return true;
     };
     for (auto it = gWindows.rbegin(); it != gWindows.rend(); ++it) {
