@@ -167,6 +167,7 @@ void Scene::updateDrag(DragState& drag, double x, double y, Node* source) {
         }
         PopupOptions options;
         options.autoHide = false;
+        options.animate = false;
         showPopup(view, x - drag.board.getDragViewOffsetX(), y - drag.board.getDragViewOffsetY(), -1, -1, options);
     }
 }

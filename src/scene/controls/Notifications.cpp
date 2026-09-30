@@ -136,6 +136,7 @@ public:
         node->setOpacity(0.f);
         PopupOptions options;
         options.autoHide = false;
+        options.animate = false;
         // Placed by the first pulse, once it has been measured.
         scene_.showPopup(node, -10000, -10000, -1, -1, options);
         if (listener_ == 0) {

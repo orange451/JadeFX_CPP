@@ -3,6 +3,10 @@
 #include "ControlChrome.hpp"
 #include "gl/UiRenderer.hpp"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+
 namespace jadefx {
 
 ButtonBase::ButtonBase(std::string text) : Labeled(std::move(text)) {
@@ -72,8 +76,16 @@ void ButtonBase::render(UiRenderer& renderer, float opacity) {
 
 void ButtonBase::renderContent(UiRenderer& renderer, float opacity) {
     chrome::DrawBorder(renderer, *this, opacity);
-    if (!isDisabled() && (isPressed() || isHovered())) {
-        chrome::DrawWash(renderer, *this, opacity, isPressed());
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const double elapsed = washAt_ > 0.0 ? std::min(0.1, now - washAt_) : 0.1;
+    washAt_ = now;
+    const float target = isDisabled() ? 0.f : isPressed() ? 2.f : isHovered() ? 1.f : 0.f;
+    wash_ += (target - wash_) * static_cast<float>(std::min(1.0, elapsed / 0.07));
+    if (std::fabs(target - wash_) < 0.01f) {
+        wash_ = target;
+    }
+    if (wash_ > 0.01f) {
+        chrome::DrawWash(renderer, *this, opacity * wash_, false);
     }
     if (isFocused()) {
         chrome::DrawFocusRing(renderer, *this, opacity);

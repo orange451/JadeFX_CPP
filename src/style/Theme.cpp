@@ -143,8 +143,8 @@ date-cell:selected {
     color: var(--surface-color);
 }
 menu-popup {
-    border-radius: 4px;
-    box-shadow: 0px 3px 10px 0px rgba(0, 0, 0, 0.14);
+    border-radius: 6px;
+    box-shadow: 0px 4px 14px 0px rgba(0, 0, 0, 0.18);
 }
 alert {
     border-radius: 8px;
@@ -180,9 +180,16 @@ tab-header-area {
 }
 tab {
     background-color: var(--tab-color);
+    border-radius: 6px 6px 0 0;
 }
-tab:selected {
+tab:hover {
+    background-color: var(--hover-color);
+}
+tab:selected, tab:selected:hover {
     background-color: var(--surface-color);
+}
+tree-cell, list-cell, tr, date-cell, tab {
+    transition: background-color 0.12s, color 0.12s;
 }
 split-pane {
     background-color: var(--background-color);

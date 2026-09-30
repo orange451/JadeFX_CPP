@@ -2496,10 +2496,37 @@ void StyledTextArea::handleScroll(ScrollEvent& event) {
             event.consume();
         }
     } else if (view_.contentHeight > view_.textH) {
-        scrollY_ -= event.deltaY * static_cast<double>(line) * 2.0;
+        const double maxY = std::max(0.0, static_cast<double>(view_.contentHeight - view_.textH));
+        const double base = smoothScrolling_ ? smoothTarget_ : scrollY_;
+        smoothTarget_ = std::max(0.0, std::min(maxY, base - event.deltaY * static_cast<double>(line) * 3.0));
+        if (!smoothScrolling_) {
+            smoothScrolling_ = true;
+            smoothApplied_ = scrollY_;
+            smoothAt_ = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
         event.consume();
     }
     rebuild();
+}
+
+void StyledTextArea::advanceSmoothScroll() {
+    if (!smoothScrolling_) {
+        return;
+    }
+    if (std::fabs(scrollY_ - smoothApplied_) > 0.5) {
+        smoothScrolling_ = false;
+        return;
+    }
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const double elapsed = std::min(0.1, std::max(0.0, now - smoothAt_));
+    smoothAt_ = now;
+    scrollY_ += (smoothTarget_ - scrollY_) * std::min(1.0, elapsed / 0.07);
+    if (std::fabs(smoothTarget_ - scrollY_) < 0.5) {
+        scrollY_ = smoothTarget_;
+        smoothScrolling_ = false;
+    }
+    rebuild();
+    smoothApplied_ = scrollY_;
 }
 
 void StyledTextArea::handleText(TextEvent& event) {
@@ -2667,6 +2694,7 @@ void StyledTextArea::handleKey(KeyEvent& event) {
 }
 
 void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
+    advanceSmoothScroll();
     rebuild();
     const float absX = static_cast<float>(getAbsoluteX());
     const float absY = static_cast<float>(getAbsoluteY());

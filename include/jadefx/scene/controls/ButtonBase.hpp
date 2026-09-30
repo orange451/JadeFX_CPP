@@ -29,6 +29,8 @@ private:
     ActionHandler onAction_;
     bool armed_ = false;
     bool keyArmed_ = false;
+    float wash_ = 0.f;
+    double washAt_ = 0.0;
 };
 
 }  // namespace jadefx

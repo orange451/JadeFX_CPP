@@ -21,6 +21,7 @@ struct PopupOptions {
     bool hideOnPress = false;
     bool modal = false;
     bool fillScene = false;
+    bool animate = true;
 };
 
 // The root of one window. Layout is in CSS pixels (window points), origin top left.
@@ -122,6 +123,7 @@ public:
 
 protected:
     Scene* asScene() override { return this; }
+    void renderChildren(UiRenderer& renderer, float opacity) override;
 
 private:
     friend class Node;
@@ -195,6 +197,9 @@ private:
         bool modal = false;
         bool fillScene = false;
         bool measure = false;
+        bool animate = true;
+        bool fromBottom = false;
+        double openedAt = 0;
     };
 
     struct HookRecord {
