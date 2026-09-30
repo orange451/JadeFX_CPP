@@ -63,6 +63,8 @@ enum class CursorShape {
     SizeNortheastSouthwest,
     SizeAll,
     NotAllowed,
+    // The arrow with a plus: a drop here adds a copy.
+    Copy,
     Hidden,
 };
 
@@ -88,6 +90,8 @@ inline CursorShape cursorShape(Cursor cursor) {
             return CursorShape::SizeAll;
         case Cursor::NotAllowed:
             return CursorShape::NotAllowed;
+        case Cursor::Copy:
+            return CursorShape::Copy;
         case Cursor::None:
             return CursorShape::Hidden;
         case Cursor::Inherit:
@@ -100,7 +104,6 @@ inline CursorShape cursorShape(Cursor cursor) {
         case Cursor::ZoomOut:
         case Cursor::ContextMenu:
         case Cursor::Alias:
-        case Cursor::Copy:
             return CursorShape::Arrow;
     }
     return CursorShape::Arrow;

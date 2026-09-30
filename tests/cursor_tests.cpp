@@ -1,4 +1,5 @@
 #include "jadefx/jadefx.hpp"
+#include "platform/CopyCursor.hpp"
 
 #include <cstdio>
 #include <string>
@@ -254,9 +255,27 @@ void TestComboMenuTabAndTree() {
     Expect(sawBar, "the tree shows a scrollbar");
 }
 
+// A copy drop draws the arrow with a plus; the drawn one is for systems without their own.
+void TestCopyCursor() {
+    Expect(jadefx::cursorShape(jadefx::Cursor::Copy) == jadefx::CursorShape::Copy, "copy draws the plus");
+    Expect(jadefx::cursorShape(jadefx::Cursor::Alias) == jadefx::CursorShape::Arrow, "alias keeps the arrow");
+    const jadefx::CursorImage image = jadefx::CopyCursorImage();
+    Expect(image.width == 32 && image.height == 32 &&
+               image.pixels.size() == static_cast<std::size_t>(image.width * image.height * 4),
+           "the drawn copy pointer is 32 by 32 RGBA");
+    Expect(image.hotX == 0 && image.hotY == 0, "its hot spot is the arrow's tip");
+    auto at = [&image](int x, int y, int channel) { return image.pixels[(y * image.width + x) * 4 + channel]; };
+    Expect(at(0, 0, 3) == 255 && at(0, 0, 0) == 0, "the tip is opaque black");
+    Expect(at(1, 5, 0) == 255 && at(1, 5, 3) == 255, "the arrow is filled white");
+    Expect(at(17, 18, 0) == 0 && at(17, 18, 3) == 255, "the plus's middle is black");
+    Expect(at(14, 15, 0) == 255 && at(14, 15, 3) == 255, "the box around the plus is white");
+    Expect(at(31, 0, 3) == 0 && at(31, 31, 3) == 0, "the rest is clear");
+}
+
 }  // namespace
 
 int RunCursorTests() {
+    TestCopyCursor();
     TestControlDefaults();
     TestStylesOverride();
     TestDisabled();

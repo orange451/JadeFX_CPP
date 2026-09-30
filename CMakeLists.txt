@@ -92,13 +92,14 @@ set(JADEFX_SOURCES
 
 if(APPLE)
     enable_language(OBJCXX)
-    list(APPEND JADEFX_SOURCES src/platform/ErrorDialog_apple.mm src/platform/FolderDialog_apple.mm)
+    list(APPEND JADEFX_SOURCES src/platform/ErrorDialog_apple.mm src/platform/FolderDialog_apple.mm
+         src/platform/CopyCursor_apple.mm)
 else()
     list(APPEND JADEFX_SOURCES src/platform/ErrorDialog.cpp src/platform/FolderDialog.cpp)
 endif()
 
 if(NOT JADEFX_GLFM)
-    list(APPEND JADEFX_SOURCES src/platform/GlfwHost.cpp src/platform/UtilityWindow.cpp)
+    list(APPEND JADEFX_SOURCES src/platform/GlfwHost.cpp src/platform/UtilityWindow.cpp src/platform/CopyCursor.cpp)
 else()
     list(APPEND JADEFX_SOURCES src/platform/UtilityWindowStub.cpp)
 endif()

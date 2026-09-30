@@ -1,5 +1,7 @@
 #include "GlfwHost.hpp"
 
+#include "CopyCursor.hpp"
+
 #include "jadefx/stage/Stage.hpp"
 
 #ifdef _WIN32
@@ -226,6 +228,7 @@ bool NativeCursor(CursorShape shape, int& native) {
             return false;
 #endif
         case CursorShape::Arrow:
+        case CursorShape::Copy:
         case CursorShape::Hidden:
             return false;
     }
@@ -433,6 +436,21 @@ void GlfwHost::setCursor(Cursor cursor) {
     }
     glfwSetInputMode(window_, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     const int index = static_cast<int>(shape);
+    if (shape == CursorShape::Copy) {
+        // GLFW has no such standard cursor. The system's, where there is one,
+        // replaces the arrow glfwSetCursor puts up; it stays until the next change.
+        glfwSetCursor(window_, nullptr);
+        if (ShowSystemCopyCursor()) {
+            return;
+        }
+        if (cursors_[index] == nullptr) {
+            CursorImage image = CopyCursorImage();
+            GLFWimage pixels{image.width, image.height, image.pixels.data()};
+            cursors_[index] = glfwCreateCursor(&pixels, image.hotX, image.hotY);
+        }
+        glfwSetCursor(window_, cursors_[index]);
+        return;
+    }
     int native = 0;
     if (index >= 0 && index < static_cast<int>(sizeof cursors_ / sizeof cursors_[0]) && NativeCursor(shape, native)) {
         if (cursors_[index] == nullptr) {
