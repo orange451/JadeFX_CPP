@@ -57,7 +57,9 @@ public:
     void notePointerExit();
     // Cursor for the pointer's last position. The arrow when the pointer is outside.
     Cursor hoverCursor();
-    // mods are the Key::Mod bits held with the button.
+    // mods are the Key::Mod bits held with the button. The left button presses,
+    // drags, and clicks. A right press asks for a context menu. A node that
+    // receives all buttons also hears right and middle presses and releases.
     void noteButton(int button, bool down, double x, double y, int mods = 0);
     void noteScroll(double x, double y, double deltaX, double deltaY);
     // Returns true when the focused node consumed the event.
@@ -156,6 +158,11 @@ private:
     void moveFocus(Node* next);
     // A node is leaving this scene, so nothing here may point at it any more.
     void forgetNode(Node* node);
+    // A right or middle button. It reaches the nearest node over the pointer
+    // that receives all buttons, and its release reaches that same node.
+    void noteOtherButton(int button, bool down, double x, double y, int mods);
+    // Tells each node holding a right or middle button that it was released.
+    void releaseHeldButtons();
     // A press became a drag: runs drag-detected from the pressed node up.
     void detectDrag(const MouseEvent& event);
     Dragboard* beginDrag(Node* source, TransferModes modes);
@@ -176,6 +183,9 @@ private:
     std::string userAgentSource_;
     Stylesheet userAgent_;
     Node* pressedTarget_ = nullptr;
+    // The node that heard each right or middle press, by GLFW button, until its release.
+    static constexpr int kHeldButtons = 3;
+    Node* heldButtonTargets_[kHeldButtons] = {};
     std::unique_ptr<DragState> drag_;
     // The node whose drag-detected handlers are running, which may start a drag.
     Node* detecting_ = nullptr;

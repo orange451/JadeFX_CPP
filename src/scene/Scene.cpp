@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <iterator>
 
 namespace jadefx {
 namespace {
@@ -89,6 +90,7 @@ Scene::~Scene() {
     tearingDown_ = true;
     keyHooks_.clear();
     hover_ = {};
+    std::fill(std::begin(heldButtonTargets_), std::end(heldButtonTargets_), nullptr);
     popups_.clear();
     children().clear();
 }
@@ -226,35 +228,9 @@ void Scene::noteMove(double x, double y) {
 void Scene::noteButton(int button, bool down, double x, double y, int mods) {
     keyMods_ = mods;
     noteMove(x, y);
-    // GLFW button 1 is the right button. A press opens a context menu and does not click.
-    if (button == 1) {
-        if (!down) {
-            return;
-        }
-        Node* hit = pick(x, y);
-        std::vector<Node*> dismiss;
-        for (const PopupRecord& popup : popups_) {
-            if (popup.node && !popupStays(popup, hit, 0)) {
-                dismiss.push_back(popup.node.get());
-            }
-        }
-        for (Node* popup : dismiss) {
-            hidePopup(popup);
-        }
-        hit = pick(x, y);
-        MouseEvent event;
-        event.x = x;
-        event.y = y;
-        event.button = button;
-        event.mods = mods;
-        for (Node* node = hit; node != nullptr; node = node->getParent()) {
-            if (!node->hasContextMenuHandler()) {
-                continue;
-            }
-            event.target = node;
-            node->fireContextMenu(event);
-            break;
-        }
+    // GLFW button 1 is the right button and 2 the middle. Neither clicks.
+    if (button == 1 || button == 2) {
+        noteOtherButton(button, down, x, y, mods);
         return;
     }
     if (button != 0) {
@@ -322,6 +298,81 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
         fireMouse(&Node::onClicked_, event);
     }
     pressedTarget_ = nullptr;
+}
+
+void Scene::noteOtherButton(int button, bool down, double x, double y, int mods) {
+    MouseEvent event;
+    event.x = x;
+    event.y = y;
+    event.button = button;
+    event.mods = mods;
+    event.clickCount = 1;
+    Node*& held = heldButtonTargets_[button];
+    // The release goes to the node that heard the press, wherever the pointer is now.
+    if (!down) {
+        Node* target = held;
+        held = nullptr;
+        if (target != nullptr) {
+            event.target = target;
+            target->handleMouseReleased(event);
+        }
+        return;
+    }
+    Node* hit = pick(x, y);
+    // As a left press does, a right press closes the popups it lands outside.
+    if (button == 1) {
+        std::vector<Node*> dismiss;
+        for (const PopupRecord& popup : popups_) {
+            if (popup.node && !popupStays(popup, hit, 0)) {
+                dismiss.push_back(popup.node.get());
+            }
+        }
+        for (Node* popup : dismiss) {
+            hidePopup(popup);
+        }
+        hit = pick(x, y);
+    }
+    // A node that asked for every button hears the press, from the nearest one up.
+    Node* receiver = hit;
+    while (receiver != nullptr && !receiver->receivesAllButtons()) {
+        receiver = receiver->getParent();
+    }
+    held = receiver;
+    if (receiver != nullptr) {
+        event.target = receiver;
+        receiver->handleMousePressed(event);
+    }
+    // A right press also asks for a context menu. The press may have changed what is here.
+    if (button != 1) {
+        return;
+    }
+    hit = pick(x, y);
+    for (Node* node = hit; node != nullptr; node = node->getParent()) {
+        if (!node->hasContextMenuHandler()) {
+            continue;
+        }
+        event.target = node;
+        node->fireContextMenu(event);
+        break;
+    }
+}
+
+void Scene::releaseHeldButtons() {
+    for (int button = 1; button < kHeldButtons; ++button) {
+        Node* target = heldButtonTargets_[button];
+        heldButtonTargets_[button] = nullptr;
+        if (target == nullptr) {
+            continue;
+        }
+        MouseEvent event;
+        event.x = pointerX_;
+        event.y = pointerY_;
+        event.button = button;
+        event.mods = keyMods_;
+        event.clickCount = 1;
+        event.target = target;
+        target->handleMouseReleased(event);
+    }
 }
 
 void Scene::noteScroll(double x, double y, double deltaX, double deltaY) {
@@ -478,6 +529,8 @@ void Scene::noteWindowFocus(bool focused) {
         focused_ = nullptr;
     }
     if (!focused) {
+        // A button held now is released in another window, so it ends here.
+        releaseHeldButtons();
         keyMods_ = 0;
         finishDrag(pointerX_, pointerY_, false);
         std::vector<Node*> dismiss;

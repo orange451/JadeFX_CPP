@@ -350,6 +350,7 @@ if(NOT JADEFX_GLFM)
         tests/button_tests.cpp
         tests/cursor_tests.cpp
         tests/pointer_lock_tests.cpp
+        tests/mouse_button_tests.cpp
         tests/toggle_tests.cpp
         tests/radio_button_tests.cpp
         tests/check_box_tests.cpp

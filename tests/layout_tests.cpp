@@ -1930,6 +1930,7 @@ int RunRichTextTests();
 int RunButtonTests();
 int RunCursorTests();
 int RunPointerLockTests();
+int RunMouseButtonTests();
 int RunToggleTests();
 int RunRadioButtonTests();
 int RunCheckBoxTests();
@@ -1980,6 +1981,7 @@ int main() {
     gFailures += RunButtonTests();
     gFailures += RunCursorTests();
     gFailures += RunPointerLockTests();
+    gFailures += RunMouseButtonTests();
     gFailures += RunToggleTests();
     gFailures += RunRadioButtonTests();
     gFailures += RunCheckBoxTests();
