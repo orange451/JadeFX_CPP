@@ -194,6 +194,14 @@ public:
     void setCapturesKeys(bool value) { capturesKeys_ = value; }
     bool capturesKeys() const { return capturesKeys_; }
 
+    // The scene gives a node only the left button unless it asks for all of them,
+    // as a view that turns a camera while the right button is held does. A right
+    // or middle press then goes to the nearest such node over the pointer, and
+    // its release to the same node wherever the pointer is. A right press still
+    // asks for a context menu as well.
+    void setReceivesAllButtons(bool value) { receivesAllButtons_ = value; }
+    bool receivesAllButtons() const { return receivesAllButtons_; }
+
     // Focus this node. Keys and text input are delivered here until another press.
     void requestFocus();
 
@@ -397,6 +405,7 @@ private:
     bool disable_ = false;
     bool focusTraversable_ = true;
     bool capturesKeys_ = false;
+    bool receivesAllButtons_ = false;
     std::vector<std::string> pseudoStates_;
     // Unset means a SplitPane may resize this item with the pane.
     std::optional<bool> resizableWithParent_;

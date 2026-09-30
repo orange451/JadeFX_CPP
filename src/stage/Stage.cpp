@@ -64,6 +64,12 @@ void Stage::setScene(std::shared_ptr<Scene> scene) {
     if (!scene) {
         return;
     }
+    // The scene going away gives back the host's pointer if it held it, and
+    // is cut off so it cannot lock the pointer again from outside the window.
+    if (scene_ && scene_ != scene) {
+        scene_->setPointerLocked(false);
+        scene_->setPointerLockBridge(nullptr);
+    }
     scene_ = std::move(scene);
     if (eventPump_) {
         scene_->setEventPump(eventPump_);

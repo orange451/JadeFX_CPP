@@ -1,6 +1,7 @@
 #include "jadefx/jadefx.hpp"
 
 #include <cstdio>
+#include <memory>
 #include <vector>
 
 namespace {
@@ -52,10 +53,26 @@ void TestBridgeAndFocus() {
     Expect(dx == 0 && dy == 0, "an unlock drops the motion not yet taken");
 }
 
+// A scene replaced while it holds the lock gives the host's pointer back.
+void TestSceneReplacedWhileLocked() {
+    jadefx::Stage stage;
+    std::vector<bool> calls;
+    stage.setPointerLockHandler([&calls](bool locked) { calls.push_back(locked); });
+    std::shared_ptr<jadefx::Scene> first = std::make_shared<jadefx::Scene>();
+    stage.setScene(first);
+    first->setPointerLocked(true);
+    Expect(calls == std::vector<bool>{true}, "the host hears the first scene's lock");
+    stage.setScene(std::make_shared<jadefx::Scene>());
+    Expect(calls == std::vector<bool>{true, false}, "replacing a locked scene unlocks the host");
+    first->setPointerLocked(true);
+    Expect(calls.size() == 2, "the replaced scene no longer reaches the host");
+}
+
 }  // namespace
 
 int RunPointerLockTests() {
     TestLockWithoutHost();
     TestBridgeAndFocus();
+    TestSceneReplacedWhileLocked();
     return gFailures;
 }

@@ -239,6 +239,11 @@ void Scene::forgetNode(Node* node) {
     if (pressedTarget_ == node) {
         pressedTarget_ = nullptr;
     }
+    for (Node*& held : heldButtonTargets_) {
+        if (held == node) {
+            held = nullptr;
+        }
+    }
     if (detecting_ == node) {
         detecting_ = nullptr;
     }
