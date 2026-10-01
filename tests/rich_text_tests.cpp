@@ -109,6 +109,21 @@ void TestWrapFoldAndClipboard(jadefx::Scene& scene, jadefx::StyledTextArea& area
     area.unfoldParagraphs(1);
     Expect(!area.isFolded(1), "unfold shows the paragraph again");
 
+    std::string lines;
+    for (int i = 0; i < 60; ++i) {
+        lines += "line\n";
+    }
+    area.setText(lines);
+    area.moveTo(0);
+    scene.layout(80, 160, 0);
+    area.scrollTo(0, 400);
+    scene.layout(80, 160, 0);
+    const double scrolled = area.getScrollY();
+    area.foldParagraphs(30, 35);
+    scene.layout(80, 160, 0);
+    Expect(scrolled > 0 && area.getScrollY() == scrolled, "folding keeps the scroll when the caret stays put");
+    area.unfoldParagraphs(30);
+
     area.setText("alpha");
     area.selectAll();
     area.copy();

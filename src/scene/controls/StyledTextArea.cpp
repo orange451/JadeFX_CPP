@@ -664,16 +664,17 @@ void StyledTextArea::foldParagraphs(int startParagraph, int endParagraph) {
     }
     kept.push_back(Fold{startParagraph, endParagraph});
     folds_ = std::move(kept);
+    // Only a caret the fold swallowed needs scrolling to. Otherwise the view stays where it is.
     for (Selection& selection : selections_) {
         const TextPos pos = content_.position(selection.caret);
         if (isHidden(pos.paragraph)) {
             const int header = foldEnd(pos.paragraph) >= 0 ? startParagraph : pos.paragraph;
             const int column = content_.paragraph(header).length();
             selection.caret = selection.anchor = content_.offset(header, column);
+            caretDirty_ = true;
         }
     }
     markDirty();
-    caretDirty_ = true;
     if (onFoldsChanged_) {
         onFoldsChanged_();
     }
