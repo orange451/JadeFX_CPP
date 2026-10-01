@@ -4,6 +4,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #import <TargetConditionals.h>
 
@@ -21,9 +22,9 @@ NSString* Text(const std::string& value) {
     return text != nil ? text : @"";
 }
 
-// NSOpenPanel picks an existing folder or file. NSSavePanel names a new one.
+// NSOpenPanel picks an existing folder, or a file or several. NSSavePanel names a new one.
 // Both run modal on the main thread, which is where runLater tasks run.
-DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
+DialogResult RunDialog(const FolderDialogOptions& options, std::vector<std::string>& paths) {
     @autoreleasepool {
         NSWindow* key = [NSApp keyWindow];
         NSSavePanel* panel = nil;
@@ -38,7 +39,7 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
             NSOpenPanel* open = [NSOpenPanel openPanel];
             open.canChooseFiles = options.file ? YES : NO;
             open.canChooseDirectories = options.file ? NO : YES;
-            open.allowsMultipleSelection = NO;
+            open.allowsMultipleSelection = options.file && options.multiple ? YES : NO;
             open.canCreateDirectories = options.file ? NO : YES;
             open.prompt = @"Open";
             if (options.file && !options.extensions.empty()) {
@@ -69,12 +70,15 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
         if (response != NSModalResponseOK || panel.URL == nil) {
             return DialogResult::Cancelled;
         }
-        const char* chosen = panel.URL.fileSystemRepresentation;
-        if (chosen == nullptr || chosen[0] == '\0') {
-            return DialogResult::Cancelled;
+        // An open panel lists every pick in URLs; a save panel has only URL.
+        NSArray<NSURL*>* urls = options.save ? @[ panel.URL ] : ((NSOpenPanel*)panel).URLs;
+        for (NSURL* url in urls) {
+            const char* chosen = url.fileSystemRepresentation;
+            if (chosen != nullptr && chosen[0] != '\0') {
+                paths.push_back(chosen);
+            }
         }
-        path = chosen;
-        return DialogResult::Chosen;
+        return paths.empty() ? DialogResult::Cancelled : DialogResult::Chosen;
     }
 }
 
@@ -82,21 +86,32 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
 
 }  // namespace
 
-void showFolderDialog(FolderDialogOptions options, FolderDialogHandler done) {
+void showFilesDialog(FolderDialogOptions options, FilesDialogHandler done) {
     if (!done) {
         return;
     }
 #if TARGET_OS_IPHONE
     (void)options;
-    runLater([done = std::move(done)]() { done(DialogResult::Unavailable, std::string()); });
+    runLater([done = std::move(done)]() { done(DialogResult::Unavailable, std::vector<std::string>()); });
 #else
     // From the next frame, so the click that asked for it has finished.
     runLater([options = std::move(options), done = std::move(done)]() {
-        std::string path;
-        const DialogResult result = RunDialog(options, path);
-        done(result, path);
+        std::vector<std::string> paths;
+        const DialogResult result = RunDialog(options, paths);
+        done(result, paths);
     });
 #endif
+}
+
+void showFolderDialog(FolderDialogOptions options, FolderDialogHandler done) {
+    if (!done) {
+        return;
+    }
+    options.multiple = false;
+    showFilesDialog(std::move(options), [done = std::move(done)](DialogResult result,
+                                                                 const std::vector<std::string>& paths) {
+        done(result, paths.empty() ? std::string() : paths.front());
+    });
 }
 
 }  // namespace jadefx

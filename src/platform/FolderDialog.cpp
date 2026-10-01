@@ -58,9 +58,20 @@ std::string Narrow(const wchar_t* text) {
     return narrow;
 }
 
-// The common item dialog. Open picks a folder, or a file; Save names one.
+// The file system path of item, or empty.
+std::string ItemPath(IShellItem* item) {
+    std::string path;
+    PWSTR chosen = nullptr;
+    if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &chosen))) {
+        path = Narrow(chosen);
+        CoTaskMemFree(chosen);
+    }
+    return path;
+}
+
+// The common item dialog. Open picks a folder, or a file or several; Save names one.
 // Modal to the active window, so input to the IDE waits until it closes.
-DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
+DialogResult RunDialog(const FolderDialogOptions& options, std::vector<std::string>& paths) {
     const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
     // S_FALSE means COM was already up on this thread; it still needs a matching uninit.
     const bool owns = SUCCEEDED(init);
@@ -78,6 +89,9 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
             flags &= ~static_cast<FILEOPENDIALOGOPTIONS>(FOS_OVERWRITEPROMPT);
         } else if (options.file) {
             flags |= FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST;
+            if (options.multiple) {
+                flags |= FOS_ALLOWMULTISELECT;
+            }
         } else {
             flags |= FOS_PICKFOLDERS | FOS_PATHMUSTEXIST;
         }
@@ -109,16 +123,38 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
         if (shown == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
             result = DialogResult::Cancelled;
         } else if (SUCCEEDED(shown)) {
-            IShellItem* item = nullptr;
-            if (SUCCEEDED(dialog->GetResult(&item))) {
-                PWSTR chosen = nullptr;
-                if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &chosen))) {
-                    path = Narrow(chosen);
-                    CoTaskMemFree(chosen);
-                    result = path.empty() ? DialogResult::Cancelled : DialogResult::Chosen;
+            IFileOpenDialog* open = nullptr;
+            IShellItemArray* items = nullptr;
+            // GetResult fails when several files were picked; an open dialog's GetResults has them all.
+            if (!options.save && SUCCEEDED(dialog->QueryInterface(IID_PPV_ARGS(&open))) &&
+                SUCCEEDED(open->GetResults(&items))) {
+                DWORD count = 0;
+                items->GetCount(&count);
+                for (DWORD i = 0; i < count; ++i) {
+                    IShellItem* item = nullptr;
+                    if (SUCCEEDED(items->GetItemAt(i, &item))) {
+                        std::string path = ItemPath(item);
+                        if (!path.empty()) {
+                            paths.push_back(std::move(path));
+                        }
+                        item->Release();
+                    }
                 }
-                item->Release();
+                items->Release();
+            } else {
+                IShellItem* item = nullptr;
+                if (SUCCEEDED(dialog->GetResult(&item))) {
+                    std::string path = ItemPath(item);
+                    if (!path.empty()) {
+                        paths.push_back(std::move(path));
+                    }
+                    item->Release();
+                }
             }
+            if (open != nullptr) {
+                open->Release();
+            }
+            result = paths.empty() ? DialogResult::Cancelled : DialogResult::Chosen;
         }
         dialog->Release();
     }
@@ -198,7 +234,7 @@ std::string JoinPath(const std::string& directory, const std::string& name) {
     return directory + "/" + name;
 }
 
-DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
+DialogResult RunDialog(const FolderDialogOptions& options, std::vector<std::string>& paths) {
     const std::string title = options.title.empty() ? std::string(options.save ? "Save As" : "Open") : options.title;
     // A trailing slash starts zenity inside the directory instead of selecting it.
     const std::string start =
@@ -209,11 +245,17 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
         patterns += (patterns.empty() ? "*." : " *.") + extension;
     }
     const bool pickFile = options.file && !options.save;
+    const bool multiple = pickFile && options.multiple;
     std::vector<std::string> zenity = {"zenity", "--file-selection", "--title=" + title};
     if (options.save) {
         zenity.push_back("--save");
     } else if (!pickFile) {
         zenity.push_back("--directory");
+    }
+    // Both tools then print one path a line.
+    if (multiple) {
+        zenity.push_back("--multiple");
+        zenity.push_back("--separator=\n");
     }
     if (!start.empty()) {
         zenity.push_back("--filename=" + start);
@@ -222,6 +264,10 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
         zenity.push_back("--file-filter=" + patterns);
     }
     std::vector<std::string> kdialog = {"kdialog", "--title", title};
+    if (multiple) {
+        kdialog.push_back("--multiple");
+        kdialog.push_back("--separate-output");
+    }
     kdialog.push_back(options.save ? "--getsavefilename" : pickFile ? "--getopenfilename" : "--getexistingdirectory");
     kdialog.push_back(start.empty() ? std::string(".") : start);
     if (pickFile && !patterns.empty()) {
@@ -240,8 +286,22 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
         if (spawned == Spawned::Cancelled) {
             return DialogResult::Cancelled;
         }
-        path = out;
-        return DialogResult::Chosen;
+        if (!multiple) {
+            paths.push_back(out);
+            return DialogResult::Chosen;
+        }
+        std::size_t start = 0;
+        while (start <= out.size()) {
+            std::size_t end = out.find('\n', start);
+            if (end == std::string::npos) {
+                end = out.size();
+            }
+            if (end > start) {
+                paths.push_back(out.substr(start, end - start));
+            }
+            start = end + 1;
+        }
+        return paths.empty() ? DialogResult::Cancelled : DialogResult::Chosen;
     }
     return DialogResult::Unavailable;
 }
@@ -250,29 +310,40 @@ DialogResult RunDialog(const FolderDialogOptions& options, std::string& path) {
 
 }  // namespace
 
-void showFolderDialog(FolderDialogOptions options, FolderDialogHandler done) {
+void showFilesDialog(FolderDialogOptions options, FilesDialogHandler done) {
     if (!done) {
         return;
     }
 #if defined(_WIN32)
     // From the next frame, so the click that asked for it has finished.
     runLater([options = std::move(options), done = std::move(done)]() {
-        std::string path;
-        const DialogResult result = RunDialog(options, path);
-        done(result, path);
+        std::vector<std::string> paths;
+        const DialogResult result = RunDialog(options, paths);
+        done(result, paths);
     });
 #elif defined(JADEFX_FOLDER_DIALOG_SPAWN)
     // The dialog is another process. Waiting here would stall the window long
     // enough for the desktop to call it unresponsive, so a thread waits instead.
     std::thread([options = std::move(options), done = std::move(done)]() mutable {
-        std::string path;
-        const DialogResult result = RunDialog(options, path);
-        runLater([done = std::move(done), result, path = std::move(path)]() { done(result, path); });
+        std::vector<std::string> paths;
+        const DialogResult result = RunDialog(options, paths);
+        runLater([done = std::move(done), result, paths = std::move(paths)]() { done(result, paths); });
     }).detach();
 #else
     (void)options;
-    runLater([done = std::move(done)]() { done(DialogResult::Unavailable, std::string()); });
+    runLater([done = std::move(done)]() { done(DialogResult::Unavailable, std::vector<std::string>()); });
 #endif
+}
+
+void showFolderDialog(FolderDialogOptions options, FolderDialogHandler done) {
+    if (!done) {
+        return;
+    }
+    options.multiple = false;
+    showFilesDialog(std::move(options), [done = std::move(done)](DialogResult result,
+                                                                 const std::vector<std::string>& paths) {
+        done(result, paths.empty() ? std::string() : paths.front());
+    });
 }
 
 }  // namespace jadefx

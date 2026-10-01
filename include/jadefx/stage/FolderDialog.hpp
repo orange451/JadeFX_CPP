@@ -19,11 +19,14 @@ struct FolderDialogOptions {
     bool file = false;
     // A file pick's allowed extensions, without the dot, such as "css". Empty allows any file.
     std::vector<std::string> extensions;
+    // Open a file only. The user may pick several files; showFilesDialog reports them all.
+    bool multiple = false;
 };
 
 enum class DialogResult { Chosen, Cancelled, Unavailable };
 
 using FolderDialogHandler = std::function<void(DialogResult result, const std::string& path)>;
+using FilesDialogHandler = std::function<void(DialogResult result, const std::vector<std::string>& paths)>;
 
 // Shows the system folder dialog, or its file dialog when options.file is set:
 // NSOpenPanel or NSSavePanel on macOS, the common item dialog on Windows,
@@ -33,5 +36,9 @@ using FolderDialogHandler = std::function<void(DialogResult result, const std::s
 // platform has no system dialog: iOS, Android, the web, or a Linux desktop
 // without zenity or kdialog.
 void showFolderDialog(FolderDialogOptions options, FolderDialogHandler done);
+
+// The same dialog, reporting every path chosen: several when options.multiple
+// is set on a file pick, otherwise one. paths is empty unless the result is Chosen.
+void showFilesDialog(FolderDialogOptions options, FilesDialogHandler done);
 
 }  // namespace jadefx
