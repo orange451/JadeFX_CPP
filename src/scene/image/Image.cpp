@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -84,6 +85,19 @@ std::shared_ptr<Image> Image::load(const std::uint8_t* bytes, std::size_t size) 
     data->height = height;
     data->rgba.assign(decoded, decoded + pixels * 4);
     stbi_image_free(decoded);
+    return std::shared_ptr<Image>(new Image(std::move(data)));
+}
+
+std::shared_ptr<Image> Image::fromRgba(int width, int height, std::vector<std::uint8_t> rgba) {
+    if (width <= 0 || height <= 0 ||
+        rgba.size() / 4 / static_cast<std::size_t>(width) != static_cast<std::size_t>(height) ||
+        rgba.size() != static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4) {
+        return nullptr;
+    }
+    auto data = std::make_shared<ImageData>();
+    data->width = width;
+    data->height = height;
+    data->rgba = std::move(rgba);
     return std::shared_ptr<Image>(new Image(std::move(data)));
 }
 

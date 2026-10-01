@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace jadefx {
 
@@ -17,6 +18,10 @@ class Image {
 public:
     static std::shared_ptr<Image> load(const std::string& path);
     static std::shared_ptr<Image> load(const std::uint8_t* bytes, std::size_t size);
+    // An image of width x height RGBA pixels, 8 bits a channel, top row first.
+    // Empty when the size is not positive or rgba does not hold width * height * 4 bytes.
+    // Safe on any thread: nothing reaches the GPU until a view draws it.
+    static std::shared_ptr<Image> fromRgba(int width, int height, std::vector<std::uint8_t> rgba);
 
     ~Image();
 
