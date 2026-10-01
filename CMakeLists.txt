@@ -81,6 +81,7 @@ set(JADEFX_SOURCES
     src/scene/controls/TreeView.cpp
     src/scene/DragAndDrop.cpp
     src/scene/Scene.cpp
+    src/scene/SubScene.cpp
     src/stage/Stage.cpp
     src/application/Application.cpp
     src/application/RunLater.cpp
@@ -376,6 +377,7 @@ if(NOT JADEFX_GLFM)
         tests/date_picker_tests.cpp
         tests/drag_drop_tests.cpp
         tests/notification_tests.cpp
+        tests/subscene_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

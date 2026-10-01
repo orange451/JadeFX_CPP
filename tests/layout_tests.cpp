@@ -1956,6 +1956,7 @@ int RunColorPickerTests();
 int RunDatePickerTests();
 int RunDragDropTests();
 int RunNotificationTests();
+int RunSubSceneTests();
 
 int main() {
     TestColors();
@@ -2006,6 +2007,7 @@ int main() {
     gFailures += RunDatePickerTests();
     gFailures += RunDragDropTests();
     gFailures += RunNotificationTests();
+    gFailures += RunSubSceneTests();
     if (gFailures == 0) {
         std::printf("layout tests passed\n");
         return 0;

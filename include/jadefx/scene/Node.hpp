@@ -21,6 +21,7 @@ namespace jadefx {
 
 class Node;
 class Scene;
+class SubScene;
 class UiRenderer;
 
 // Shown beside a node after the pointer rests on it. Scene owns the timing.
@@ -276,6 +277,8 @@ protected:
     virtual void renderChildren(UiRenderer& renderer, float opacity);
     virtual void visitChildren(const std::function<void(Node*)>& visitor);
     virtual Scene* asScene() { return nullptr; }
+    // A SubScene's root starts a cascade of its own. See SubScene.
+    virtual const SubScene* asSubScene() const { return nullptr; }
     // previous is the scene this node just left, or null when it is joining one.
     virtual void sceneChanged(Scene*) {}
     // This node's style is resolved. Children are styled after this returns.
@@ -312,6 +315,12 @@ private:
     void applyStyles(const ComputedStyle& inherited, double timeSeconds);
     // What a child inherits from this node's style: text color, font, and cursor.
     ComputedStyle inheritableStyle() const;
+    // What the top of a cascade inherits: a scene, or a SubScene's root.
+    static ComputedStyle rootInheritance();
+    // What this node's parent hands it: rootInheritance for a SubScene's root.
+    ComputedStyle inheritedFromParent() const;
+    // The nearest enclosing SubScene's user-agent stylesheet, else the scene's. Null for neither.
+    const Stylesheet* userAgentSheet() const;
     void syncHover(Node* hit);
     // Like pick, but a disabled node still supplies its cursor.
     Node* pickCursorTarget(double x, double y);

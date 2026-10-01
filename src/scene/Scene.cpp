@@ -114,12 +114,7 @@ void Scene::layout(double width, double height) {
 }
 
 void Scene::layout(double width, double height, double timeSeconds) {
-    ComputedStyle inherited;
-    inherited.color = Theme::defaultColor(ThemeColor::Text);
-    inherited.fontSize = 16.f;
-    inherited.fontFamily = "Open Sans";
-    inherited.cursor = Cursor::Default;
-    applyStyles(inherited, timeSeconds);
+    applyStyles(rootInheritance(), timeSeconds);
 
     x_ = 0;
     y_ = 0;

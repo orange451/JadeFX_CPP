@@ -13,6 +13,7 @@
 #include "jadefx/scene/image/ImageView.hpp"
 #include "jadefx/scene/Parent.hpp"
 #include "jadefx/scene/Scene.hpp"
+#include "jadefx/scene/SubScene.hpp"
 #include "jadefx/scene/controls/Alert.hpp"
 #include "jadefx/scene/controls/Button.hpp"
 #include "jadefx/scene/controls/ButtonType.hpp"

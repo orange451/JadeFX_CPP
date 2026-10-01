@@ -1,6 +1,7 @@
 #include "jadefx/scene/Node.hpp"
 
 #include "jadefx/scene/Scene.hpp"
+#include "jadefx/scene/SubScene.hpp"
 #include "gl/UiRenderer.hpp"
 
 #include <algorithm>
@@ -529,13 +530,17 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     // wins, and among equals the later one. !important declarations come after
     // every normal one: author, then inline, then user agent.
     std::vector<MatchedDeclaration> agentMatches;
-    if (scene_ != nullptr) {
-        scene_->userAgentStylesheet().collectMatching(*this, agentMatches);
+    if (const Stylesheet* agentSheet = userAgentSheet()) {
+        agentSheet->collectMatching(*this, agentMatches);
     }
     std::vector<MatchedDeclaration> authorMatches;
     std::vector<const Node*> chain;
     for (const Node* node = this; node != nullptr; node = node->parent_) {
         chain.push_back(node);
+        // A SubScene's root is the top of its cascade.
+        if (node->parent_ != nullptr && node->parent_->asSubScene() != nullptr) {
+            break;
+        }
     }
     for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
         if (!(*it)->stylesheet_.empty()) {
@@ -657,7 +662,7 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
 
     computed_ = style;
     styleDidApply();
-    const ComputedStyle pass = inheritableStyle();
+    const ComputedStyle pass = asSubScene() != nullptr ? rootInheritance() : inheritableStyle();
     std::vector<Node*> kids;
     visitChildren([&](Node* child) { kids.push_back(child); });
     for (Node* child : kids) {
@@ -689,9 +694,34 @@ ComputedStyle Node::inheritableStyle() const {
     return pass;
 }
 
+ComputedStyle Node::rootInheritance() {
+    ComputedStyle inherited;
+    inherited.color = Theme::defaultColor(ThemeColor::Text);
+    inherited.fontSize = 16.f;
+    inherited.fontFamily = "Open Sans";
+    inherited.cursor = Cursor::Default;
+    return inherited;
+}
+
+ComputedStyle Node::inheritedFromParent() const {
+    if (parent_ == nullptr) {
+        return ComputedStyle{};
+    }
+    return parent_->asSubScene() != nullptr ? rootInheritance() : parent_->inheritableStyle();
+}
+
+const Stylesheet* Node::userAgentSheet() const {
+    for (const Node* node = parent_; node != nullptr; node = node->parent_) {
+        if (const SubScene* sub = node->asSubScene()) {
+            return &sub->userAgentStylesheet();
+        }
+    }
+    return scene_ != nullptr ? &scene_->userAgentStylesheet() : nullptr;
+}
+
 void Node::applyCss() {
     const double time = scene_ != nullptr ? scene_->timeSeconds() : 0.0;
-    applyStyles(parent_ != nullptr ? parent_->inheritableStyle() : ComputedStyle{}, time);
+    applyStyles(inheritedFromParent(), time);
 }
 
 bool Node::isFocusWithin() {
