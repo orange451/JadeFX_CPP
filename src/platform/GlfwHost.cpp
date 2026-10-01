@@ -11,6 +11,10 @@
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#ifdef _WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#endif
 
 #include <cstdio>
 #include <string>
@@ -374,6 +378,34 @@ void GlfwHost::show() {
     if (window_ != nullptr) {
         glfwShowWindow(window_);
     }
+}
+
+void GlfwHost::toFront() {
+    if (window_ == nullptr) {
+        return;
+    }
+    if (glfwGetWindowAttrib(window_, GLFW_ICONIFIED) == GLFW_TRUE) {
+        glfwRestoreWindow(window_);
+    }
+    glfwShowWindow(window_);
+#ifdef _WIN32
+    // Windows only lets the program that took the last input take the foreground, and a
+    // drop's last input went to the program dragged from. Sharing that program's input
+    // state for the call lets the window take it, rather than only flashing in the taskbar.
+    HWND hwnd = glfwGetWin32Window(window_);
+    HWND foreground = GetForegroundWindow();
+    if (hwnd != nullptr && foreground != hwnd) {
+        const DWORD self = GetCurrentThreadId();
+        const DWORD other = foreground != nullptr ? GetWindowThreadProcessId(foreground, nullptr) : 0;
+        const bool attached = other != 0 && other != self && AttachThreadInput(self, other, TRUE) != 0;
+        BringWindowToTop(hwnd);
+        SetForegroundWindow(hwnd);
+        if (attached) {
+            AttachThreadInput(self, other, FALSE);
+        }
+    }
+#endif
+    glfwFocusWindow(window_);
 }
 
 void GlfwHost::setSize(int width, int height) {

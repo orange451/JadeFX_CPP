@@ -105,6 +105,11 @@ public:
     void setCursorHandler(CursorHandler handler);
     // Called when the scene locks or unlocks the pointer. The GLFW host captures it.
     void setPointerLockHandler(std::function<void(bool)> handler) { onPointerLock_ = std::move(handler); }
+    // Raises the window over the others and gives it the keyboard focus, restoring it
+    // when minimized, as JavaFX's Stage.toFront. Does nothing without a host.
+    void toFront();
+    // The host's way to raise the window. Application::launch and UtilityWindow set it.
+    void setToFrontHandler(std::function<void()> handler) { onToFront_ = std::move(handler); }
     // The host's pointer motion while locked, delivered to the scene with the other events.
     void pushPointerDelta(double dx, double dy);
 
@@ -132,6 +137,7 @@ private:
     TitleHandler onTitle_;
     CursorHandler onCursor_;
     std::function<void(bool)> onPointerLock_;
+    std::function<void()> onToFront_;
     Cursor cursor_ = Cursor::Default;
     bool cursorApplied_ = false;
     std::function<void(int, bool)> onKey_;

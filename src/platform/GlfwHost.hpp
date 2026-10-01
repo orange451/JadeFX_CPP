@@ -28,6 +28,8 @@ public:
     static double now();
     void swap();
     void show();
+    // Restores, shows, raises, and focuses the window, even while another program has the foreground.
+    void toFront();
     void setSize(int width, int height);
     void setTitle(const char* title);
     void makeCurrent();

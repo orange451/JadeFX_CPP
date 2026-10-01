@@ -129,6 +129,7 @@ std::shared_ptr<UtilityWindow> UtilityWindow::open(std::string title, int width,
             raw->host_->glfw.setPointerLocked(locked);
         }
     });
+    raw->stage_.setToFrontHandler([raw]() { raw->toFront(); });
     raw->host_->glfw.setRedraw([raw]() {
         if (!raw->isOpen()) {
             return;
@@ -157,15 +158,9 @@ const Stage& UtilityWindow::stage() const { return stage_; }
 void UtilityWindow::setTitle(const std::string& title) { stage_.setTitle(title); }
 
 void UtilityWindow::toFront() {
-    GLFWwindow* window = native();
-    if (window == nullptr) {
-        return;
+    if (host_) {
+        host_->glfw.toFront();
     }
-    if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0) {
-        glfwRestoreWindow(window);
-    }
-    glfwShowWindow(window);
-    glfwFocusWindow(window);
 }
 
 void UtilityWindow::setCanClose(std::function<bool()> canClose) { canClose_ = std::move(canClose); }
