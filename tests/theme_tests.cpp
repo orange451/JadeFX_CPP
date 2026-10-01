@@ -86,6 +86,12 @@ void TestOrigins() {
     rig.scene->setStylesheet("button { background-color: #00ff00; }");
     rig.frame();
     Expect(Same(Background(*coded), jadefx::Color::rgb8(0, 255, 0)), "an application stylesheet wins over code");
+
+    // As in CSS, a custom property's var() is resolved after the whole cascade on its node.
+    rig.scene->setStylesheet(":root { --accent-color: #ff00ff; }");
+    rig.frame();
+    Expect(Same(plain->themeColor(jadefx::ThemeColor::Outline), jadefx::Color::rgb8(255, 0, 255)),
+           "the theme's --outline-color: var(--accent-color) follows an application's accent on the same node");
 }
 
 void TestThemes() {

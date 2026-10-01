@@ -571,8 +571,11 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     author.insert(author.end(), agentImportant.begin(), agentImportant.end());
 
     const float inheritedFont = inherited.fontSize > 0.f ? inherited.fontSize : 16.f;
-    applyDeclarations(style, agent, StylePass::Variables, inheritedFont, inheritedFont);
-    applyDeclarations(style, author, StylePass::Variables, inheritedFont, inheritedFont);
+    // Custom properties take one pass over every origin, so a var() in one is
+    // resolved against the values the whole cascade leaves on this node.
+    std::vector<const Declaration*> variables = agent;
+    variables.insert(variables.end(), author.begin(), author.end());
+    applyDeclarations(style, variables, StylePass::Variables, inheritedFont, inheritedFont);
     applyDeclarations(style, agent, StylePass::Fonts, inheritedFont, inheritedFont);
     if (fontExplicit_) {
         style.fontSize = font_.size();
