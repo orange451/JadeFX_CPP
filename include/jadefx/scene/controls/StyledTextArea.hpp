@@ -419,6 +419,11 @@ private:
 
     mutable double scrollX_ = 0;
     mutable double scrollY_ = 0;
+    double smoothTarget_ = 0;
+    double smoothApplied_ = 0;
+    double smoothAt_ = 0;
+    bool smoothScrolling_ = false;
+    void advanceSmoothScroll();
     double preferredX_ = -1;
     bool caretDirty_ = false;
     bool flushing_ = false;

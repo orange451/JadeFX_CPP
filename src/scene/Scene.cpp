@@ -2,6 +2,7 @@
 
 #include "jadefx/scene/layout/StackPane.hpp"
 #include "jadefx/style/Theme.hpp"
+#include "gl/UiRenderer.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -689,6 +690,7 @@ void Scene::showPopup(std::shared_ptr<Node> popup, double x, double y, double wi
     if (findPopup(popupNode) == nullptr) {
         PopupRecord created;
         created.node = popup;
+        created.openedAt = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
         popups_.push_back(std::move(created));
         bool listed = false;
         for (const std::shared_ptr<Node>& child : children().items()) {
@@ -711,6 +713,8 @@ void Scene::showPopup(std::shared_ptr<Node> popup, double x, double y, double wi
     record->hideOnPress = options.hideOnPress;
     record->modal = options.modal;
     record->fillScene = options.fillScene;
+    record->animate = options.animate && !options.fillScene && !options.modal;
+    record->fromBottom = false;
     record->x = x;
     record->y = y;
     record->measure = width < 0 || height < 0 || options.fillScene;
@@ -787,7 +791,37 @@ void Scene::showPopupNear(std::shared_ptr<Node> popup, Node* anchor, Side side, 
     }
     record->x = x;
     record->y = y;
+    record->fromBottom = y + popupHeight <= anchorY + 0.5;
     record->node->performLayout(x, y, std::max(0.0, popupWidth), std::max(0.0, popupHeight));
+}
+
+void Scene::renderChildren(UiRenderer& renderer, float opacity) {
+    constexpr double kOpenSeconds = 0.14;
+    constexpr float kShadow = 12.f;
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    std::vector<Node*> kids;
+    visitChildren([&](Node* child) { kids.push_back(child); });
+    for (Node* child : kids) {
+        const PopupRecord* record = findPopup(child);
+        const double t = record != nullptr && record->animate ? (now - record->openedAt) / kOpenSeconds : 1.0;
+        if (t >= 1.0 || t < 0.0) {
+            child->render(renderer, opacity);
+            continue;
+        }
+        const double eased = 1.0 - std::pow(1.0 - t, 3.0);
+        const float x = static_cast<float>(child->getAbsoluteX()) - kShadow;
+        const float y = static_cast<float>(child->getAbsoluteY());
+        const float w = static_cast<float>(child->getWidth()) + 2.f * kShadow;
+        const float full = static_cast<float>(child->getHeight()) + kShadow;
+        const float shown = full * static_cast<float>(eased);
+        if (record->fromBottom) {
+            renderer.pushClip(x, y - kShadow + full - shown, w, shown);
+        } else {
+            renderer.pushClip(x, y, w, shown);
+        }
+        child->render(renderer, opacity * static_cast<float>(0.25 + 0.75 * eased));
+        renderer.popClip();
+    }
 }
 
 void Scene::movePopup(Node* popup, double x, double y, double width, double height) {

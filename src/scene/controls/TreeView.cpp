@@ -640,6 +640,12 @@ struct TreeView::Impl {
     TreeItem* hoverItem = nullptr;
     std::shared_ptr<ScrollBar> vbar;
     double scroll = 0;
+    double smoothTarget = 0;
+    double smoothApplied = 0;
+    double smoothAt = 0;
+    bool smoothing = false;
+    std::unordered_map<const TreeItem*, double> seenAt;
+    bool seeded = false;
     int visibleRows = 1;
     int syncDepth = 0;
     int selectDepth = 0;
@@ -1258,7 +1264,13 @@ void TreeView::handleScroll(ScrollEvent& event) {
     }
     // A mouse notch is about 1. A trackpad sends many smaller steps. Both move
     // the rows by that fraction of a row, and the next layout keeps the remainder.
-    impl_->scroll -= event.deltaY * rowSize();
+    const double base = impl_->smoothing ? impl_->smoothTarget : impl_->scroll;
+    impl_->smoothTarget = std::max(0.0, std::min(content - view, base - event.deltaY * rowSize() * 3.0));
+    if (!impl_->smoothing) {
+        impl_->smoothing = true;
+        impl_->smoothApplied = impl_->scroll;
+        impl_->smoothAt = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    }
     event.consume();
 }
 
@@ -1500,12 +1512,29 @@ void TreeView::layoutChildren() {
     if (height + 0.01 >= content) {
         maxScroll = 0;
     }
+    if (impl_->smoothing) {
+        if (std::fabs(impl_->scroll - impl_->smoothApplied) > 0.5) {
+            impl_->smoothing = false;
+        } else {
+            const double now =
+                std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            const double elapsed = std::min(0.1, std::max(0.0, now - impl_->smoothAt));
+            impl_->smoothAt = now;
+            const double target = std::max(0.0, std::min(maxScroll, impl_->smoothTarget));
+            impl_->scroll += (target - impl_->scroll) * std::min(1.0, elapsed / 0.07);
+            if (std::fabs(target - impl_->scroll) < 0.5) {
+                impl_->scroll = target;
+                impl_->smoothing = false;
+            }
+        }
+    }
     if (impl_->scroll < 0) {
         impl_->scroll = 0;
     }
     if (impl_->scroll > maxScroll) {
         impl_->scroll = maxScroll;
     }
+    impl_->smoothApplied = impl_->scroll;
     const double scroll = impl_->scroll;
     impl_->visibleRows = fit;
     const double gutter = maxScroll > 0 ? ScrollBar::kThickness : 0.0;
@@ -1532,11 +1561,20 @@ void TreeView::layoutChildren() {
     }
     double hoverTop = 0;
     bool hoverShown = false;
+    constexpr double kAppearSeconds = 0.18;
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    std::unordered_set<const TreeItem*> present;
     for (int i = 0; i < count; ++i) {
         TreeCell* cell = impl_->rows[static_cast<std::size_t>(i)].get();
         if (cell == nullptr) {
             continue;
         }
+        const TreeItem* item = cell->item();
+        present.insert(item);
+        const auto seen = impl_->seenAt.emplace(item, impl_->seeded ? now : 0.0).first;
+        const double appear = (now - seen->second) / kAppearSeconds;
+        const double eased = appear >= 1.0 ? 1.0 : 1.0 - std::pow(1.0 - std::max(0.0, appear), 3.0);
+        cell->setOpacity(static_cast<float>(eased));
         const double trail = impl_->hoverItem != nullptr && cell->item() == impl_->hoverItem ? kHoverSlot : 0;
         cell->prepare(shownLevel(cell->item()), impl_->indent, trail);
         cell->updateChrome();
@@ -1548,12 +1586,16 @@ void TreeView::layoutChildren() {
             continue;
         }
         cell->setVisible(true);
-        cell->performLayout(left, y, rowWidth, row);
+        cell->performLayout(left - (1.0 - eased) * 8.0, y, rowWidth, row);
         if (trail > 0) {
             hoverTop = y;
             hoverShown = true;
         }
     }
+    for (auto it = impl_->seenAt.begin(); it != impl_->seenAt.end();) {
+        it = present.count(it->first) == 0 ? impl_->seenAt.erase(it) : std::next(it);
+    }
+    impl_->seeded = true;
     if (impl_->accessory) {
         if (!hoverShown || rowWidth < kHoverButton || row < kHoverButton) {
             impl_->accessory->setVisible(false);
