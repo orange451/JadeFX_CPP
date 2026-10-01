@@ -204,6 +204,9 @@ public:
     void foldParagraphs(int startParagraph, int endParagraph);
     void unfoldParagraphs(int paragraph);
     bool isFolded(int paragraph) const;
+    void setFoldRanges(std::function<int(int paragraph)> provider);
+    std::vector<int> foldedParagraphs() const;
+    void setOnFoldsChanged(std::function<void()> handler) { onFoldsChanged_ = std::move(handler); }
 
     double getScrollX() const { return scrollX_; }
     double getScrollY() const { return scrollY_; }
@@ -357,6 +360,8 @@ private:
     void retargetFolds(int startParagraph, int endParagraph, int delta);
     bool isHidden(int paragraph) const;
     bool isFoldHeader(int paragraph) const;
+    int foldableEnd(int paragraph) const;
+    void toggleFold(int paragraph);
     int foldEnd(int paragraph) const;
     int step(int offset, int direction) const;
     int wordBoundary(int offset, int direction) const;
@@ -390,6 +395,8 @@ private:
     std::vector<UndoEntry> undo_;
     std::vector<UndoEntry> redo_;
     std::vector<Fold> folds_;
+    std::function<int(int)> foldRanges_;
+    std::function<void()> onFoldsChanged_;
     std::vector<PlainTextChange> pendingPlain_;
     std::vector<DocumentChange> pendingRich_;
     UndoEntry* open_ = nullptr;

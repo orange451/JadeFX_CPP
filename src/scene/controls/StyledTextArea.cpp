@@ -16,6 +16,8 @@
 namespace jadefx {
 namespace {
 
+constexpr float kFoldColumn = 14.f;
+
 struct LocalClipboard {
     std::string plain;
     StyledDocument document;
@@ -672,6 +674,43 @@ void StyledTextArea::foldParagraphs(int startParagraph, int endParagraph) {
     }
     markDirty();
     caretDirty_ = true;
+    if (onFoldsChanged_) {
+        onFoldsChanged_();
+    }
+}
+
+std::vector<int> StyledTextArea::foldedParagraphs() const {
+    std::vector<int> out;
+    for (const Fold& fold : folds_) {
+        out.push_back(fold.start);
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+void StyledTextArea::setFoldRanges(std::function<int(int paragraph)> provider) {
+    foldRanges_ = std::move(provider);
+    layoutDirty_ = true;
+    markDirty();
+}
+
+int StyledTextArea::foldableEnd(int paragraph) const {
+    if (!foldRanges_ || paragraph < 0 || paragraph >= content_.paragraphCount()) {
+        return -1;
+    }
+    const int end = foldRanges_(paragraph);
+    return end > paragraph && end < content_.paragraphCount() ? end : -1;
+}
+
+void StyledTextArea::toggleFold(int paragraph) {
+    if (isFoldHeader(paragraph)) {
+        unfoldParagraphs(paragraph);
+        return;
+    }
+    const int end = foldableEnd(paragraph);
+    if (end > paragraph) {
+        foldParagraphs(paragraph, end);
+    }
 }
 
 void StyledTextArea::unfoldParagraphs(int paragraph) {
@@ -686,6 +725,9 @@ void StyledTextArea::unfoldParagraphs(int paragraph) {
     }
     folds_ = std::move(kept);
     markDirty();
+    if (onFoldsChanged_) {
+        onFoldsChanged_();
+    }
 }
 
 void StyledTextArea::scrollTo(double x, double y) {
@@ -1752,7 +1794,7 @@ void StyledTextArea::rebuild() const {
         // Still rebuild when the viewport width changed. textW is compared below.
     }
     float gutter = 0.f;
-    if (lineNumbers_ || !folds_.empty()) {
+    if (lineNumbers_ || !folds_.empty() || foldRanges_) {
         int digits = 1;
         int count = std::max(1, content_.paragraphCount());
         while (count >= 10) {
@@ -1760,7 +1802,8 @@ void StyledTextArea::rebuild() const {
             count /= 10;
         }
         const float digit = std::max(1.f, font.measureWidth("0"));
-        gutter = 16.f + (lineNumbers_ ? digit * static_cast<float>(digits) + 10.f : 0.f);
+        gutter = 16.f + (lineNumbers_ ? digit * static_cast<float>(digits) + 10.f : 0.f) +
+                 (foldRanges_ ? kFoldColumn : 0.f);
     }
     const float bar = ScrollTrack::kThickness;
     bool vertical = view_.verticalBar;
@@ -2213,6 +2256,16 @@ Cursor StyledTextArea::cursorAt(double x, double y) const {
         horizontalScroll_.part(localX, localY) != ScrollTrack::Part::None) {
         return Cursor::Default;
     }
+    const float left = static_cast<float>(contentLeft());
+    if (view_.gutter > 0.f && localX >= left && localX < left + view_.gutter) {
+        if (foldRanges_ && localX >= left + view_.gutter - kFoldColumn) {
+            const CharacterHit where = hit(x, y);
+            if (where.valid && (isFoldHeader(where.paragraph) || foldableEnd(where.paragraph) > where.paragraph)) {
+                return Cursor::Pointer;
+            }
+        }
+        return Cursor::Default;
+    }
     return followableLinkAt(x, y).empty() ? base : Cursor::Pointer;
 }
 
@@ -2257,7 +2310,14 @@ void StyledTextArea::handleMousePressed(const MouseEvent& event) {
     if (localX >= left && localX < left + view_.gutter && localY >= top && localY < top + boxH) {
         const CharacterHit where = hit(event.x, event.y);
         if (where.valid) {
-            if (localX < left + 14.f && isFoldHeader(where.paragraph)) {
+            if (foldRanges_ && localX >= left + view_.gutter - kFoldColumn) {
+                toggleFold(where.paragraph);
+            } else if (foldRanges_) {
+                const int start = content_.offset(where.paragraph, 0);
+                const int end = where.paragraph + 1 < content_.paragraphCount() ? content_.offset(where.paragraph + 1, 0)
+                                                                                : content_.length();
+                selectRange(start, end);
+            } else if (localX < left + 14.f && isFoldHeader(where.paragraph)) {
                 unfoldParagraphs(where.paragraph);
             } else if (localX < left + 14.f && where.paragraph + 1 < content_.paragraphCount() && !isHidden(where.paragraph)) {
                 foldParagraphs(where.paragraph, where.paragraph + 1);
@@ -2499,6 +2559,18 @@ void StyledTextArea::handleKey(KeyEvent& event) {
     }
     if (event.shortcut() && (event.key == Key::Y || (event.key == Key::Z && event.shift))) {
         redo();
+        event.consume();
+        return;
+    }
+    if (event.shortcut() && event.alt && event.key == Key::LeftBracket && foldRanges_) {
+        const int caret = currentParagraph();
+        for (int header = caret; header >= 0; --header) {
+            const int end = foldableEnd(header);
+            if (end >= caret) {
+                foldParagraphs(header, end);
+                break;
+            }
+        }
         event.consume();
         return;
     }
@@ -2771,7 +2843,25 @@ measureLine(paragraph, line.start, line.end);
                 continue;
             }
             const float y = absY + view_.textY + top - viewTop;
-            if (isFoldHeader(paragraph)) {
+            if (foldRanges_) {
+                const bool folded = isFoldHeader(paragraph);
+                if (folded || foldableEnd(paragraph) > paragraph) {
+                    Color marker = computedStyle().color;
+                    marker.a *= (folded ? 0.85f : 0.4f) * opacity;
+                    const float size = 7.f;
+                    const float cx = boxX + view_.gutter - kFoldColumn * 0.5f - 2.f;
+                    const float cy = y + (bottom - top) * 0.5f;
+                    const int steps = static_cast<int>(size * 0.5f) + 1;
+                    for (int step = 0; step < steps; ++step) {
+                        const float span = size - static_cast<float>(step) * 2.f;
+                        if (folded) {
+                            Fill(renderer, cx - size * 0.25f + static_cast<float>(step), cy - span * 0.5f, 1.f, span, marker);
+                        } else {
+                            Fill(renderer, cx - span * 0.5f, cy - size * 0.25f + static_cast<float>(step), span, 1.f, marker);
+                        }
+                    }
+                }
+            } else if (isFoldHeader(paragraph)) {
                 Color marker = computedStyle().color;
                 marker.a *= 0.7f * opacity;
                 renderer.text(boxX + 2.f, y, ">", font.family(), font.size(), marker, computedStyle().subpixel);
@@ -2781,7 +2871,8 @@ measureLine(paragraph, line.start, line.end);
                 const float width = font.measureWidth(number);
                 Color color = computedStyle().color;
                 color.a *= (paragraph == caretParagraph ? 0.9f : 0.45f) * opacity;
-                renderer.text(boxX + view_.gutter - 8.f - width, y, number, font.family(), font.size(), color,
+                const float right = view_.gutter - 8.f - (foldRanges_ ? kFoldColumn : 0.f);
+                renderer.text(boxX + right - width, y, number, font.family(), font.size(), color,
                               computedStyle().subpixel);
             }
             if (!textMarks_.empty() && paragraph < static_cast<int>(view_.paragraphs.size()) &&
