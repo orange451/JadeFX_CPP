@@ -724,7 +724,7 @@ Node* Node::pick(double x, double y) {
             return hit;
         }
     }
-    return this;
+    return pickOnBounds_ ? this : nullptr;
 }
 
 Node* Node::pickCursorTarget(double x, double y) {
@@ -738,7 +738,7 @@ Node* Node::pickCursorTarget(double x, double y) {
             return hit;
         }
     }
-    return this;
+    return pickOnBounds_ ? this : nullptr;
 }
 
 Cursor Node::cursorAt(double, double) const {

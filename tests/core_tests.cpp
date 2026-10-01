@@ -151,9 +151,32 @@ void TestApplyCss() {
     Expect(Near(label->computedStyle().fontSize, 30), "applyCss styles a node before the next layout");
 }
 
+void TestPickOnBounds() {
+    // Two full-size overlays, the top one empty but for a small block.
+    auto root = jadefx::make<jadefx::StackPane>();
+    auto under = jadefx::make<jadefx::StackPane>();
+    auto button = jadefx::make<jadefx::Button>("Under");
+    under->getChildren().add(button);
+    auto over = jadefx::make<jadefx::Pane>();
+    over->setPrefSize(200, 200);
+    auto block = Block(20, 20);
+    over->getChildren().add(block);
+    root->getChildren().add(under);
+    root->getChildren().add(over);
+    auto scene = jadefx::make<jadefx::Scene>(root, 200, 200);
+    scene->layout(200, 200, 0);
+    const double x = button->getAbsoluteX() + button->getWidth() / 2;
+    const double y = button->getAbsoluteY() + button->getHeight() / 2;
+    Expect(scene->pick(x, y) == over.get(), "an overlay's own box takes the pick by default");
+    over->setPickOnBounds(false);
+    Expect(scene->pick(x, y) == button.get(), "without pickOnBounds the pick passes through its empty box");
+    Expect(scene->pick(5, 5) == block.get(), "and still finds its children");
+}
+
 }  // namespace
 
 int RunCoreTests() {
+    TestPickOnBounds();
     TestLabeledGraphic();
     TestListListeners();
     TestClickCountAndFocus();

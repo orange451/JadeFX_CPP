@@ -84,6 +84,12 @@ public:
     bool isVisible() const { return visible_; }
     void setMouseTransparent(bool value) { mouseTransparent_ = value; }
     bool isMouseTransparent() const { return mouseTransparent_; }
+    // JavaFX's pickOnBounds. False makes the node itself never the target of a
+    // press, hover, or cursor: the pointer finds its children, or whatever is
+    // under it, as if its own box were empty. An overlay that fills a view but
+    // should only catch the mouse on its contents uses it.
+    void setPickOnBounds(bool value) { pickOnBounds_ = value; }
+    bool isPickOnBounds() const { return pickOnBounds_; }
     void setOpacity(float opacity) { opacity_ = opacity; }
     float getOpacity() const { return opacity_; }
 
@@ -397,6 +403,7 @@ private:
     Insets animateInsets(InsetAnim& anim, const Insets& target, double duration, double delay, double time);
     bool visible_ = true;
     bool mouseTransparent_ = false;
+    bool pickOnBounds_ = true;
     bool hovered_ = false;
     bool wasHovered_ = false;
     bool pressed_ = false;
