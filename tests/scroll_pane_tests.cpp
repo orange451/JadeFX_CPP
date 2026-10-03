@@ -236,6 +236,22 @@ void TestScrollPaneClipping() {
     Expect(rig.pane->getContent() == nullptr, "content taken by another parent leaves the pane");
 }
 
+void TestTextFieldKeepsArrows() {
+    PaneRig rig;
+    auto field = jadefx::make<jadefx::TextField>("value");
+    auto column = jadefx::make<jadefx::VBox>();
+    column->getChildren().add(field);
+    column->getChildren().add(Block(10, 1000));
+    rig.pane->setContent(column);
+    rig.pane->setVvalue(0.5);
+    rig.frame();
+    field->requestFocus();
+    rig.scene->noteKey(jadefx::Key::Down, true, false, 0);
+    Expect(rig.pane->getVvalue() == 0.5, "Down in a focused text field does not scroll the pane");
+    rig.scene->noteKey(jadefx::Key::Up, true, false, 0);
+    Expect(rig.pane->getVvalue() == 0.5, "Up in a focused text field does not scroll the pane");
+}
+
 void TestNestedScrollHandsOver() {
     auto inner = jadefx::make<jadefx::ScrollPane>(Block(100, 400));
     inner->setPrefSize(120, 200);
@@ -266,6 +282,7 @@ int RunScrollPaneTests() {
     TestScrollPaneLayout();
     TestScrollPaneInput();
     TestScrollPaneClipping();
+    TestTextFieldKeepsArrows();
     TestNestedScrollHandsOver();
     if (gFailures == 0) {
         std::printf("scroll pane tests passed\n");
