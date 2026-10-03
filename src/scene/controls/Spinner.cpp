@@ -842,6 +842,14 @@ void Spinner::handleKey(KeyEvent& event) {
     event.consume();
 }
 
+void Spinner::filterKey(KeyEvent& event) {
+    // Left and Right stay with the editor's caret.
+    const bool vertical = event.key == Key::Up || event.key == Key::Down;
+    if (vertical && editor_ != nullptr && editor_->isFocused()) {
+        handleKey(event);
+    }
+}
+
 void Spinner::sceneChanged(Scene*) {
     if (isTearingDown()) {
         return;

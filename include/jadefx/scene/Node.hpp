@@ -220,6 +220,10 @@ public:
     virtual void handleMouseMoved(const MouseEvent&) {}
     virtual void handleScroll(ScrollEvent&) {}
     virtual void handleKey(KeyEvent&) {}
+    // A key on its way down to the focused node, before that node's handleKey, as a
+    // JavaFX event filter. Runs from the root down, so a control can take keys away
+    // from a part inside it, as a spinner does from its editor.
+    virtual void filterKey(KeyEvent&) {}
     virtual void handleText(TextEvent&) {}
     // Focus moved off this node: to another node, to nothing, or because this node left the scene
     // or was disabled. Not called when a press lands on the node that already has focus.

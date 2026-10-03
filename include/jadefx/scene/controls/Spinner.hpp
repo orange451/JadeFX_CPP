@@ -220,6 +220,8 @@ protected:
     double preferredContentWidth(double innerAvailable) const override;
     double preferredContentHeight(double innerWidth) const override;
     void handleKey(KeyEvent& event) override;
+    // Up and Down step a vertical spinner even while the editor, which also uses them, has focus.
+    void filterKey(KeyEvent& event) override;
     void sceneChanged(Scene* previous) override;
 
 private:

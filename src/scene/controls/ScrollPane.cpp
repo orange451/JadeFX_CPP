@@ -1,8 +1,6 @@
 #include "jadefx/scene/controls/ScrollPane.hpp"
 
 #include "ScrollSupport.hpp"
-#include "jadefx/scene/Scene.hpp"
-#include "jadefx/scene/controls/TextField.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -161,12 +159,6 @@ void ScrollPane::handleScroll(ScrollEvent& event) {
 
 void ScrollPane::handleKey(KeyEvent& event) {
     if (!event.pressed) {
-        return;
-    }
-    // A text field leaves Up and Down for a combo box or spinner around it, but
-    // they move its caret, so they do not scroll the pane as well.
-    const bool vertical = event.key == Key::Up || event.key == Key::Down;
-    if (vertical && getScene() != nullptr && dynamic_cast<TextField*>(getScene()->focusedNode()) != nullptr) {
         return;
     }
     bool moved = false;

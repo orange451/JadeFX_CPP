@@ -285,6 +285,13 @@ void ComboBoxBase::handleKey(KeyEvent& event) {
     }
 }
 
+void ComboBoxBase::filterKey(KeyEvent& event) {
+    TextField* editor = getEditor();
+    if (editor != nullptr && editor->isFocused() && (event.key == Key::Up || event.key == Key::Down)) {
+        handleKey(event);
+    }
+}
+
 void ComboBoxBase::sceneChanged(Scene* previous) {
     // A scene being torn down takes its popups with it, and nothing is left to tell.
     if (previous != nullptr && previous->isTearingDown()) {

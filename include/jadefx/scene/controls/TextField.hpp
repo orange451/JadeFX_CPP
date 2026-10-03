@@ -7,7 +7,7 @@
 namespace jadefx {
 
 // A single-line editor. Enter fires the action and does not insert a break.
-// Up, Down, Escape, and Tab are left unconsumed for a parent such as a combo box.
+// Escape and Tab are left unconsumed for a parent such as a combo box.
 class TextField : public Controls {
 public:
     TextField();

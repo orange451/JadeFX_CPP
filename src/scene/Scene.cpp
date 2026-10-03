@@ -414,12 +414,33 @@ bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
     event.control = (mods & Key::ModControl) != 0;
     event.alt = (mods & Key::ModAlt) != 0;
     event.meta = (mods & Key::ModSuper) != 0;
+    // The focused node's ancestors filter the key, from the root down, just
+    // before the focused node first sees it.
+    bool filtered = false;
+    auto filter = [&] {
+        filtered = true;
+        std::vector<Node*> path;
+        for (Node* node = focused_ == nullptr ? nullptr : focused_->getParent(); node != nullptr;
+             node = node->getParent()) {
+            path.push_back(node);
+        }
+        for (auto it = path.rbegin(); it != path.rend(); ++it) {
+            (*it)->filterKey(event);
+            if (event.consumed) {
+                return true;
+            }
+        }
+        return false;
+    };
     // A node that captures keys, and the nodes inside it, see the key before
     // the hooks. What it leaves goes on from its parent after them.
     Node* resume = focused_;
     for (Node* node = focused_; node != nullptr; node = node->getParent()) {
         if (!node->capturesKeys()) {
             continue;
+        }
+        if (filter()) {
+            return true;
         }
         for (Node* inside = focused_; inside != node->getParent(); inside = inside->getParent()) {
             inside->handleKey(event);
@@ -450,6 +471,9 @@ bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
                 return true;
             }
         }
+    }
+    if (!filtered && filter()) {
+        return true;
     }
     for (Node* node = resume; node != nullptr; node = node->getParent()) {
         node->handleKey(event);

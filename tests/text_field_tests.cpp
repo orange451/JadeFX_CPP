@@ -113,8 +113,8 @@ void TestActionAndClipboard() {
     open.field->fire();
     Expect(fires == 3, "fire() runs the action");
 
-    Expect(!open.scene->noteKey(jadefx::Key::Up, true, false, 0), "Up is not consumed");
-    Expect(!open.scene->noteKey(jadefx::Key::Down, true, false, 0), "Down is not consumed");
+    Expect(open.scene->noteKey(jadefx::Key::Up, true, false, 0), "Up is consumed");
+    Expect(open.scene->noteKey(jadefx::Key::Down, true, false, 0), "Down is consumed");
     Expect(!open.scene->noteKey(jadefx::Key::Tab, true, false, 0), "Tab is not consumed");
     Expect(!open.scene->noteKey(jadefx::Key::Escape, true, false, 0), "Escape is not consumed");
 

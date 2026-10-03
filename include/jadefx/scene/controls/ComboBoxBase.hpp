@@ -87,6 +87,8 @@ protected:
     double preferredContentHeight(double innerWidth) const override;
     void handleMousePressed(const MouseEvent& event) override;
     void handleKey(KeyEvent& event) override;
+    // Up and Down in the editor work the box rather than the editor's caret.
+    void filterKey(KeyEvent& event) override;
     void sceneChanged(Scene* previous) override;
 
     static constexpr double kArrowWidth = 28.0;

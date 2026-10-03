@@ -515,10 +515,11 @@ void TextField::handleKey(KeyEvent& event) {
         return;
     }
     // A field is one line, so Up goes to its start and Down to its end, as they do on a
-    // StyledTextArea's first and last lines. A parent combo box also handles these, and
-    // Escape and Tab. Leaving them unconsumed is the point.
+    // StyledTextArea's first and last lines. A combo box or spinner that owns the field
+    // takes these first, in filterKey. Escape and Tab are left for a parent.
     if (event.key == Key::Up || event.key == Key::Down) {
         moveTo(event.key == Key::Down ? getLength() : 0, event.shift);
+        event.consume();
         return;
     }
     if (event.key == Key::Escape || event.key == Key::Tab) {
