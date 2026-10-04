@@ -13,6 +13,17 @@ Measured on Anarchy's profiler-demo (CannonVsPigs, M1 Pro), UI thread, average p
 | Profiler overlay | 2.29 ms | 1.45 ms | under 0.4 ms |
 | Scene View paint (3D + overlay) | 4.06 ms | 3.13 ms | under 2.1 ms |
 
+After batching, measured back to back on one Anarchy commit (`6a56189`), two runs each, built against JadeFX before (`8622499`) and after (`576bac4`) batching:
+
+| | before batching | after batching | goal |
+| --- | --- | --- | --- |
+| Profiler overlay | 1.72, 1.64 ms | 0.52, 0.61 ms | under 0.4 ms: missed |
+| GUIs and overlays | 2.01, 1.93 ms | 0.90, 1.02 ms | |
+| Scene View paint (3D + overlay) | 3.25, 3.18 ms | 2.60, 2.77 ms | under 2.1 ms: missed |
+| its 3D draw (Render draw · 3D scene) | 1.05, 0.99 ms | 1.33, 1.42 ms | |
+
+The overlay is about three times faster but text still splits its boxes into many short runs. The 3D draw inside the Scene View measured about 0.35 ms slower in every batched run; why is not known yet. A benchmark of 550 boxes each followed by text, so every run is one box, takes 2.62 ms a frame against 2.26 ms before: the worst case, until text is batched too. 1,100 boxes with nothing between them take 0.03 ms against 1.34 ms.
+
 ## Goal
 
 A run of consecutive boxes is drawn with one instanced draw call. Nothing on screen changes: the same pixels, byte for byte, in the same order. Code that draws raw GL inside a paint keeps working.
@@ -66,3 +77,11 @@ Two repos: steps 1–3 and 5 are JadeFX; the opt-in in step 4 is Anarchy.
 3. `Node::setDrawsRawGl`, `Painter::flush`, the ordering check.
 4. Anarchy's GameView and MaterialBall opt in; Anarchy rebuilt against it, its suites and `assets-demo` compared.
 5. Measure, update this table, and update JadeFX's README on raw GL in a node.
+
+## Departures in the implementation
+
+- **Streaming.** `glBufferSubData` after the last run, as decided above, made macOS wait for the GPU on every run, about 0.2 ms each: the overlay went from 1.2 to 8 ms. Each run is instead written with `glMapBufferRange` (unsynchronized, invalidating its range) into the part of the stream no draw reads yet. The stream is still orphaned when a run would pass its end, and at the first run of a frame.
+- **The buffer does not grow.** Runs are capped at 4,096 boxes and a full stream is orphaned, so a fixed 4,096-box stream serves any frame.
+- **Two more flush points:** `UiRenderer::writePpm`, which `Stage::frame` calls before `end()` for `JADEFX_DUMP_PPM`, and `Stage::frame` before the `setRenderingCallback` callback.
+- **Anarchy's MaterialBall opt-in is on `IdeAssets`**, the node whose `renderContent` draws the balls.
+- **The Rainbow-Triangle demo needs no opt-in:** it draws before `stage->frame`, not inside a paint.

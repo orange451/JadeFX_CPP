@@ -183,6 +183,8 @@ stage.frame(windowWidth, windowHeight, framebufferWidth, framebufferHeight);
 
 `frame` lays out the scene, draws it, and leaves the GL state with blending enabled. Call `shutdownGraphics` before destroying the context. `setCursorHandler` reports the cursor for the pointer after each frame. `cursorShape` maps that value onto a system cursor such as the hand or the I-beam. A window opened with `Application::launch` applies it on its own.
 
+Fills, borders, and shadows are queued and drawn in runs, one instanced draw call per run: before the next text, image, gradient, or clip change, and at the end of the frame. A node whose `renderContent` makes GL calls of its own calls `setDrawsRawGl(true)`, so what was queued before it is drawn first and its GL lands on top. A node that draws through a `Painter` and then with GL in the same `renderContent` calls `painter.flush()` between the two. A node that does neither has its GL drawn under the boxes queued before it. The `setRenderingCallback` callback needs neither, because the stage draws what is queued before calling it. GL of your own must leave the viewport, scissor, and blend enable as it found them.
+
 ## iOS and Android
 
 Configure with the iOS or Android CMake toolchain. Those builds compile GLFM and define `JADEFX_GLFM`. The process entry is `glfmMain`, which calls `createApplication()` from `examples/purple_app.cpp`.
