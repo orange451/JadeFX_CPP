@@ -97,6 +97,7 @@ bool UiRenderer::initialize() {
     }
 
     boxProgram_ = jadefx_LinkShaderProgram(boxVertex, boxFragment, "Box");
+    boxUniforms_.reset();
     textProgram_ = jadefx_LinkShaderProgram(textVertex, textFragment, "Text");
     subpixel_ = textProgram_ != 0;
     if (!subpixel_) {
@@ -222,6 +223,7 @@ void UiRenderer::shutdown() {
     if (boxProgram_ != 0) {
         glDeleteProgram(boxProgram_);
         boxProgram_ = 0;
+        boxUniforms_.reset();
     }
     for (GpuImage& image : gpuImages_) {
         if (image.texture != 0) {
@@ -309,33 +311,63 @@ void UiRenderer::drawBox(float x, float y, float width, float height, float boxX
     const float s = scale_;
     const int count = std::min(stopCount, 8);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // Always bound: other code, such as a 3D view drawn between UI draws, binds its own.
     glUseProgram(boxProgram_);
-    glUniform4f(boxRect_, x * s, y * s, width * s, height * s);
-    glUniform2f(boxViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
-    glUniform4f(boxBox_, boxX * s, boxY * s, boxW * s, boxH * s);
-    glUniform4f(boxRadii_, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s);
-    glUniform4f(boxParams_, mode, exact ? 1.f : 0.f, std::max(blur * s, 0.f), angleDeg);
-    const float top = sides != nullptr ? sides[0] : 0.f;
-    const float right = sides != nullptr ? sides[1] : 0.f;
-    const float bottom = sides != nullptr ? sides[2] : 0.f;
-    const float left = sides != nullptr ? sides[3] : 0.f;
-    glUniform4f(boxBorder_, top * s, right * s, bottom * s, left * s);
-    if (clip != nullptr) {
-        glUniform4f(boxClip_, clip[0] * s, clip[1] * s, clip[2] * s, clip[3] * s);
-    } else {
-        glUniform4f(boxClip_, 0.f, 0.f, 0.f, 0.f);
+    // A uniform keeps its value in its program, so only what changed is sent.
+    UniformCache& u = boxUniforms_;
+    if (u.changed(kBoxRect, x * s, y * s, width * s, height * s)) {
+        glUniform4f(boxRect_, x * s, y * s, width * s, height * s);
     }
-    if (clipRadii != nullptr) {
-        glUniform4f(boxClipRadii_, clipRadii[0] * s, clipRadii[1] * s, clipRadii[2] * s, clipRadii[3] * s);
-    } else {
-        glUniform4f(boxClipRadii_, 0.f, 0.f, 0.f, 0.f);
+    const float vw = static_cast<float>(viewportW_);
+    const float vh = static_cast<float>(viewportH_);
+    if (u.changed(kBoxViewport, vw, vh)) {
+        glUniform2f(boxViewport_, vw, vh);
     }
-    glUniform1f(boxStopCount_, static_cast<float>(count));
-    for (int i = 0; i < 8; ++i) {
-        const Color color = i < count ? stops[i] : stops[count - 1];
-        const float at = i < count && stopAt != nullptr ? stopAt[i] : 1.f;
-        glUniform4f(boxStops_[i], color.r, color.g, color.b, color.a);
-        glUniform1f(boxStopAt_[i], at);
+    if (u.changed(kBoxBox, boxX * s, boxY * s, boxW * s, boxH * s)) {
+        glUniform4f(boxBox_, boxX * s, boxY * s, boxW * s, boxH * s);
+    }
+    if (u.changed(kBoxRadii, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s)) {
+        glUniform4f(boxRadii_, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s);
+    }
+    const float edge = exact ? 1.f : 0.f;
+    const float soft = std::max(blur * s, 0.f);
+    if (u.changed(kBoxParams, mode, edge, soft, angleDeg)) {
+        glUniform4f(boxParams_, mode, edge, soft, angleDeg);
+    }
+    const float top = sides != nullptr ? sides[0] * s : 0.f;
+    const float right = sides != nullptr ? sides[1] * s : 0.f;
+    const float bottom = sides != nullptr ? sides[2] * s : 0.f;
+    const float left = sides != nullptr ? sides[3] * s : 0.f;
+    if (u.changed(kBoxBorder, top, right, bottom, left)) {
+        glUniform4f(boxBorder_, top, right, bottom, left);
+    }
+    const float c0 = clip != nullptr ? clip[0] * s : 0.f;
+    const float c1 = clip != nullptr ? clip[1] * s : 0.f;
+    const float c2 = clip != nullptr ? clip[2] * s : 0.f;
+    const float c3 = clip != nullptr ? clip[3] * s : 0.f;
+    if (u.changed(kBoxClip, c0, c1, c2, c3)) {
+        glUniform4f(boxClip_, c0, c1, c2, c3);
+    }
+    const float r0 = clipRadii != nullptr ? clipRadii[0] * s : 0.f;
+    const float r1 = clipRadii != nullptr ? clipRadii[1] * s : 0.f;
+    const float r2 = clipRadii != nullptr ? clipRadii[2] * s : 0.f;
+    const float r3 = clipRadii != nullptr ? clipRadii[3] * s : 0.f;
+    if (u.changed(kBoxClipRadii, r0, r1, r2, r3)) {
+        glUniform4f(boxClipRadii_, r0, r1, r2, r3);
+    }
+    if (u.changed(kBoxStopCount, static_cast<float>(count))) {
+        glUniform1f(boxStopCount_, static_cast<float>(count));
+    }
+    // box.frag reads only the first uStopCount stops, so the rest are left as they are.
+    for (int i = 0; i < count; ++i) {
+        const Color& color = stops[i];
+        const float at = stopAt != nullptr ? stopAt[i] : 1.f;
+        if (u.changed(kBoxStop0 + i, color.r, color.g, color.b, color.a)) {
+            glUniform4f(boxStops_[i], color.r, color.g, color.b, color.a);
+        }
+        if (u.changed(kBoxStopAt0 + i, at)) {
+            glUniform1f(boxStopAt_[i], at);
+        }
     }
     glBindVertexArray(boxVao_);
     glDrawArrays(GL_TRIANGLES, 0, 6);

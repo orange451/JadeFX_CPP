@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gl/UniformCache.hpp"
 #include "jadefx/paint/Color.hpp"
 
 #include <functional>
@@ -84,6 +85,11 @@ private:
     int boxStopCount_ = -1;
     int boxStops_[8] = {};
     int boxStopAt_[8] = {};
+    // The box program's uniforms as last set: a run of plain rectangles changes
+    // only their place and color, so the rest are skipped.
+    enum BoxSlot { kBoxRect, kBoxViewport, kBoxBox, kBoxRadii, kBoxParams, kBoxBorder, kBoxClip, kBoxClipRadii,
+                   kBoxStopCount, kBoxStop0, kBoxStopAt0 = kBoxStop0 + 8, kBoxSlots = kBoxStopAt0 + 8 };
+    UniformCache boxUniforms_{kBoxSlots};
     int textViewport_ = -1;
     int textColor_ = -1;
     int textGamma_ = -1;

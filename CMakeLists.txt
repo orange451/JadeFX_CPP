@@ -378,6 +378,7 @@ if(NOT JADEFX_GLFM)
         tests/drag_drop_tests.cpp
         tests/notification_tests.cpp
         tests/subscene_tests.cpp
+        tests/uniform_cache_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)
