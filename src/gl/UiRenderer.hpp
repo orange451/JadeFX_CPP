@@ -98,9 +98,11 @@ private:
     enum BoxSlot { kBoxViewport, kBoxGradient, kBoxStopCount, kBoxStop0, kBoxStopAt0 = kBoxStop0 + 8,
                    kBoxSlots = kBoxStopAt0 + 8 };
     UniformCache boxUniforms_{kBoxSlots};
-    // The run not drawn yet, and the buffer each run is uploaded to.
+    // The run not drawn yet, and the stream runs are drawn from: the first
+    // boxInstanceUsed_ boxes of its current store are taken this frame.
     BoxBatch boxBatch_;
     unsigned boxInstanceVbo_ = 0;
+    int boxInstanceUsed_ = 0;
     int textViewport_ = -1;
     int textColor_ = -1;
     int textGamma_ = -1;

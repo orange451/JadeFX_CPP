@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <vector>
@@ -48,6 +49,17 @@ int Location(GLuint program, const char* name) {
 // BoxInstance's eight vec4s are box.vert's attributes 1 to 8.
 constexpr GLuint kBoxFirstField = 1;
 constexpr GLuint kBoxFields = 8;
+// The stream holds one full run.
+constexpr GLsizeiptr kBoxStreamBytes = static_cast<GLsizeiptr>(BoxBatch::kMaxRun * sizeof(BoxInstance));
+
+// Points the box attributes at the run that starts offset bytes into the bound stream.
+void PointBoxFields(std::size_t offset) {
+    const GLsizei stride = static_cast<GLsizei>(sizeof(BoxInstance));
+    for (GLuint i = 0; i < kBoxFields; ++i) {
+        glVertexAttribPointer(kBoxFirstField + i, 4, GL_FLOAT, GL_FALSE, stride,
+                              reinterpret_cast<const void*>(offset + i * 4 * sizeof(float)));
+    }
+}
 
 void ReportMissingShaders(const std::string& missing) {
     const bool one = missing.find('\n') == std::string::npos;
@@ -143,16 +155,16 @@ bool UiRenderer::initialize() {
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * static_cast<GLsizei>(sizeof(float)), nullptr);
     // Each box is one instance: attributes 1 to 8 step once a box through the
-    // buffer each run is uploaded to.
+    // stream, and drawBoxRun points them at each run.
     glGenBuffers(1, &boxInstanceVbo_);
     glBindBuffer(GL_ARRAY_BUFFER, boxInstanceVbo_);
-    const GLsizei boxStride = static_cast<GLsizei>(sizeof(BoxInstance));
+    glBufferData(GL_ARRAY_BUFFER, kBoxStreamBytes, nullptr, GL_STREAM_DRAW);
     for (GLuint i = 0; i < kBoxFields; ++i) {
         glEnableVertexAttribArray(kBoxFirstField + i);
         glVertexAttribDivisor(kBoxFirstField + i, 1);
-        glVertexAttribPointer(kBoxFirstField + i, 4, GL_FLOAT, GL_FALSE, boxStride,
-                              reinterpret_cast<const void*>(i * 4 * sizeof(float)));
     }
+    PointBoxFields(0);
+    boxInstanceUsed_ = BoxBatch::kMaxRun;
 
     glGenVertexArrays(1, &textVao_);
     glGenBuffers(1, &textVbo_);
@@ -278,6 +290,8 @@ void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixels
     atlasPacker_.beginFrame();
     atlasGaveUp_ = false;
     boxBatch_.clear();
+    // Counted as full, so the frame's first run starts a new store.
+    boxInstanceUsed_ = BoxBatch::kMaxRun;
     glViewport(0, 0, framebufferWidth, framebufferHeight);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
@@ -407,11 +421,27 @@ void UiRenderer::drawBoxRun(bool gradient) {
     }
     glBindVertexArray(boxVao_);
     glBindBuffer(GL_ARRAY_BUFFER, boxInstanceVbo_);
-    // A new store for every run. Writing into a store a draw before it may
-    // still be reading, even a part it does not read, makes macOS wait for the
-    // GPU: 0.2 ms a run, where text splits a frame into hundreds of runs.
-    glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(static_cast<std::size_t>(count) * sizeof(BoxInstance)),
-                 boxBatch_.data(), GL_STREAM_DRAW);
+    if (boxInstanceUsed_ + count > BoxBatch::kMaxRun) {
+        // A new store, so this run never overwrites boxes a draw before it may still be reading.
+        glBufferData(GL_ARRAY_BUFFER, kBoxStreamBytes, nullptr, GL_STREAM_DRAW);
+        boxInstanceUsed_ = 0;
+    }
+    const std::size_t offset = static_cast<std::size_t>(boxInstanceUsed_) * sizeof(BoxInstance);
+    const std::size_t bytes = static_cast<std::size_t>(count) * sizeof(BoxInstance);
+    // Unsynchronized, since no draw reads this part of the store yet. A plain
+    // glBufferSubData here makes macOS wait for the GPU, about 0.2 ms a run,
+    // and text splits a frame into hundreds of runs.
+    void* into = glMapBufferRange(GL_ARRAY_BUFFER, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(bytes),
+                                  GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+    if (into == nullptr) {
+        // GL reports the failure as an error. The run is lost, not written through a null pointer.
+        boxBatch_.clear();
+        return;
+    }
+    std::memcpy(into, boxBatch_.data(), bytes);
+    glUnmapBuffer(GL_ARRAY_BUFFER);
+    PointBoxFields(offset);
+    boxInstanceUsed_ += count;
     glDrawArraysInstanced(GL_TRIANGLES, 0, 6, count);
     boxBatch_.clear();
 }
