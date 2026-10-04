@@ -1224,6 +1224,20 @@ void TestTabPane() {
         Expect(alphaClosed == 2 && pane->getTabs().size() == 1 && pane->getSelectedTab() == beta.get(),
                "Close Others from a fixed tab closes the closable ones");
 
+        int picked = 0;
+        beta->setOnMenu([&](jadefx::Menu& menu) {
+            auto item = jadefx::make<jadefx::MenuItem>("Pick");
+            item->setOnAction([&](jadefx::ActionEvent&) { ++picked; });
+            menu.getItems().add(std::move(item));
+        });
+        RightClick(*scene, FindClass(*scene, "tab", 0));
+        scene->layout(420, 200, 0);
+        Expect(scene->getElementById("Pick") != nullptr && scene->getElementById("Close") != nullptr,
+               "onMenu adds items beside the built-in ones");
+        ChooseMenu(*scene, "Pick");
+        Expect(picked == 1 && pane->getTabs().size() == 1, "an item from onMenu runs its action");
+        beta->setOnMenu(nullptr);
+
         auto delta = jadefx::make<jadefx::Tab>("Delta", jadefx::make<jadefx::Label>("D"));
         int blocked = 0;
         int deltaClosed = 0;
