@@ -1200,12 +1200,6 @@ void TabPane::showTabMenu(Tab& tab, double x, double y) {
     // would keep the closed page alive after it leaves the strip.
     const std::weak_ptr<Tab> weak = origin;
     auto menu = std::make_shared<Menu>();
-    if (origin->onMenu_) {
-        origin->onMenu_(*menu);
-        if (!menu->getItems().empty()) {
-            menu->getItems().add(std::make_shared<SeparatorMenuItem>());
-        }
-    }
 
     auto close = std::make_shared<MenuItem>("Close");
     close->setDisable(!canClose(*origin));
@@ -1233,6 +1227,14 @@ void TabPane::showTabMenu(Tab& tab, double x, double y) {
         }
     });
     menu->getItems().add(std::move(closeAfter));
+
+    if (origin->onMenu_) {
+        const std::size_t builtIn = menu->getItems().size();
+        origin->onMenu_(*menu);
+        if (menu->getItems().size() > builtIn) {
+            menu->getItems().insert(builtIn, std::make_shared<SeparatorMenuItem>());
+        }
+    }
 
     menu->show(*scene, x, y);
     impl_->tabMenu = std::move(menu);

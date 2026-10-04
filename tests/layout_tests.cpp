@@ -1232,8 +1232,11 @@ void TestTabPane() {
         });
         RightClick(*scene, FindClass(*scene, "tab", 0));
         scene->layout(420, 200, 0);
-        Expect(scene->getElementById("Pick") != nullptr && scene->getElementById("Close") != nullptr,
-               "onMenu adds items beside the built-in ones");
+        jadefx::Node* pickItem = scene->getElementById("Pick");
+        jadefx::Node* lastBuiltIn = scene->getElementById("Close to the Right");
+        Expect(pickItem != nullptr && lastBuiltIn != nullptr &&
+                   pickItem->getAbsoluteY() > lastBuiltIn->getAbsoluteY(),
+               "onMenu adds items after the built-in ones");
         ChooseMenu(*scene, "Pick");
         Expect(picked == 1 && pane->getTabs().size() == 1, "an item from onMenu runs its action");
         beta->setOnMenu(nullptr);

@@ -69,8 +69,8 @@ public:
     void setOnSelectionChanged(std::function<void()> handler) { onSelectionChanged_ = std::move(handler); }
     void setOnClosed(std::function<void()> handler) { onClosed_ = std::move(handler); }
     void setOnCloseRequest(std::function<void(TabCloseRequest&)> handler) { onCloseRequest_ = std::move(handler); }
-    // Fills the top of the header's right-click menu each time it opens. Close
-    // and the other built-in items follow, after a separator.
+    // Adds to the end of the header's right-click menu each time it opens,
+    // after Close and the other built-in items and a separator.
     void setOnMenu(std::function<void(Menu&)> handler) { onMenu_ = std::move(handler); }
 
     void setUserData(std::any value) { userData_ = std::move(value); }
