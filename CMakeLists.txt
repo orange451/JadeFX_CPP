@@ -88,6 +88,7 @@ set(JADEFX_SOURCES
     src/gl/gl.cpp
     src/gl/Resources.cpp
     src/gl/UiRenderer.cpp
+    src/gl/BoxBatch.cpp
     src/platform/GlfmHost.cpp
 )
 
@@ -380,6 +381,7 @@ if(NOT JADEFX_GLFM)
         tests/subscene_tests.cpp
         tests/uniform_cache_tests.cpp
         tests/glyph_atlas_tests.cpp
+        tests/box_batch_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)
