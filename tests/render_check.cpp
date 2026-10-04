@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -298,8 +299,42 @@ int CheckRawGlNodes(UiRenderer& renderer, int fbW, int fbH) {
     return failures;
 }
 
+// WebGL 2 has no buffer mapping. A renderer started without it must draw the
+// same pixels as one with it, through its fallback.
+int CheckWithoutBufferMapping(UiRenderer& mapped, int fbW, int fbH) {
+    std::vector<unsigned char> expected;
+    std::vector<unsigned char> actual;
+    auto drawInto = [&](UiRenderer& renderer, std::vector<unsigned char>& pixels) {
+        renderer.begin(fbW, fbH, 2.f, kWhite, true);
+        Gradient(renderer);
+        Many(renderer);
+        renderer.end();
+        pixels.assign(static_cast<std::size_t>(fbW) * static_cast<std::size_t>(fbH) * 4, 0);
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
+        glReadPixels(0, 0, fbW, fbH, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+    };
+    drawInto(mapped, expected);
+    auto* const map = jadefx_glMapBufferRange;
+    auto* const unmap = jadefx_glUnmapBuffer;
+    jadefx_glMapBufferRange = nullptr;
+    jadefx_glUnmapBuffer = nullptr;
+    bool ok = false;
+    {
+        UiRenderer unmapped;
+        if (unmapped.initialize()) {
+            drawInto(unmapped, actual);
+            ok = actual == expected && glGetError() == GL_NO_ERROR;
+            unmapped.shutdown();
+        }
+    }
+    jadefx_glMapBufferRange = map;
+    jadefx_glUnmapBuffer = unmap;
+    return Report(ok, "without buffer mapping, boxes draw the same pixels");
+}
+
 int RunChecks(UiRenderer& renderer, int fbW, int fbH) {
     int failures = 0;
+    failures += CheckWithoutBufferMapping(renderer, fbW, fbH);
     failures += CheckRawGlNodes(renderer, fbW, fbH);
     failures += CheckRenderingCallback(fbW, fbH);
     return failures;

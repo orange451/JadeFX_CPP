@@ -80,7 +80,7 @@ Two repos: steps 1–3 and 5 are JadeFX; the opt-in in step 4 is Anarchy.
 
 ## Departures in the implementation
 
-- **Streaming.** `glBufferSubData` after the last run, as decided above, made macOS wait for the GPU on every run, about 0.2 ms each: the overlay went from 1.2 to 8 ms. Each run is instead written with `glMapBufferRange` (unsynchronized, invalidating its range) into the part of the stream no draw reads yet. The stream is still orphaned when a run would pass its end, and at the first run of a frame.
+- **Streaming.** `glBufferSubData` after the last run, as decided above, made macOS wait for the GPU on every run, about 0.2 ms each: the overlay went from 1.2 to 8 ms. Each run is instead written with `glMapBufferRange` (unsynchronized, invalidating its range) into the part of the stream no draw reads yet. The stream is still orphaned when a run would pass its end, and at the first run of a frame. Where buffers cannot be mapped, as on WebGL 2, `glMapBufferRange` is left unloaded and each run is uploaded to a store of its own with `glBufferData`, which measured as fast on macOS and draws the same pixels.
 - **The buffer does not grow.** Runs are capped at 4,096 boxes and a full stream is orphaned, so a fixed 4,096-box stream serves any frame.
 - **Two more flush points:** `UiRenderer::writePpm`, which `Stage::frame` calls before `end()` for `JADEFX_DUMP_PPM`, and `Stage::frame` before the `setRenderingCallback` callback.
 - **Anarchy's MaterialBall opt-in is on `IdeAssets`**, the node whose `renderContent` draws the balls.

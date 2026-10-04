@@ -165,6 +165,7 @@ bool UiRenderer::initialize() {
     }
     PointBoxFields(0);
     boxInstanceUsed_ = BoxBatch::kMaxRun;
+    mapsBoxStream_ = glMapBufferRange != nullptr && glUnmapBuffer != nullptr;
 
     glGenVertexArrays(1, &textVao_);
     glGenBuffers(1, &textVbo_);
@@ -421,6 +422,15 @@ void UiRenderer::drawBoxRun(bool gradient) {
     }
     glBindVertexArray(boxVao_);
     glBindBuffer(GL_ARRAY_BUFFER, boxInstanceVbo_);
+    if (!mapsBoxStream_) {
+        // A store holding just this run, so no draw before it is waited on.
+        glBufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(static_cast<std::size_t>(count) * sizeof(BoxInstance)),
+                     boxBatch_.data(), GL_STREAM_DRAW);
+        PointBoxFields(0);
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, count);
+        boxBatch_.clear();
+        return;
+    }
     if (boxInstanceUsed_ + count > BoxBatch::kMaxRun) {
         // A new store, so this run never overwrites boxes a draw before it may still be reading.
         glBufferData(GL_ARRAY_BUFFER, kBoxStreamBytes, nullptr, GL_STREAM_DRAW);

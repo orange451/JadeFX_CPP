@@ -99,8 +99,6 @@ bool jadefx_load_gl(GlGetProcAddress get_proc) {
     LOAD(EnableVertexAttribArray);
     LOAD(VertexAttribPointer);
     LOAD(DrawArrays);
-    LOAD(MapBufferRange);
-    LOAD(UnmapBuffer);
     LOAD(VertexAttribDivisor);
     LOAD(DrawArraysInstanced);
     LOAD(GenTextures);
@@ -123,5 +121,8 @@ bool jadefx_load_gl(GlGetProcAddress get_proc) {
     LOAD(Scissor);
 
 #undef LOAD
+    // WebGL 2 has no buffer mapping. UiRenderer works without it, so these may stay null.
+    jadefx_glMapBufferRange = reinterpret_cast<decltype(jadefx_glMapBufferRange)>(get_proc("glMapBufferRange"));
+    jadefx_glUnmapBuffer = reinterpret_cast<decltype(jadefx_glUnmapBuffer)>(get_proc("glUnmapBuffer"));
     return true;
 }

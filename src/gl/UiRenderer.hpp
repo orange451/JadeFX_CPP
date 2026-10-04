@@ -103,6 +103,8 @@ private:
     BoxBatch boxBatch_;
     unsigned boxInstanceVbo_ = 0;
     int boxInstanceUsed_ = 0;
+    // False where buffers cannot be mapped: each run then gets a store of its own.
+    bool mapsBoxStream_ = false;
     int textViewport_ = -1;
     int textColor_ = -1;
     int textGamma_ = -1;

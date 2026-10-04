@@ -210,6 +210,7 @@ extern void (*jadefx_glBufferData)(GLenum target, GLsizeiptr size, const void* d
 extern void (*jadefx_glEnableVertexAttribArray)(GLuint index);
 extern void (*jadefx_glVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
 extern void (*jadefx_glDrawArrays)(GLenum mode, GLint first, GLsizei count);
+// Null where the context cannot map buffers, as on WebGL 2.
 extern void* (*jadefx_glMapBufferRange)(GLenum target, GLintptr offset, GLsizeiptr length, GLbitfield access);
 extern GLboolean (*jadefx_glUnmapBuffer)(GLenum target);
 extern void (*jadefx_glVertexAttribDivisor)(GLuint index, GLuint divisor);
