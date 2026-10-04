@@ -31,7 +31,6 @@ void (*jadefx_glBufferData)(GLenum, GLsizeiptr, const void*, GLenum) = nullptr;
 void (*jadefx_glEnableVertexAttribArray)(GLuint) = nullptr;
 void (*jadefx_glVertexAttribPointer)(GLuint, GLint, GLenum, GLboolean, GLsizei, const void*) = nullptr;
 void (*jadefx_glDrawArrays)(GLenum, GLint, GLsizei) = nullptr;
-void (*jadefx_glBufferSubData)(GLenum, GLintptr, GLsizeiptr, const void*) = nullptr;
 void (*jadefx_glVertexAttribDivisor)(GLuint, GLuint) = nullptr;
 void (*jadefx_glDrawArraysInstanced)(GLenum, GLint, GLsizei, GLsizei) = nullptr;
 void (*jadefx_glGenTextures)(GLsizei, GLuint*) = nullptr;
@@ -98,7 +97,6 @@ bool jadefx_load_gl(GlGetProcAddress get_proc) {
     LOAD(EnableVertexAttribArray);
     LOAD(VertexAttribPointer);
     LOAD(DrawArrays);
-    LOAD(BufferSubData);
     LOAD(VertexAttribDivisor);
     LOAD(DrawArraysInstanced);
     LOAD(GenTextures);

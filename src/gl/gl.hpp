@@ -16,7 +16,6 @@ using GLfloat = float;
 using GLubyte = unsigned char;
 using GLchar = char;
 using GLsizeiptr = std::ptrdiff_t;
-using GLintptr = std::ptrdiff_t;
 
 #ifdef GL_FALSE
 #undef GL_FALSE
@@ -207,7 +206,6 @@ extern void (*jadefx_glBufferData)(GLenum target, GLsizeiptr size, const void* d
 extern void (*jadefx_glEnableVertexAttribArray)(GLuint index);
 extern void (*jadefx_glVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
 extern void (*jadefx_glDrawArrays)(GLenum mode, GLint first, GLsizei count);
-extern void (*jadefx_glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const void* data);
 extern void (*jadefx_glVertexAttribDivisor)(GLuint index, GLuint divisor);
 extern void (*jadefx_glDrawArraysInstanced)(GLenum mode, GLint first, GLsizei count, GLsizei instancecount);
 extern void (*jadefx_glGenTextures)(GLsizei n, GLuint* textures);
@@ -258,7 +256,6 @@ extern void (*jadefx_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height)
 #define glEnableVertexAttribArray jadefx_glEnableVertexAttribArray
 #define glVertexAttribPointer jadefx_glVertexAttribPointer
 #define glDrawArrays jadefx_glDrawArrays
-#define glBufferSubData jadefx_glBufferSubData
 #define glVertexAttribDivisor jadefx_glVertexAttribDivisor
 #define glDrawArraysInstanced jadefx_glDrawArraysInstanced
 #define glGenTextures jadefx_glGenTextures
