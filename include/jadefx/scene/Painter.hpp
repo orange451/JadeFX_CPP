@@ -29,6 +29,11 @@ public:
     // Clip later draws to this rectangle. Clips nest by intersection.
     void pushClip(float x, float y, float width, float height);
     void popClip();
+    // Hide later draws behind a depth texture covering this framebuffer
+    // rectangle (pixels, origin bottom left): a fragment whose texel there is
+    // nearer than depth is not drawn. For UI drawn inside a 3D view.
+    void setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth);
+    void clearOccluder();
     // Device pixels in one point, for drawing that lands on whole pixels.
     float pixelsPerPoint() const;
 

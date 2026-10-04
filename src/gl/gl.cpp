@@ -49,6 +49,7 @@ void (*jadefx_glDisable)(GLenum) = nullptr;
 void (*jadefx_glBlendFunc)(GLenum, GLenum) = nullptr;
 void (*jadefx_glReadPixels)(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void*) = nullptr;
 void (*jadefx_glScissor)(GLint, GLint, GLsizei, GLsizei) = nullptr;
+void (*jadefx_glActiveTexture)(GLenum) = nullptr;
 
 bool jadefx_load_gl(GlGetProcAddress get_proc) {
     if (get_proc == nullptr) {
@@ -113,6 +114,7 @@ bool jadefx_load_gl(GlGetProcAddress get_proc) {
     LOAD(BlendFunc);
     LOAD(ReadPixels);
     LOAD(Scissor);
+    LOAD(ActiveTexture);
 
 #undef LOAD
     return true;

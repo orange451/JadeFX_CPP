@@ -136,6 +136,30 @@ bool UiRenderer::initialize() {
     imageTint_ = Location(imageProgram_, "uTint");
     imageTinted_ = Location(imageProgram_, "uTinted");
 
+    const auto occluderSlots = [](unsigned program, OccluderSlots& slots) {
+        slots.texture = Location(program, "uOccluder");
+        slots.rect = Location(program, "uOccluderRect");
+        slots.depth = Location(program, "uOccluderDepth");
+        slots.on = Location(program, "uOccluded");
+        slots.sent = ~0u;
+    };
+    occluderSlots(boxProgram_, boxOccluder_);
+    occluderSlots(textProgram_, textOccluder_);
+    occluderSlots(imageProgram_, imageOccluder_);
+
+    // uOccluder is sampled even while uOccluded is 0, so a texture is always
+    // bound at its unit: red 255 reads back as depth 1.0, the far plane, so
+    // this one never occludes anything while it is what sendOccluder binds.
+    glGenTextures(1, &occluderDummy_);
+    glBindTexture(GL_TEXTURE_2D, occluderDummy_);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    const unsigned char farDepth = 255;
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE, &farDepth);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     const float quad[] = {0.f, 0.f, 1.f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f, 1.f, 0.f, 1.f};
     glGenVertexArrays(1, &boxVao_);
     glGenBuffers(1, &boxVbo_);
@@ -218,6 +242,10 @@ void UiRenderer::shutdown() {
     if (atlas_ != 0) {
         glDeleteTextures(1, &atlas_);
         atlas_ = 0;
+    }
+    if (occluderDummy_ != 0) {
+        glDeleteTextures(1, &occluderDummy_);
+        occluderDummy_ = 0;
     }
     if (textVbo_ != 0) {
         glDeleteBuffers(1, &textVbo_);
@@ -325,6 +353,48 @@ void UiRenderer::popClip() {
     glScissor(clip.x, clip.y, clip.width, clip.height);
 }
 
+void UiRenderer::setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth) {
+    Occluder next;
+    next.texture = depthTexture;
+    next.rect[0] = static_cast<float>(x);
+    next.rect[1] = static_cast<float>(y);
+    next.rect[2] = static_cast<float>(width);
+    next.rect[3] = static_cast<float>(height);
+    next.depth = depth;
+    if (next.texture == occluder_.texture && next.depth == occluder_.depth && next.rect[0] == occluder_.rect[0] &&
+        next.rect[1] == occluder_.rect[1] && next.rect[2] == occluder_.rect[2] && next.rect[3] == occluder_.rect[3]) {
+        return;
+    }
+    next.revision = occluder_.revision + 1;
+    occluder_ = next;
+}
+
+void UiRenderer::clearOccluder() {
+    if (!occluder_.active() && occluder_.texture == 0) {
+        return;
+    }
+    const unsigned revision = occluder_.revision + 1;
+    occluder_ = Occluder{};
+    occluder_.revision = revision;
+}
+
+void UiRenderer::sendOccluder(OccluderSlots& slots) {
+    const bool on = occluder_.active();
+    // Bound on every draw, on or off: a 3D view drawn between UI draws binds
+    // its own textures, and the dummy keeps the unit loadable while off.
+    glActiveTexture(GL_TEXTURE0 + kOccluderUnit);
+    glBindTexture(GL_TEXTURE_2D, on ? occluder_.texture : occluderDummy_);
+    glActiveTexture(GL_TEXTURE0);
+    if (slots.sent == occluder_.revision) {
+        return;
+    }
+    slots.sent = occluder_.revision;
+    glUniform1i(slots.texture, kOccluderUnit);
+    glUniform4f(slots.rect, occluder_.rect[0], occluder_.rect[1], occluder_.rect[2], occluder_.rect[3]);
+    glUniform1f(slots.depth, occluder_.depth);
+    glUniform1f(slots.on, on ? 1.f : 0.f);
+}
+
 void UiRenderer::drawBox(float x, float y, float width, float height, float boxX, float boxY, float boxW, float boxH,
                          const float radius[4], const Color* stops, const float* stopAt, int stopCount, float mode,
                          const float sides[4], float blur, float angleDeg, const float* clip, const float* clipRadii,
@@ -338,6 +408,7 @@ void UiRenderer::drawBox(float x, float y, float width, float height, float boxX
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     // Always bound: other code, such as a 3D view drawn between UI draws, binds its own.
     glUseProgram(boxProgram_);
+    sendOccluder(boxOccluder_);
     // A uniform keeps its value in its program, so only what changed is sent.
     UniformCache& u = boxUniforms_;
     if (u.changed(kBoxRect, x * s, y * s, width * s, height * s)) {
@@ -638,6 +709,7 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
     }
 
     glUseProgram(textProgram_);
+    sendOccluder(textOccluder_);
     if (subpixel_) {
         glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
     } else {
@@ -722,6 +794,7 @@ void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, flo
 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(imageProgram_);
+    sendOccluder(imageOccluder_);
     glUniform2f(imageViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
     glUniform1f(imageOpacity_, opacity);
     glUniform1i(imageSampler_, 0);

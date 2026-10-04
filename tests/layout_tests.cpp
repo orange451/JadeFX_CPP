@@ -1946,6 +1946,7 @@ void TestUtilityWindow() {
 int RunRichTextTests();
 int RunUniformCacheTests();
 int RunGlyphAtlasTests();
+int RunOccluderTests();
 int RunButtonTests();
 int RunCursorTests();
 int RunPointerLockTests();
@@ -1999,6 +2000,7 @@ int main() {
     gFailures += RunRichTextTests();
     gFailures += RunUniformCacheTests();
     gFailures += RunGlyphAtlasTests();
+    gFailures += RunOccluderTests();
     gFailures += RunRunLaterTests();
     gFailures += RunButtonTests();
     gFailures += RunCursorTests();

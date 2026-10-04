@@ -131,6 +131,9 @@ using GLsizeiptr = std::ptrdiff_t;
 #ifdef GL_CULL_FACE
 #undef GL_CULL_FACE
 #endif
+#ifdef GL_TEXTURE0
+#undef GL_TEXTURE0
+#endif
 
 constexpr GLboolean GL_FALSE = 0;
 constexpr GLboolean GL_TRUE = 1;
@@ -171,6 +174,7 @@ constexpr GLenum GL_PACK_ALIGNMENT = 0x0D05;
 constexpr GLenum GL_DEPTH_TEST = 0x0B71;
 constexpr GLenum GL_CULL_FACE = 0x0B44;
 constexpr GLenum GL_SCISSOR_TEST = 0x0C11;
+constexpr GLenum GL_TEXTURE0 = 0x84C0;
 
 // Prefixed so a host's own GL loader can link beside this static library.
 extern const GLubyte* (*jadefx_glGetString)(GLenum name);
@@ -220,6 +224,7 @@ extern void (*jadefx_glDisable)(GLenum cap);
 extern void (*jadefx_glBlendFunc)(GLenum sfactor, GLenum dfactor);
 extern void (*jadefx_glReadPixels)(GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, void* pixels);
 extern void (*jadefx_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height);
+extern void (*jadefx_glActiveTexture)(GLenum texture);
 
 #define glGetString jadefx_glGetString
 #define glGetIntegerv jadefx_glGetIntegerv
@@ -268,6 +273,7 @@ extern void (*jadefx_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height)
 #define glBlendFunc jadefx_glBlendFunc
 #define glReadPixels jadefx_glReadPixels
 #define glScissor jadefx_glScissor
+#define glActiveTexture jadefx_glActiveTexture
 
 using GlGetProcAddress = void* (*)(const char* name);
 

@@ -10,6 +10,26 @@ uniform float uStopCount;
 uniform vec4 uStops[8];
 uniform float uStopAt[8];
 
+// While uOccluded is 1, a fragment inside uOccluderRect (framebuffer pixels:
+// x, y from the bottom left, width, height) whose depth in uOccluder is
+// nearer than uOccluderDepth is not drawn: UI drawn inside a 3D view, behind
+// what the view drew in front of it.
+uniform sampler2D uOccluder;
+uniform vec4 uOccluderRect;
+uniform float uOccluderDepth;
+uniform float uOccluded;
+
+bool occluded() {
+    if (uOccluded < 0.5) {
+        return false;
+    }
+    vec2 uv = (gl_FragCoord.xy - uOccluderRect.xy) / uOccluderRect.zw;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
+        return false;
+    }
+    return texture(uOccluder, uv).r < uOccluderDepth;
+}
+
 out vec4 fragColor;
 
 // uParams: mode, exact edges, blur radius, gradient angle in degrees.
@@ -116,6 +136,9 @@ vec4 sampleStops(float t) {
 }
 
 void main() {
+    if (occluded()) {
+        discard;
+    }
     vec2 outerSize = max(uBox.zw, vec2(0.0));
     vec2 outerHalf = outerSize * 0.5;
     vec2 outerCenter = uBox.xy + outerHalf;

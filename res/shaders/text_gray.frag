@@ -6,6 +6,26 @@ uniform vec4 uColor;
 // The same mask gamma as text.frag. z is unused; this path is always grayscale.
 uniform vec3 uGamma;
 
+// While uOccluded is 1, a fragment inside uOccluderRect (framebuffer pixels:
+// x, y from the bottom left, width, height) whose depth in uOccluder is
+// nearer than uOccluderDepth is not drawn: UI drawn inside a 3D view, behind
+// what the view drew in front of it.
+uniform sampler2D uOccluder;
+uniform vec4 uOccluderRect;
+uniform float uOccluderDepth;
+uniform float uOccluded;
+
+bool occluded() {
+    if (uOccluded < 0.5) {
+        return false;
+    }
+    vec2 uv = (gl_FragCoord.xy - uOccluderRect.xy) / uOccluderRect.zw;
+    if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
+        return false;
+    }
+    return texture(uOccluder, uv).r < uOccluderDepth;
+}
+
 out vec4 fragColor;
 
 float toLinear(float v) {
@@ -35,6 +55,9 @@ float correct(float coverage, float src) {
 }
 
 void main() {
+    if (occluded()) {
+        discard;
+    }
     float coverage = texture(uTex, vUv).r;
     vec3 linear = vec3(toLinear(uColor.r), toLinear(uColor.g), toLinear(uColor.b));
     float luminance = fromLinear(dot(linear, vec3(0.2126, 0.7152, 0.0722)));

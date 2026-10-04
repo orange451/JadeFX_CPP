@@ -17,6 +17,12 @@ void Painter::pushClip(float x, float y, float width, float height) { renderer_.
 
 void Painter::popClip() { renderer_.popClip(); }
 
+void Painter::setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth) {
+    renderer_.setOccluder(depthTexture, x, y, width, height, depth);
+}
+
+void Painter::clearOccluder() { renderer_.clearOccluder(); }
+
 float Painter::pixelsPerPoint() const { return renderer_.pixelsPerPoint(); }
 
 void Painter::strokeRounded(float x, float y, float width, float height, const float radius[4], const float sides[4],

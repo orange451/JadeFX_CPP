@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gl/GlyphAtlasPacker.hpp"
+#include "gl/Occluder.hpp"
 #include "gl/UniformCache.hpp"
 #include "jadefx/paint/Color.hpp"
 
@@ -47,6 +48,11 @@ public:
     // Clips nest by intersection. popClip restores the previous one.
     void pushClip(float x, float y, float width, float height);
     void popClip();
+    // Hide later draws' fragments behind a depth texture, as Occluder says,
+    // until clearOccluder. Used to draw UI inside a 3D view.
+    void setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth);
+    void clearOccluder();
+    const Occluder& occluder() const { return occluder_; }
     // Device pixels in one point, as begin set it.
     float pixelsPerPoint() const { return scale_; }
     void end();
@@ -105,6 +111,25 @@ private:
     int imageSampler_ = -1;
     int imageTint_ = -1;
     int imageTinted_ = -1;
+    // Each program's occluder uniforms, and the Occluder revision it last sent.
+    struct OccluderSlots {
+        int texture = -1;
+        int rect = -1;
+        int depth = -1;
+        int on = -1;
+        unsigned sent = ~0u;
+    };
+    void sendOccluder(OccluderSlots& slots);
+    OccluderSlots boxOccluder_;
+    OccluderSlots textOccluder_;
+    OccluderSlots imageOccluder_;
+    Occluder occluder_;
+    // The unit the depth texture is bound to; JadeFX samples nothing else there.
+    static constexpr int kOccluderUnit = 7;
+    // A 1x1 texture read as the far plane, bound to kOccluderUnit while no
+    // occluder is set: the shaders sample uOccluder even while uOccluded is
+    // 0, and a stricter GL ES driver than desktop GL faults on an unbound unit.
+    unsigned occluderDummy_ = 0;
     struct GpuImage {
         std::weak_ptr<ImageData> data;
         unsigned texture = 0;
