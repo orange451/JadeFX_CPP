@@ -386,6 +386,13 @@ if(NOT JADEFX_GLFM)
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)
     jadefx_warnings(jadefx-tests)
+    # By hand, not ctest: jadefx-render-check out-dir draws fixed scenes in a
+    # hidden window and writes each as a PPM, for a byte comparison across a
+    # renderer change, then runs the checks that read pixels back.
+    add_executable(jadefx-render-check tests/render_check.cpp)
+    target_include_directories(jadefx-render-check PRIVATE "${CMAKE_SOURCE_DIR}/src")
+    target_link_libraries(jadefx-render-check PRIVATE jadefx)
+    jadefx_warnings(jadefx-render-check)
 elseif(ANDROID)
     add_library(jadefx-purple SHARED examples/purple_app.cpp examples/glfm_entry.cpp)
     target_link_libraries(jadefx-purple PRIVATE jadefx)
