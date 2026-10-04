@@ -1,23 +1,26 @@
 in vec2 vLocal;
+flat in vec4 vBox;
+flat in vec4 vRadii;
+flat in vec4 vParams;
+flat in vec4 vBorder;
+flat in vec4 vClip;
+flat in vec4 vClipRadii;
+flat in vec4 vColor;
 
-uniform vec4 uBox;
-uniform vec4 uRadii;
-uniform vec4 uParams;
-uniform vec4 uBorder;
-uniform vec4 uClip;
-uniform vec4 uClipRadii;
+// 1 draws a gradient through the stops below. 0 draws vColor.
+uniform float uGradient;
 uniform float uStopCount;
 uniform vec4 uStops[8];
 uniform float uStopAt[8];
 
 out vec4 fragColor;
 
-// uParams: mode, exact edges, blur radius, gradient angle in degrees.
+// vParams: mode, exact edges, blur radius, gradient angle in degrees.
 // Exact edges cover each pixel by the area inside the box, so an edge on a whole
 // pixel is sharp and two boxes that share one meet without a seam. Otherwise
 // edges soften over a pixel and a half.
-// uBorder: top, right, bottom, left.
-// uClip: element x, y, width, height in the same local pixels as uBox.
+// vBorder: top, right, bottom, left.
+// vClip: element x, y, width, height in the same local pixels as vBox.
 // mode 0 fills, 1 is a border ring, 2 is an outer shadow, 3 is an inset shadow.
 // Radii are top-left, top-right, bottom-right, bottom-left, with y growing downward.
 // Blur radius is the Gaussian diameter: sigma = radius / 2, centered on the edge.
@@ -94,10 +97,15 @@ float roundedBoxShadow(vec2 lower, vec2 upper, vec2 point, float sigma, vec4 rad
     return value;
 }
 
+// The box's one color, or a gradient's first stop.
+vec4 firstStop() {
+    return uGradient > 0.5 ? uStops[0] : vColor;
+}
+
 vec4 sampleStops(float t) {
     int count = int(uStopCount + 0.5);
-    if (count <= 1) {
-        return uStops[0];
+    if (uGradient < 0.5 || count <= 1) {
+        return firstStop();
     }
     vec4 color = uStops[0];
     for (int i = 1; i < 8; ++i) {
@@ -116,48 +124,48 @@ vec4 sampleStops(float t) {
 }
 
 void main() {
-    vec2 outerSize = max(uBox.zw, vec2(0.0));
+    vec2 outerSize = max(vBox.zw, vec2(0.0));
     vec2 outerHalf = outerSize * 0.5;
-    vec2 outerCenter = uBox.xy + outerHalf;
+    vec2 outerCenter = vBox.xy + outerHalf;
     vec2 point = vLocal - outerCenter;
-    float dist = roundedDistance(point, outerHalf, uRadii);
-    float cover = uParams.y > 0.5 ? clamp(0.5 - dist, 0.0, 1.0) : 1.0 - smoothstep(-0.75, 0.75, dist);
+    float dist = roundedDistance(point, outerHalf, vRadii);
+    float cover = vParams.y > 0.5 ? clamp(0.5 - dist, 0.0, 1.0) : 1.0 - smoothstep(-0.75, 0.75, dist);
 
-    float angle = radians(uParams.w);
+    float angle = radians(vParams.w);
     vec2 direction = vec2(sin(angle), -cos(angle));
     float span = abs(direction.x) * outerHalf.x + abs(direction.y) * outerHalf.y;
     float gradientT = span > 0.0 ? dot(point, direction) / span : 0.0;
     gradientT = clamp(gradientT * 0.5 + 0.5, 0.0, 1.0);
 
-    float mode = uParams.x;
+    float mode = vParams.x;
     vec4 color = sampleStops(gradientT);
     float alpha = cover;
     if (mode < 0.5) {
         alpha = cover;
     } else if (mode < 1.5) {
-        float top = max(uBorder.x, 0.0);
-        float right = max(uBorder.y, 0.0);
-        float bottom = max(uBorder.z, 0.0);
-        float left = max(uBorder.w, 0.0);
+        float top = max(vBorder.x, 0.0);
+        float right = max(vBorder.y, 0.0);
+        float bottom = max(vBorder.z, 0.0);
+        float left = max(vBorder.w, 0.0);
         vec2 innerSize = max(outerSize - vec2(left + right, top + bottom), vec2(0.0));
         vec2 innerHalf = innerSize * 0.5;
-        vec2 innerCenter = uBox.xy + vec2(left, top) + innerHalf;
-        vec4 innerRadii = max(uRadii - vec4(max(top, left), max(top, right), max(bottom, right), max(bottom, left)),
+        vec2 innerCenter = vBox.xy + vec2(left, top) + innerHalf;
+        vec4 innerRadii = max(vRadii - vec4(max(top, left), max(top, right), max(bottom, right), max(bottom, left)),
                               0.0);
         float inner = roundedDistance(vLocal - innerCenter, innerHalf, innerRadii);
         float innerCover = 1.0 - smoothstep(-0.75, 0.75, inner);
         alpha = clamp(cover - innerCover, 0.0, 1.0);
-        color = uStops[0];
+        color = firstStop();
     } else {
-        float sigma = max(uParams.z, 0.5) * 0.5;
-        vec2 shadowSize = max(uBox.zw, vec2(0.0));
+        float sigma = max(vParams.z, 0.5) * 0.5;
+        vec2 shadowSize = max(vBox.zw, vec2(0.0));
         float shadow = 0.0;
         if (shadowSize.x > 0.0 && shadowSize.y > 0.0) {
-            shadow = clamp(roundedBoxShadow(uBox.xy, uBox.xy + shadowSize, vLocal, sigma, uRadii), 0.0, 1.0);
+            shadow = clamp(roundedBoxShadow(vBox.xy, vBox.xy + shadowSize, vLocal, sigma, vRadii), 0.0, 1.0);
         }
-        float shape = roundedCoverage(uClip.xy, uClip.zw, uClipRadii, vLocal);
+        float shape = roundedCoverage(vClip.xy, vClip.zw, vClipRadii, vLocal);
         alpha = mode < 2.5 ? shadow * (1.0 - shape) : (1.0 - shadow) * shape;
-        color = uStops[0];
+        color = firstStop();
     }
 
     color.a *= alpha;

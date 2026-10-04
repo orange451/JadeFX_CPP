@@ -45,6 +45,21 @@ int Location(GLuint program, const char* name) {
     return glGetUniformLocation(program, name);
 }
 
+// BoxInstance's eight vec4s are box.vert's attributes 1 to 8.
+constexpr GLuint kBoxFirstField = 1;
+constexpr GLuint kBoxFields = 8;
+// The stream holds one full run.
+constexpr GLsizeiptr kBoxStreamBytes = static_cast<GLsizeiptr>(BoxBatch::kMaxRun * sizeof(BoxInstance));
+
+// Points the box attributes at the run that starts offset bytes into the bound stream.
+void PointBoxFields(std::size_t offset) {
+    const GLsizei stride = static_cast<GLsizei>(sizeof(BoxInstance));
+    for (GLuint i = 0; i < kBoxFields; ++i) {
+        const std::size_t at = offset + i * 4 * sizeof(float);
+        glVertexAttribPointer(kBoxFirstField + i, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(at));
+    }
+}
+
 void ReportMissingShaders(const std::string& missing) {
     const bool one = missing.find('\n') == std::string::npos;
     const std::string message =
@@ -111,14 +126,8 @@ bool UiRenderer::initialize() {
         return false;
     }
 
-    boxRect_ = Location(boxProgram_, "uRect");
     boxViewport_ = Location(boxProgram_, "uViewport");
-    boxBox_ = Location(boxProgram_, "uBox");
-    boxRadii_ = Location(boxProgram_, "uRadii");
-    boxParams_ = Location(boxProgram_, "uParams");
-    boxBorder_ = Location(boxProgram_, "uBorder");
-    boxClip_ = Location(boxProgram_, "uClip");
-    boxClipRadii_ = Location(boxProgram_, "uClipRadii");
+    boxGradient_ = Location(boxProgram_, "uGradient");
     boxStopCount_ = Location(boxProgram_, "uStopCount");
     for (int i = 0; i < 8; ++i) {
         const std::string stop = "uStops[" + std::to_string(i) + "]";
@@ -144,6 +153,17 @@ bool UiRenderer::initialize() {
     glBufferData(GL_ARRAY_BUFFER, sizeof quad, quad, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * static_cast<GLsizei>(sizeof(float)), nullptr);
+    // Each box is one instance: attributes 1 to 8 step once a box through the
+    // stream, and drawBoxRun points them at each run.
+    glGenBuffers(1, &boxInstanceVbo_);
+    glBindBuffer(GL_ARRAY_BUFFER, boxInstanceVbo_);
+    glBufferData(GL_ARRAY_BUFFER, kBoxStreamBytes, nullptr, GL_STREAM_DRAW);
+    for (GLuint i = 0; i < kBoxFields; ++i) {
+        glEnableVertexAttribArray(kBoxFirstField + i);
+        glVertexAttribDivisor(kBoxFirstField + i, 1);
+    }
+    PointBoxFields(0);
+    boxInstanceUsed_ = BoxBatch::kMaxRun;
 
     glGenVertexArrays(1, &textVao_);
     glGenBuffers(1, &textVbo_);
@@ -227,6 +247,11 @@ void UiRenderer::shutdown() {
         glDeleteVertexArrays(1, &textVao_);
         textVao_ = 0;
     }
+    boxBatch_.clear();
+    if (boxInstanceVbo_ != 0) {
+        glDeleteBuffers(1, &boxInstanceVbo_);
+        boxInstanceVbo_ = 0;
+    }
     if (boxVbo_ != 0) {
         glDeleteBuffers(1, &boxVbo_);
         boxVbo_ = 0;
@@ -263,6 +288,9 @@ void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixels
     scale_ = pixelsPerPoint > 0.f ? pixelsPerPoint : 1.f;
     atlasPacker_.beginFrame();
     atlasGaveUp_ = false;
+    boxBatch_.clear();
+    // Counted as full, so the frame's first run starts a new store.
+    boxInstanceUsed_ = BoxBatch::kMaxRun;
     glViewport(0, 0, framebufferWidth, framebufferHeight);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
@@ -277,6 +305,7 @@ void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixels
 }
 
 void UiRenderer::end() {
+    flush();
     clips_.clear();
     glDisable(GL_SCISSOR_TEST);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -284,6 +313,8 @@ void UiRenderer::end() {
 }
 
 void UiRenderer::pushClip(float x, float y, float width, float height) {
+    // The scissor is GL state, so what was queued under the old clip is drawn under it.
+    flush();
     const float right = x + std::max(0.f, width);
     const float bottom = y + std::max(0.f, height);
     int sx = static_cast<int>(std::floor(x * scale_));
@@ -316,6 +347,7 @@ void UiRenderer::popClip() {
     if (clips_.empty()) {
         return;
     }
+    flush();
     clips_.pop_back();
     if (clips_.empty()) {
         glDisable(GL_SCISSOR_TEST);
@@ -333,53 +365,20 @@ void UiRenderer::drawBox(float x, float y, float width, float height, float boxX
         stopCount <= 0) {
         return;
     }
-    const float s = scale_;
+    const BoxInstance box = MakeBoxInstance(scale_, x, y, width, height, boxX, boxY, boxW, boxH, radius, stops[0], mode,
+                                            sides, blur, angleDeg, clip, clipRadii, exact);
+    if (stopCount == 1) {
+        if (!boxBatch_.add(box)) {
+            flush();
+            boxBatch_.add(box);
+        }
+        return;
+    }
+    // A gradient's stops are too many to carry a box, so they stay uniforms and it is a run of its own.
+    flush();
     const int count = std::min(stopCount, 8);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    // Always bound: other code, such as a 3D view drawn between UI draws, binds its own.
     glUseProgram(boxProgram_);
-    // A uniform keeps its value in its program, so only what changed is sent.
     UniformCache& u = boxUniforms_;
-    if (u.changed(kBoxRect, x * s, y * s, width * s, height * s)) {
-        glUniform4f(boxRect_, x * s, y * s, width * s, height * s);
-    }
-    const float vw = static_cast<float>(viewportW_);
-    const float vh = static_cast<float>(viewportH_);
-    if (u.changed(kBoxViewport, vw, vh)) {
-        glUniform2f(boxViewport_, vw, vh);
-    }
-    if (u.changed(kBoxBox, boxX * s, boxY * s, boxW * s, boxH * s)) {
-        glUniform4f(boxBox_, boxX * s, boxY * s, boxW * s, boxH * s);
-    }
-    if (u.changed(kBoxRadii, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s)) {
-        glUniform4f(boxRadii_, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s);
-    }
-    const float edge = exact ? 1.f : 0.f;
-    const float soft = std::max(blur * s, 0.f);
-    if (u.changed(kBoxParams, mode, edge, soft, angleDeg)) {
-        glUniform4f(boxParams_, mode, edge, soft, angleDeg);
-    }
-    const float top = sides != nullptr ? sides[0] * s : 0.f;
-    const float right = sides != nullptr ? sides[1] * s : 0.f;
-    const float bottom = sides != nullptr ? sides[2] * s : 0.f;
-    const float left = sides != nullptr ? sides[3] * s : 0.f;
-    if (u.changed(kBoxBorder, top, right, bottom, left)) {
-        glUniform4f(boxBorder_, top, right, bottom, left);
-    }
-    const float c0 = clip != nullptr ? clip[0] * s : 0.f;
-    const float c1 = clip != nullptr ? clip[1] * s : 0.f;
-    const float c2 = clip != nullptr ? clip[2] * s : 0.f;
-    const float c3 = clip != nullptr ? clip[3] * s : 0.f;
-    if (u.changed(kBoxClip, c0, c1, c2, c3)) {
-        glUniform4f(boxClip_, c0, c1, c2, c3);
-    }
-    const float r0 = clipRadii != nullptr ? clipRadii[0] * s : 0.f;
-    const float r1 = clipRadii != nullptr ? clipRadii[1] * s : 0.f;
-    const float r2 = clipRadii != nullptr ? clipRadii[2] * s : 0.f;
-    const float r3 = clipRadii != nullptr ? clipRadii[3] * s : 0.f;
-    if (u.changed(kBoxClipRadii, r0, r1, r2, r3)) {
-        glUniform4f(boxClipRadii_, r0, r1, r2, r3);
-    }
     if (u.changed(kBoxStopCount, static_cast<float>(count))) {
         glUniform1f(boxStopCount_, static_cast<float>(count));
     }
@@ -394,8 +393,45 @@ void UiRenderer::drawBox(float x, float y, float width, float height, float boxX
             glUniform1f(boxStopAt_[i], at);
         }
     }
+    boxBatch_.add(box);
+    drawBoxRun(true);
+}
+
+void UiRenderer::flush() { drawBoxRun(false); }
+
+void UiRenderer::drawBoxRun(bool gradient) {
+    const int count = boxBatch_.size();
+    if (count == 0) {
+        return;
+    }
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // Always bound: other code, such as a 3D view drawn between UI draws, binds its own.
+    glUseProgram(boxProgram_);
+    // A uniform keeps its value in its program, so only what changed is sent.
+    UniformCache& u = boxUniforms_;
+    const float vw = static_cast<float>(viewportW_);
+    const float vh = static_cast<float>(viewportH_);
+    if (u.changed(kBoxViewport, vw, vh)) {
+        glUniform2f(boxViewport_, vw, vh);
+    }
+    const float flag = gradient ? 1.f : 0.f;
+    if (u.changed(kBoxGradient, flag)) {
+        glUniform1f(boxGradient_, flag);
+    }
     glBindVertexArray(boxVao_);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindBuffer(GL_ARRAY_BUFFER, boxInstanceVbo_);
+    if (boxInstanceUsed_ + count > BoxBatch::kMaxRun) {
+        // A new store, so this run never overwrites boxes a draw before it may still be reading.
+        glBufferData(GL_ARRAY_BUFFER, kBoxStreamBytes, nullptr, GL_STREAM_DRAW);
+        boxInstanceUsed_ = 0;
+    }
+    const std::size_t offset = static_cast<std::size_t>(boxInstanceUsed_) * sizeof(BoxInstance);
+    glBufferSubData(GL_ARRAY_BUFFER, static_cast<GLintptr>(offset),
+                    static_cast<GLsizeiptr>(static_cast<std::size_t>(count) * sizeof(BoxInstance)), boxBatch_.data());
+    PointBoxFields(offset);
+    glDrawArraysInstanced(GL_TRIANGLES, 0, 6, count);
+    boxInstanceUsed_ += count;
+    boxBatch_.clear();
 }
 
 void UiRenderer::fillRounded(float x, float y, float width, float height, const float radius[4], const Color* stops,
@@ -637,6 +673,7 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
         return;
     }
 
+    flush();
     glUseProgram(textProgram_);
     if (subpixel_) {
         glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
@@ -720,6 +757,7 @@ void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, flo
         left, top, 0.f, 0.f, right, bottom, 1.f, 1.f, left,  bottom, 0.f, 1.f,
     };
 
+    flush();
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glUseProgram(imageProgram_);
     glUniform2f(imageViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
@@ -736,10 +774,11 @@ void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, flo
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-bool UiRenderer::writePpm(const char* path) const {
+bool UiRenderer::writePpm(const char* path) {
     if (path == nullptr || viewportW_ <= 0 || viewportH_ <= 0) {
         return false;
     }
+    flush();
     std::vector<unsigned char> pixels(static_cast<std::size_t>(viewportW_ * viewportH_ * 4));
     glPixelStorei(GL_PACK_ALIGNMENT, 1);
     glReadPixels(0, 0, viewportW_, viewportH_, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());

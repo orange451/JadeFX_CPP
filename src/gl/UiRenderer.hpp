@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gl/BoxBatch.hpp"
 #include "gl/GlyphAtlasPacker.hpp"
 #include "gl/UniformCache.hpp"
 #include "jadefx/paint/Color.hpp"
@@ -49,8 +50,14 @@ public:
     void popClip();
     // Device pixels in one point, as begin set it.
     float pixelsPerPoint() const { return scale_; }
+    // Draws the boxes queued so far. Fills, borders, and shadows are queued and
+    // drawn in runs, before the next text, image, gradient, clip change,
+    // screenshot, or end. GL of a caller's own comes after a flush, or the
+    // boxes queued before it land on top of it.
+    void flush();
     void end();
-    bool writePpm(const char* path) const;
+    // Draws what is queued, then writes the framebuffer as a binary PPM.
+    bool writePpm(const char* path);
 
 private:
     struct Glyph;
@@ -59,6 +66,8 @@ private:
                  const float radius[4], const Color* stops, const float* stopAt, int stopCount, float mode,
                  const float sides[4], float blur, float angleDeg, const float* clip = nullptr,
                  const float* clipRadii = nullptr, bool exact = false);
+    // Draws the pending run in one call and empties it. gradient draws it through the stop uniforms.
+    void drawBoxRun(bool gradient);
     const Glyph* glyphFor(int codepoint, int pixelSize, int phase, const struct FontFace* face, bool wantSubpixel);
     // Gives the atlas texture blank storage of size by size texels.
     void allocateAtlas(int size);
@@ -79,22 +88,21 @@ private:
     bool ready_ = false;
     bool subpixel_ = false;
 
-    int boxRect_ = -1;
     int boxViewport_ = -1;
-    int boxBox_ = -1;
-    int boxRadii_ = -1;
-    int boxParams_ = -1;
-    int boxBorder_ = -1;
-    int boxClip_ = -1;
-    int boxClipRadii_ = -1;
+    int boxGradient_ = -1;
     int boxStopCount_ = -1;
     int boxStops_[8] = {};
     int boxStopAt_[8] = {};
-    // The box program's uniforms as last set: a run of plain rectangles changes
-    // only their place and color, so the rest are skipped.
-    enum BoxSlot { kBoxRect, kBoxViewport, kBoxBox, kBoxRadii, kBoxParams, kBoxBorder, kBoxClip, kBoxClipRadii,
-                   kBoxStopCount, kBoxStop0, kBoxStopAt0 = kBoxStop0 + 8, kBoxSlots = kBoxStopAt0 + 8 };
+    // The box program's uniforms as last set. A run sets the viewport and the
+    // gradient flag, and a gradient its stops, so most calls are skipped.
+    enum BoxSlot { kBoxViewport, kBoxGradient, kBoxStopCount, kBoxStop0, kBoxStopAt0 = kBoxStop0 + 8,
+                   kBoxSlots = kBoxStopAt0 + 8 };
     UniformCache boxUniforms_{kBoxSlots};
+    // The run not drawn yet, and the stream runs are drawn from: the first
+    // boxInstanceUsed_ boxes of its current store are taken this frame.
+    BoxBatch boxBatch_;
+    unsigned boxInstanceVbo_ = 0;
+    int boxInstanceUsed_ = 0;
     int textViewport_ = -1;
     int textColor_ = -1;
     int textGamma_ = -1;

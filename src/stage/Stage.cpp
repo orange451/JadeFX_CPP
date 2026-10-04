@@ -334,6 +334,8 @@ bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int fra
     renderer_->begin(framebufferWidth, framebufferHeight, scale, scene_->themeColor(ThemeColor::Background), clearColor_);
     scene_->render(*renderer_, 1.f);
     if (afterUi_) {
+        // The callback draws GL of its own, over the UI, so the queued boxes go first.
+        renderer_->flush();
         afterUi_(framebufferWidth, framebufferHeight);
     }
     ++frames_;

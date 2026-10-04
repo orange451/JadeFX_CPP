@@ -16,6 +16,7 @@ using GLfloat = float;
 using GLubyte = unsigned char;
 using GLchar = char;
 using GLsizeiptr = std::ptrdiff_t;
+using GLintptr = std::ptrdiff_t;
 
 #ifdef GL_FALSE
 #undef GL_FALSE
@@ -49,6 +50,9 @@ using GLsizeiptr = std::ptrdiff_t;
 #endif
 #ifdef GL_STATIC_DRAW
 #undef GL_STATIC_DRAW
+#endif
+#ifdef GL_STREAM_DRAW
+#undef GL_STREAM_DRAW
 #endif
 #ifdef GL_DYNAMIC_DRAW
 #undef GL_DYNAMIC_DRAW
@@ -144,6 +148,7 @@ constexpr GLenum GL_FLOAT = 0x1406;
 constexpr GLenum GL_ARRAY_BUFFER = 0x8892;
 constexpr GLenum GL_STATIC_DRAW = 0x88E4;
 constexpr GLenum GL_DYNAMIC_DRAW = 0x88E8;
+constexpr GLenum GL_STREAM_DRAW = 0x88E0;
 constexpr GLenum GL_FRAGMENT_SHADER = 0x8B30;
 constexpr GLenum GL_VERTEX_SHADER = 0x8B31;
 constexpr GLenum GL_COMPILE_STATUS = 0x8B81;
@@ -202,6 +207,9 @@ extern void (*jadefx_glBufferData)(GLenum target, GLsizeiptr size, const void* d
 extern void (*jadefx_glEnableVertexAttribArray)(GLuint index);
 extern void (*jadefx_glVertexAttribPointer)(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void* pointer);
 extern void (*jadefx_glDrawArrays)(GLenum mode, GLint first, GLsizei count);
+extern void (*jadefx_glBufferSubData)(GLenum target, GLintptr offset, GLsizeiptr size, const void* data);
+extern void (*jadefx_glVertexAttribDivisor)(GLuint index, GLuint divisor);
+extern void (*jadefx_glDrawArraysInstanced)(GLenum mode, GLint first, GLsizei count, GLsizei instancecount);
 extern void (*jadefx_glGenTextures)(GLsizei n, GLuint* textures);
 extern void (*jadefx_glDeleteTextures)(GLsizei n, const GLuint* textures);
 extern void (*jadefx_glBindTexture)(GLenum target, GLuint texture);
@@ -250,6 +258,9 @@ extern void (*jadefx_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height)
 #define glEnableVertexAttribArray jadefx_glEnableVertexAttribArray
 #define glVertexAttribPointer jadefx_glVertexAttribPointer
 #define glDrawArrays jadefx_glDrawArrays
+#define glBufferSubData jadefx_glBufferSubData
+#define glVertexAttribDivisor jadefx_glVertexAttribDivisor
+#define glDrawArraysInstanced jadefx_glDrawArraysInstanced
 #define glGenTextures jadefx_glGenTextures
 #define glDeleteTextures jadefx_glDeleteTextures
 #define glBindTexture jadefx_glBindTexture

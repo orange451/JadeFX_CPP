@@ -201,6 +201,58 @@ int WriteScenes(UiRenderer& renderer, int fbW, int fbH, const std::string& outDi
     return failures;
 }
 
+// The framebuffer's RGBA at x, y, counted from the bottom left as GL counts.
+std::array<unsigned char, 4> PixelAt(int x, int y) {
+    std::array<unsigned char, 4> pixel{};
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(x, y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel.data());
+    return pixel;
+}
+
+bool IsBlue(const std::array<unsigned char, 4>& p) { return p[0] < 10 && p[1] < 10 && p[2] > 245; }
+bool IsRed(const std::array<unsigned char, 4>& p) { return p[0] > 245 && p[1] < 10 && p[2] < 10; }
+
+// GL of a program's own: clears a square to blue, and leaves the scissor off as it found it.
+void ClearSquareBlue(int left, int bottom, int size) {
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(left, bottom, size, size);
+    glClearColor(0.f, 0.f, 1.f, 1.f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
+}
+
+int Report(bool ok, const char* what) {
+    std::printf("%s %s\n", ok ? "ok  " : "FAIL", what);
+    return ok ? 0 : 1;
+}
+
+// A stage whose UI fills the window red, then a rendering callback that clears
+// a square in the middle blue. The callback runs after the UI, so blue is on top.
+int CheckRenderingCallback(int fbW, int fbH) {
+    jadefx::Stage stage;
+    if (!stage.initializeGraphics(&GetProc)) {
+        return Report(false, "a rendering callback draws over the UI (no graphics)");
+    }
+    auto root = jadefx::make<jadefx::StackPane>();
+    root->setStyle("background-color: #ff0000;");
+    // Empty, it would lay out at its preferred size, none.
+    root->setMinSize(kWidth, kHeight);
+    stage.getScene().setRoot(root);
+    const int size = fbH / 4;
+    stage.setRenderingCallback([&](int, int) { ClearSquareBlue(fbW / 2 - size / 2, fbH / 2 - size / 2, size); });
+    stage.frame(kWidth, kHeight, fbW, fbH);
+    const bool onTop = IsBlue(PixelAt(fbW / 2, fbH / 2));
+    const bool uiDrawn = IsRed(PixelAt(2, 2));
+    stage.shutdownGraphics();
+    return Report(onTop && uiDrawn, "a rendering callback draws over the UI");
+}
+
+int RunChecks(UiRenderer&, int fbW, int fbH) {
+    int failures = 0;
+    failures += CheckRenderingCallback(fbW, fbH);
+    return failures;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -245,6 +297,7 @@ int main(int argc, char** argv) {
             failures = 1;
         } else {
             failures += WriteScenes(renderer, fbW, fbH, outDir);
+            failures += RunChecks(renderer, fbW, fbH);
             renderer.shutdown();
         }
     }
