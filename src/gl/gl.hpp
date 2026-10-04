@@ -38,6 +38,9 @@ using GLsizeiptr = std::ptrdiff_t;
 #ifdef GL_RENDERER
 #undef GL_RENDERER
 #endif
+#ifdef GL_MAX_TEXTURE_SIZE
+#undef GL_MAX_TEXTURE_SIZE
+#endif
 #ifdef GL_FLOAT
 #undef GL_FLOAT
 #endif
@@ -136,6 +139,7 @@ constexpr GLenum GL_TRIANGLES = 0x0004;
 constexpr GLbitfield GL_COLOR_BUFFER_BIT = 0x00004000;
 constexpr GLenum GL_VERSION = 0x1F02;
 constexpr GLenum GL_RENDERER = 0x1F01;
+constexpr GLenum GL_MAX_TEXTURE_SIZE = 0x0D33;
 constexpr GLenum GL_FLOAT = 0x1406;
 constexpr GLenum GL_ARRAY_BUFFER = 0x8892;
 constexpr GLenum GL_STATIC_DRAW = 0x88E4;
@@ -170,6 +174,7 @@ constexpr GLenum GL_SCISSOR_TEST = 0x0C11;
 
 // Prefixed so a host's own GL loader can link beside this static library.
 extern const GLubyte* (*jadefx_glGetString)(GLenum name);
+extern void (*jadefx_glGetIntegerv)(GLenum name, GLint* data);
 extern GLenum (*jadefx_glGetError)();
 extern void (*jadefx_glClear)(GLbitfield mask);
 extern void (*jadefx_glClearColor)(GLfloat red, GLfloat green, GLfloat blue, GLfloat alpha);
@@ -217,6 +222,7 @@ extern void (*jadefx_glReadPixels)(GLint x, GLint y, GLsizei width, GLsizei heig
 extern void (*jadefx_glScissor)(GLint x, GLint y, GLsizei width, GLsizei height);
 
 #define glGetString jadefx_glGetString
+#define glGetIntegerv jadefx_glGetIntegerv
 #define glGetError jadefx_glGetError
 #define glClear jadefx_glClear
 #define glClearColor jadefx_glClearColor

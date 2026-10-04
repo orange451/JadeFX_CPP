@@ -3,6 +3,7 @@
 #include <cstdio>
 
 const GLubyte* (*jadefx_glGetString)(GLenum) = nullptr;
+void (*jadefx_glGetIntegerv)(GLenum, GLint*) = nullptr;
 GLenum (*jadefx_glGetError)() = nullptr;
 void (*jadefx_glClear)(GLbitfield) = nullptr;
 void (*jadefx_glClearColor)(GLfloat, GLfloat, GLfloat, GLfloat) = nullptr;
@@ -66,6 +67,7 @@ bool jadefx_load_gl(GlGetProcAddress get_proc) {
     } while (0)
 
     LOAD(GetString);
+    LOAD(GetIntegerv);
     LOAD(GetError);
     LOAD(Clear);
     LOAD(ClearColor);

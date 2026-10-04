@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -156,23 +157,22 @@ bool UiRenderer::initialize() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<void*>(2 * sizeof(float)));
     glBindVertexArray(0);
 
-    const int texelBytes = subpixel_ ? 4 : 1;
-    std::vector<unsigned char> blank(static_cast<std::size_t>(kAtlas * kAtlas * texelBytes), 0);
+    GLint maxTexture = 0;
+    glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexture);
+    atlasPacker_ = GlyphAtlasPacker(kAtlasStart, std::min(kAtlasMost, std::max(kAtlasStart, static_cast<int>(maxTexture))));
     glGenTextures(1, &atlas_);
     glBindTexture(GL_TEXTURE_2D, atlas_);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     if (subpixel_) {
-        // RGBA keeps each row 4-byte aligned. RGB coverage lives in rgb; stripes must not be filtered together.
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, kAtlas, kAtlas, 0, GL_RGBA, GL_UNSIGNED_BYTE, blank.data());
+        // RGB coverage lives in rgb; stripes must not be filtered together.
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     } else {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, kAtlas, kAtlas, 0, GL_RED, GL_UNSIGNED_BYTE, blank.data());
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    allocateAtlas(atlasPacker_.size());
     glBindTexture(GL_TEXTURE_2D, 0);
 
     const GLenum error = glGetError();
@@ -185,13 +185,36 @@ bool UiRenderer::initialize() {
     return true;
 }
 
+void UiRenderer::allocateAtlas(int size) {
+    // Blank, not left undefined: the texel between two glyphs must be empty, or
+    // the grayscale atlas's linear filter would draw an edge of its neighbor.
+    const int texelBytes = subpixel_ ? 4 : 1;
+    const std::vector<unsigned char> blank(static_cast<std::size_t>(size) * static_cast<std::size_t>(size) *
+                                               static_cast<std::size_t>(texelBytes),
+                                           0);
+    glBindTexture(GL_TEXTURE_2D, atlas_);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    if (subpixel_) {
+        // RGBA keeps each row 4-byte aligned.
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, size, size, 0, GL_RGBA, GL_UNSIGNED_BYTE, blank.data());
+    } else {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, size, size, 0, GL_RED, GL_UNSIGNED_BYTE, blank.data());
+    }
+}
+
+void UiRenderer::resetAtlas(int size) {
+    glyphs_.clear();
+    atlasPacker_.clear(size);
+    allocateAtlas(atlasPacker_.size());
+    ++atlasGeneration_;
+}
+
 void UiRenderer::shutdown() {
     ready_ = false;
     glyphs_.clear();
-    atlasPenX_ = 1;
-    atlasPenY_ = 1;
-    atlasRowHeight_ = 0;
-    atlasFull_ = false;
+    atlasPacker_ = GlyphAtlasPacker(kAtlasStart, kAtlasStart);
+    atlasGaveUp_ = false;
+    atlasWarned_ = false;
     if (atlas_ != 0) {
         glDeleteTextures(1, &atlas_);
         atlas_ = 0;
@@ -238,6 +261,8 @@ void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixels
     viewportW_ = framebufferWidth;
     viewportH_ = framebufferHeight;
     scale_ = pixelsPerPoint > 0.f ? pixelsPerPoint : 1.f;
+    atlasPacker_.beginFrame();
+    atlasGaveUp_ = false;
     glViewport(0, 0, framebufferWidth, framebufferHeight);
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
@@ -475,7 +500,7 @@ const UiRenderer::Glyph* UiRenderer::glyphFor(int codepoint, int pixelSize, int 
     if (found != glyphs_.end()) {
         return &found->second;
     }
-    if (atlasFull_) {
+    if (atlasGaveUp_) {
         return nullptr;
     }
 
@@ -507,31 +532,39 @@ const UiRenderer::Glyph* UiRenderer::glyphFor(int codepoint, int pixelSize, int 
         }
     }
     if (!glyph.empty) {
-        if (atlasPenX_ + width + 1 >= kAtlas) {
-            atlasPenX_ = 1;
-            atlasPenY_ += atlasRowHeight_ + 1;
-            atlasRowHeight_ = 0;
-        }
-        if (atlasPenY_ + height + 1 >= kAtlas) {
-            atlasFull_ = true;
-            std::fprintf(stderr, "The font atlas is full. Further glyphs are skipped.\n");
-            return nullptr;
+        // Each zoom caches a new size of every glyph, so the atlas fills.
+        // Emptied, it refills with what is on screen now; grown when this
+        // frame's own glyphs do not fit. text() redoes a string it was
+        // placing when that happens. Draws already made keep the old texels:
+        // GL runs them before the upload that replaces them.
+        std::optional<GlyphAtlasPacker::Spot> spot = atlasPacker_.place(width, height);
+        while (!spot) {
+            const GlyphAtlasPacker::Overflow next = atlasPacker_.overflow();
+            if (next == GlyphAtlasPacker::Overflow::GiveUp) {
+                atlasGaveUp_ = true;
+                if (!atlasWarned_) {
+                    atlasWarned_ = true;
+                    std::fprintf(stderr, "This frame's glyphs do not fit the largest font atlas. Some are skipped.\n");
+                }
+                return nullptr;
+            }
+            resetAtlas(next == GlyphAtlasPacker::Overflow::Grow ? atlasPacker_.size() * 2 : atlasPacker_.size());
+            spot = atlasPacker_.place(width, height);
         }
         glBindTexture(GL_TEXTURE_2D, atlas_);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
         if (subpixel_) {
-            glTexSubImage2D(GL_TEXTURE_2D, 0, atlasPenX_, atlasPenY_, width, height, GL_RGBA, GL_UNSIGNED_BYTE,
+            glTexSubImage2D(GL_TEXTURE_2D, 0, spot->x, spot->y, width, height, GL_RGBA, GL_UNSIGNED_BYTE,
                             upload.data());
         } else {
-            glTexSubImage2D(GL_TEXTURE_2D, 0, atlasPenX_, atlasPenY_, width, height, GL_RED, GL_UNSIGNED_BYTE,
+            glTexSubImage2D(GL_TEXTURE_2D, 0, spot->x, spot->y, width, height, GL_RED, GL_UNSIGNED_BYTE,
                             upload.data());
         }
-        glyph.u0 = static_cast<float>(atlasPenX_) / static_cast<float>(kAtlas);
-        glyph.v0 = static_cast<float>(atlasPenY_) / static_cast<float>(kAtlas);
-        glyph.u1 = static_cast<float>(atlasPenX_ + width) / static_cast<float>(kAtlas);
-        glyph.v1 = static_cast<float>(atlasPenY_ + height) / static_cast<float>(kAtlas);
-        atlasPenX_ += width + 1;
-        atlasRowHeight_ = std::max(atlasRowHeight_, height);
+        const float size = static_cast<float>(atlasPacker_.size());
+        glyph.u0 = static_cast<float>(spot->x) / size;
+        glyph.v0 = static_cast<float>(spot->y) / size;
+        glyph.u1 = static_cast<float>(spot->x + width) / size;
+        glyph.v1 = static_cast<float>(spot->y + height) / size;
     }
     const auto inserted = glyphs_.emplace(key, glyph);
     return &inserted.first->second;
@@ -552,37 +585,53 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
     const bool lcd = subpixel_ && subpixel;
     std::vector<float> vertices;
     vertices.reserve(shaped.glyphs.size() * 24);
-    for (const ShapedGlyph& placed : shaped.glyphs) {
-        float left = 0.f;
-        float top = 0.f;
-        const Glyph* glyph = nullptr;
-        if (subpixel_) {
-            // The shared atlas is sampled at texel centers, so the pen's fraction of a pixel is
-            // baked into the bitmap and the quad itself sits on a pixel. Stripe and grayscale alike.
-            int penPixel = 0;
-            const int phase = SubpixelPhase((x + placed.x) * scale_, penPixel);
-            glyph = glyphFor(static_cast<int>(placed.codepoint), pixelSize, phase, face, lcd);
-            if (glyph == nullptr || glyph->empty) {
-                continue;
+    // A glyph that empties or grows the atlas leaves the quads before it
+    // pointing at texels that are gone, so the string is placed again. Each
+    // frame allows one empty and a few doublings, so this ends.
+    for (int pass = 0; pass < 8; ++pass) {
+        const unsigned generation = atlasGeneration_;
+        vertices.clear();
+        for (const ShapedGlyph& placed : shaped.glyphs) {
+            float left = 0.f;
+            float top = 0.f;
+            const Glyph* glyph = nullptr;
+            if (subpixel_) {
+                // The shared atlas is sampled at texel centers, so the pen's fraction of a pixel is
+                // baked into the bitmap and the quad itself sits on a pixel. Stripe and grayscale alike.
+                int penPixel = 0;
+                const int phase = SubpixelPhase((x + placed.x) * scale_, penPixel);
+                glyph = glyphFor(static_cast<int>(placed.codepoint), pixelSize, phase, face, lcd);
+                if (atlasGeneration_ != generation) {
+                    break;
+                }
+                if (glyph == nullptr || glyph->empty) {
+                    continue;
+                }
+                const float baseline = std::round((y + placed.lineTop + font.ascent()) * scale_);
+                left = static_cast<float>(penPixel) + glyph->xoff;
+                top = baseline + glyph->yoff;
+            } else {
+                glyph = glyphFor(static_cast<int>(placed.codepoint), pixelSize, 0, face, false);
+                if (atlasGeneration_ != generation) {
+                    break;
+                }
+                if (glyph == nullptr || glyph->empty) {
+                    continue;
+                }
+                left = (x + placed.x) * scale_ + glyph->xoff;
+                top = (y + placed.lineTop) * scale_ + font.ascent() * scale_ + glyph->yoff;
             }
-            const float baseline = std::round((y + placed.lineTop + font.ascent()) * scale_);
-            left = static_cast<float>(penPixel) + glyph->xoff;
-            top = baseline + glyph->yoff;
-        } else {
-            glyph = glyphFor(static_cast<int>(placed.codepoint), pixelSize, 0, face, false);
-            if (glyph == nullptr || glyph->empty) {
-                continue;
-            }
-            left = (x + placed.x) * scale_ + glyph->xoff;
-            top = (y + placed.lineTop) * scale_ + font.ascent() * scale_ + glyph->yoff;
+            const float right = left + glyph->width;
+            const float bottom = top + glyph->height;
+            const float quad[] = {
+                left, top,    glyph->u0, glyph->v0, right, top,    glyph->u1, glyph->v0, right, bottom, glyph->u1, glyph->v1,
+                left, top,    glyph->u0, glyph->v0, right, bottom, glyph->u1, glyph->v1, left,  bottom, glyph->u0, glyph->v1,
+            };
+            vertices.insert(vertices.end(), quad, quad + 24);
         }
-        const float right = left + glyph->width;
-        const float bottom = top + glyph->height;
-        const float quad[] = {
-            left, top,    glyph->u0, glyph->v0, right, top,    glyph->u1, glyph->v0, right, bottom, glyph->u1, glyph->v1,
-            left, top,    glyph->u0, glyph->v0, right, bottom, glyph->u1, glyph->v1, left,  bottom, glyph->u0, glyph->v1,
-        };
-        vertices.insert(vertices.end(), quad, quad + 24);
+        if (atlasGeneration_ == generation) {
+            break;
+        }
     }
     if (vertices.empty()) {
         return;

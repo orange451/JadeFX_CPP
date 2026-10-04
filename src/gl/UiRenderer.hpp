@@ -1,5 +1,6 @@
 #pragma once
 
+#include "gl/GlyphAtlasPacker.hpp"
 #include "gl/UniformCache.hpp"
 #include "jadefx/paint/Color.hpp"
 
@@ -59,6 +60,10 @@ private:
                  const float sides[4], float blur, float angleDeg, const float* clip = nullptr,
                  const float* clipRadii = nullptr, bool exact = false);
     const Glyph* glyphFor(int codepoint, int pixelSize, int phase, const struct FontFace* face, bool wantSubpixel);
+    // Gives the atlas texture blank storage of size by size texels.
+    void allocateAtlas(int size);
+    // Forgets every glyph and starts the atlas over, empty, at size.
+    void resetAtlas(int size);
     unsigned imageTexture(const std::shared_ptr<ImageData>& image);
 
     unsigned boxProgram_ = 0;
@@ -147,11 +152,17 @@ private:
     };
     std::vector<Clip> clips_;
     std::map<GlyphKey, Glyph> glyphs_;
-    int atlasPenX_ = 1;
-    int atlasPenY_ = 1;
-    int atlasRowHeight_ = 0;
-    bool atlasFull_ = false;
-    static constexpr int kAtlas = 1024;
+    // The atlas starts at kAtlasStart texels square, and doubles up to
+    // kAtlasMost, or less where the GPU's textures are smaller.
+    static constexpr int kAtlasStart = 1024;
+    static constexpr int kAtlasMost = 4096;
+    GlyphAtlasPacker atlasPacker_{kAtlasStart, kAtlasStart};
+    // Counts resets, so text() knows when a glyph it already placed this call has gone.
+    unsigned atlasGeneration_ = 0;
+    // A glyph that could not fit even the largest atlas this frame. The rest
+    // of the frame skips new glyphs instead of rasterizing each in vain.
+    bool atlasGaveUp_ = false;
+    bool atlasWarned_ = false;
 };
 
 }  // namespace jadefx

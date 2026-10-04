@@ -1945,6 +1945,7 @@ void TestUtilityWindow() {
 
 int RunRichTextTests();
 int RunUniformCacheTests();
+int RunGlyphAtlasTests();
 int RunButtonTests();
 int RunCursorTests();
 int RunPointerLockTests();
@@ -1997,6 +1998,7 @@ int main() {
     TestTreeView();
     gFailures += RunRichTextTests();
     gFailures += RunUniformCacheTests();
+    gFailures += RunGlyphAtlasTests();
     gFailures += RunRunLaterTests();
     gFailures += RunButtonTests();
     gFailures += RunCursorTests();
