@@ -979,6 +979,10 @@ void Node::render(UiRenderer& renderer, float opacity) {
     const float next = opacity * computed_.opacity;
     drawChrome(renderer, next);
     renderChildren(renderer, next);
+    if (drawsRawGl_) {
+        // Its GL draws as soon as it is called, so what is queued goes first.
+        renderer.flush();
+    }
     renderContent(renderer, next);
 }
 

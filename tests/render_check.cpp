@@ -247,8 +247,60 @@ int CheckRenderingCallback(int fbW, int fbH) {
     return Report(onTop && uiDrawn, "a rendering callback draws over the UI");
 }
 
-int RunChecks(UiRenderer&, int fbW, int fbH) {
+// A node that clears a square to blue with GL of its own in renderContent.
+// With viaPainter, it first fills the same square red through a Painter and
+// flushes, so only the order of the two decides the color.
+class RawSquare : public jadefx::Node {
+public:
+    RawSquare(int left, int bottom, int size, bool viaPainter)
+        : left_(left), bottom_(bottom), size_(size), viaPainter_(viaPainter) {}
+    const char* getElementType() const override { return "raw-square"; }
+
+protected:
+    void renderContent(UiRenderer& renderer, float) override {
+        if (viaPainter_) {
+            jadefx::Painter painter(renderer);
+            painter.fillRect(0.f, 0.f, 64.f, 64.f, Color::rgba(1.f, 0.f, 0.f, 1.f));
+            painter.flush();
+        }
+        ClearSquareBlue(left_, bottom_, size_);
+    }
+
+private:
+    int left_;
+    int bottom_;
+    int size_;
+    bool viaPainter_;
+};
+
+// A red box queued at points 0..64 (pixels, at scale 1), then a node whose GL
+// clears pixels 16..48 blue. Returns the pixel at the square's middle.
+std::array<unsigned char, 4> DrawRawNode(UiRenderer& renderer, int fbW, int fbH, bool optIn, bool viaPainter) {
+    renderer.begin(fbW, fbH, 1.f, kWhite, true);
+    if (!viaPainter) {
+        renderer.fillRect(0.f, 0.f, 64.f, 64.f, Color::rgba(1.f, 0.f, 0.f, 1.f));
+    }
+    auto node = jadefx::make<RawSquare>(16, fbH - 48, 32, viaPainter);
+    node->setDrawsRawGl(optIn);
+    node->render(renderer, 1.f);
+    renderer.end();
+    return PixelAt(32, fbH - 32);
+}
+
+int CheckRawGlNodes(UiRenderer& renderer, int fbW, int fbH) {
     int failures = 0;
+    failures += Report(IsBlue(DrawRawNode(renderer, fbW, fbH, true, false)),
+                       "raw GL in a node that opts in lands on top of the boxes before it");
+    failures += Report(IsRed(DrawRawNode(renderer, fbW, fbH, false, false)),
+                       "raw GL in a node that does not opt in lands under them (the documented failure)");
+    failures += Report(IsBlue(DrawRawNode(renderer, fbW, fbH, true, true)),
+                       "Painter::flush puts a node's own boxes under its raw GL");
+    return failures;
+}
+
+int RunChecks(UiRenderer& renderer, int fbW, int fbH) {
+    int failures = 0;
+    failures += CheckRawGlNodes(renderer, fbW, fbH);
     failures += CheckRenderingCallback(fbW, fbH);
     return failures;
 }

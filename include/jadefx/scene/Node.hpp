@@ -91,6 +91,10 @@ public:
     // should only catch the mouse on its contents uses it.
     void setPickOnBounds(bool value) { pickOnBounds_ = value; }
     bool isPickOnBounds() const { return pickOnBounds_; }
+    // Set by a node whose renderContent makes GL calls of its own, so the boxes
+    // queued before it are drawn first and its GL lands on top. See renderContent.
+    void setDrawsRawGl(bool value) { drawsRawGl_ = value; }
+    bool drawsRawGl() const { return drawsRawGl_; }
     void setOpacity(float opacity) { opacity_ = opacity; }
     float getOpacity() const { return opacity_; }
 
@@ -276,6 +280,12 @@ protected:
     virtual void layoutChildren();
     virtual double preferredContentWidth(double innerAvailable) const;
     virtual double preferredContentHeight(double innerWidth) const;
+    // Draws the node's own content through renderer, or a Painter on it. Boxes
+    // are queued and drawn in runs, so a node that makes GL calls of its own
+    // sets setDrawsRawGl(true), and one that draws boxes and then GL here calls
+    // Painter::flush between them. Otherwise its GL lands under the boxes
+    // queued before it. GL of its own leaves the viewport, scissor, and blend
+    // enable as it found them.
     virtual void renderContent(UiRenderer& renderer, float opacity);
     // Drawn after the background and before renderContent. A scroller clips this.
     virtual void renderChildren(UiRenderer& renderer, float opacity);
@@ -417,6 +427,7 @@ private:
     bool visible_ = true;
     bool mouseTransparent_ = false;
     bool pickOnBounds_ = true;
+    bool drawsRawGl_ = false;
     bool hovered_ = false;
     bool wasHovered_ = false;
     bool pressed_ = false;

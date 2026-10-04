@@ -29,6 +29,9 @@ public:
     // Clip later draws to this rectangle. Clips nest by intersection.
     void pushClip(float x, float y, float width, float height);
     void popClip();
+    // Draws the boxes queued so far, this painter's and those before it, so GL
+    // calls of the node's own that follow land on top. See Node::setDrawsRawGl.
+    void flush();
     // Device pixels in one point, for drawing that lands on whole pixels.
     float pixelsPerPoint() const;
 

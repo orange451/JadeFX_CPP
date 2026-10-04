@@ -17,6 +17,8 @@ void Painter::pushClip(float x, float y, float width, float height) { renderer_.
 
 void Painter::popClip() { renderer_.popClip(); }
 
+void Painter::flush() { renderer_.flush(); }
+
 float Painter::pixelsPerPoint() const { return renderer_.pixelsPerPoint(); }
 
 void Painter::strokeRounded(float x, float y, float width, float height, const float radius[4], const float sides[4],
