@@ -16,6 +16,11 @@ enum class ContentDisplay { Left, Right, Top, Bottom, Center, TextOnly, GraphicO
 // The graphic sits beside the text by contentDisplay, graphicTextGap apart, and
 // alignment places the two together in the content box. A line wider than the
 // room left for text ends in an ellipsis.
+//
+// With textScaled, the text is drawn at the largest size, up to
+// kMaxScaledFontSize, that fits the room the content box leaves it, and the
+// font size only sets the preferred size. So a label sized by its container
+// or by CSS fills it, and one sized by its own text stays at its font size.
 class Labeled : public Controls {
 public:
     void setText(std::string text);
@@ -28,6 +33,13 @@ public:
 
     void setFont(const Font& font);
     Font getFont() const { return font(); }
+
+    void setTextScaled(bool scaled) { textScaled_ = scaled; }
+    bool isTextScaled() const { return textScaled_; }
+    // The size the text is drawn at in the current content box: the font
+    // size, or with textScaled, the size that fits.
+    float displayedFontSize() const;
+    static constexpr float kMaxScaledFontSize = 512.f;
 
     // Null clears it. A node in another parent moves here.
     void setGraphic(std::shared_ptr<Node> graphic);
@@ -54,11 +66,25 @@ private:
     bool showsGraphic() const;
     // Where the graphic and the text go inside the content box, local to this node.
     Block arrange() const;
+    // The largest size, from 1 to kMaxScaledFontSize, at which the text fits
+    // width by height. The last answer is kept, since every paint asks again.
+    float scaledFontSize(double width, double height) const;
+
+    struct ScaledFit {
+        std::string text;
+        std::string family;
+        float base = 0.f;
+        double width = -1;
+        double height = -1;
+        float size = 0.f;
+    };
 
     std::string text_;
     std::shared_ptr<Node> graphic_;
     ContentDisplay contentDisplay_ = ContentDisplay::Left;
     double graphicTextGap_ = 4;
+    bool textScaled_ = false;
+    mutable ScaledFit scaledFit_;
 };
 
 }  // namespace jadefx

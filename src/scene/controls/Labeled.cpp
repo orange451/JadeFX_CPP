@@ -88,6 +88,7 @@ struct Labeled::Block {
     double textY = 0;
     double textWidth = 0;
     double textHeight = 0;
+    float fontSize = 0.f;
 };
 
 Labeled::Labeled(std::string text) : text_(std::move(text)) {}
@@ -98,13 +99,43 @@ std::string Labeled::displayedText() const {
     if (!showsText()) {
         return {};
     }
-    const Font face(computedStyle().fontFamily, computedStyle().fontSize);
-    return FitLine(face, text_, arrange().textWidth);
+    const Block block = arrange();
+    return FitLine(Font(computedStyle().fontFamily, block.fontSize), text_, block.textWidth);
 }
 
 void Labeled::setTextFill(const Color& color) { setTextFillInternal(color, true); }
 
 void Labeled::setFont(const Font& font) { setFontInternal(font, true); }
+
+float Labeled::displayedFontSize() const { return arrange().fontSize; }
+
+float Labeled::scaledFontSize(double width, double height) const {
+    const ComputedStyle& style = computedStyle();
+    const float base = style.fontSize > 0.f ? style.fontSize : 16.f;
+    ScaledFit& fit = scaledFit_;
+    if (fit.text == text_ && fit.family == style.fontFamily && fit.base == base && fit.width == width &&
+        fit.height == height) {
+        return fit.size;
+    }
+    float size = base;
+    const ShapedText measured = Font(style.fontFamily, base).shape(text_);
+    if (width > 0.0 && height > 0.0 && measured.width > 0.f && measured.height > 0.f) {
+        // Text grows about in proportion to its size, so one ratio lands near
+        // the answer. Hinting can leave it a little over, which the loop takes back.
+        const double ratio = std::min(width / measured.width, height / measured.height);
+        size = static_cast<float>(std::clamp(base * ratio, 1.0, static_cast<double>(kMaxScaledFontSize)));
+        for (int step = 0; step < 16 && size > 1.f; ++step) {
+            const ShapedText shaped = Font(style.fontFamily, size).shape(text_);
+            if (shaped.width <= width && shaped.height <= height) {
+                break;
+            }
+            const double over = std::min(width / shaped.width, height / shaped.height);
+            size = std::max(1.f, std::min(static_cast<float>(size * over), size - 0.25f));
+        }
+    }
+    fit = ScaledFit{text_, style.fontFamily, base, width, height, size};
+    return size;
+}
 
 void Labeled::setGraphic(std::shared_ptr<Node> graphic) {
     if (graphic == graphic_) {
@@ -146,11 +177,14 @@ Labeled::Block Labeled::arrange() const {
     const bool sideways = contentDisplay_ == ContentDisplay::Left || contentDisplay_ == ContentDisplay::Right;
     const bool stacked = contentDisplay_ == ContentDisplay::Top || contentDisplay_ == ContentDisplay::Bottom;
     const double gap = text && graphic && (sideways || stacked) ? graphicTextGap_ : 0.0;
+    block.fontSize = computedStyle().fontSize;
     if (text) {
-        const Font face(computedStyle().fontFamily, computedStyle().fontSize);
-        const ShapedText shaped = face.shape(text_);
         // The text gives up width first, and ends in an ellipsis.
         const double room = sideways ? boxWidth - block.graphicWidth - gap : boxWidth;
+        if (textScaled_) {
+            block.fontSize = scaledFontSize(room, stacked ? boxHeight - block.graphicHeight - gap : boxHeight);
+        }
+        const ShapedText shaped = Font(computedStyle().fontFamily, block.fontSize).shape(text_);
         block.textWidth = std::max(0.0, std::min(static_cast<double>(shaped.width), room));
         block.textHeight = shaped.height;
     }
@@ -238,7 +272,7 @@ void Labeled::renderContent(UiRenderer& renderer, float opacity) {
         return;
     }
     const Block block = arrange();
-    const Font face(computedStyle().fontFamily, computedStyle().fontSize);
+    const Font face(computedStyle().fontFamily, block.fontSize);
     const std::string shown = FitLine(face, text_, block.textWidth);
     if (shown.empty()) {
         return;
@@ -246,7 +280,7 @@ void Labeled::renderContent(UiRenderer& renderer, float opacity) {
     Color color = computedStyle().color;
     color.a *= opacity;
     renderer.text(static_cast<float>(getAbsoluteX() + block.textX), static_cast<float>(getAbsoluteY() + block.textY),
-                  shown, computedStyle().fontFamily, computedStyle().fontSize, color, computedStyle().subpixel);
+                  shown, computedStyle().fontFamily, block.fontSize, color, computedStyle().subpixel);
 }
 
 }  // namespace jadefx

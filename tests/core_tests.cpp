@@ -59,6 +59,47 @@ void TestLabeledGraphic() {
     Expect(label->getGraphic() == nullptr, "a graphic taken by another parent leaves the label");
 }
 
+void TestLabeledTextScaled() {
+    auto label = jadefx::make<jadefx::Label>("Text");
+    auto button = jadefx::make<jadefx::Button>("Go");
+    auto root = jadefx::make<jadefx::Pane>();
+    root->getChildren().add(label);
+    root->getChildren().add(button);
+    auto scene = jadefx::make<jadefx::Scene>(root, 400, 400);
+    scene->layout(400, 400, 0);
+    Expect(Near(label->displayedFontSize(), 16), "an unscaled label draws at its font size");
+
+    label->setTextScaled(true);
+    scene->layout(400, 400, 0);
+    Expect(Near(label->getWidth(), jadefx::Font("Open Sans", 16).measureWidth("Text")),
+           "scaling leaves the preferred size to the font size");
+
+    label->setPrefSize(300, 200);
+    scene->layout(400, 400, 0);
+    const float wide = label->displayedFontSize();
+    const jadefx::ShapedText shaped = jadefx::Font("Open Sans", wide).shape("Text");
+    Expect(wide > 16 && shaped.width <= 300 && shaped.height <= 200, "scaled text grows to fit its box");
+    Expect(shaped.width > 290 || shaped.height > 190, "scaled text fills the box on one axis");
+    Expect(label->displayedText() == "Text", "scaled text is never cut short");
+
+    label->setPrefSize(30, 200);
+    scene->layout(400, 400, 0);
+    Expect(label->displayedFontSize() < 16 && label->displayedText() == "Text", "scaled text shrinks to fit a narrow box");
+
+    label->setStyle("font-size: 40px;");
+    scene->layout(400, 400, 0);
+    Expect(label->displayedFontSize() < 16, "a stylesheet font size does not stop the scaling");
+
+    button->setTextScaled(true);
+    button->setPrefSize(200, 100);
+    scene->layout(400, 400, 0);
+    Expect(button->displayedFontSize() > 16, "a button scales its text too");
+
+    label->setTextScaled(false);
+    scene->layout(400, 400, 0);
+    Expect(Near(label->displayedFontSize(), 40), "turning scaling off goes back to the font size");
+}
+
 void TestListListeners() {
     jadefx::ObservableList<int> list;
     std::vector<std::string> log;
@@ -178,6 +219,7 @@ void TestPickOnBounds() {
 int RunCoreTests() {
     TestPickOnBounds();
     TestLabeledGraphic();
+    TestLabeledTextScaled();
     TestListListeners();
     TestClickCountAndFocus();
     TestNthChild();
