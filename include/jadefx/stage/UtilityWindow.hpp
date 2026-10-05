@@ -41,6 +41,7 @@ private:
     friend void closeFlaggedDesktopWindows();
     friend void shutdownDesktopWindows();
     friend bool drawDesktopWindows();
+    friend bool desktopWindowFocused();
     friend bool stageToScreen(const Stage& stage, double x, double y, double& screenX, double& screenY);
     friend bool windowUnderScreen(double screenX, double screenY, Stage*& stage, double& localX, double& localY);
     friend bool moveStageTo(Stage& stage, double screenX, double screenY);

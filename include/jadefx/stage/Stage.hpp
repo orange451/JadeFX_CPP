@@ -79,7 +79,8 @@ public:
     // both caps, for example JADEFX_MAX_FPS=0 to measure uncapped.
     void setMaxFrameRate(double fps) { maxFrameRate_ = fps < 0 ? 0 : fps; }
     double getMaxFrameRate() const { return maxFrameRate_; }
-    // The cap while the window is in the background, unfocused or minimized. 30 by default.
+    // The cap while the app is in the background: no window of it has the keyboard,
+    // or the main window is minimized and no utility window has it. 30 by default.
     void setBackgroundFrameRate(double fps) { backgroundFrameRate_ = fps < 0 ? 0 : fps; }
     double getBackgroundFrameRate() const { return backgroundFrameRate_; }
     // The window has the system's keyboard focus, as JavaFX's Window.isFocused.

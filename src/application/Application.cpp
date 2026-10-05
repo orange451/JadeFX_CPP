@@ -192,7 +192,9 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
 
     double nextFrame = GlfwHost::now();
     while (!host.shouldClose()) {
-        const bool background = host.isIconified() || !stage.isFocused();
+        // The app keeps its full rate while any of its windows has the keyboard, so
+        // Preferences or a floating panel in front does not throttle the main window.
+        const bool background = (host.isIconified() || !stage.isFocused()) && !desktopWindowFocused();
         const double fps = forcedFrameRate >= 0 ? forcedFrameRate
                            : background         ? stage.getBackgroundFrameRate()
                                                 : stage.getMaxFrameRate();

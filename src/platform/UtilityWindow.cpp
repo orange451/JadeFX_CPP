@@ -79,6 +79,12 @@ bool drawDesktopWindows() {
     return true;
 }
 
+bool desktopWindowFocused() {
+    return std::any_of(gWindows.begin(), gWindows.end(), [](const UtilityWindow* window) {
+        return window != nullptr && window->isOpen() && window->stage_.isFocused();
+    });
+}
+
 UtilityWindow::~UtilityWindow() { close(); }
 
 GLFWwindow* UtilityWindow::native() const { return host_ ? host_->glfw.handle() : nullptr; }

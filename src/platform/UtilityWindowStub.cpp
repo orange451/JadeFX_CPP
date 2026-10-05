@@ -8,6 +8,7 @@ void bindDesktopPrimary(GlfwHost&, Stage&) {}
 void shutdownDesktopWindows() {}
 void closeFlaggedDesktopWindows() {}
 bool drawDesktopWindows() { return true; }
+bool desktopWindowFocused() { return false; }
 
 struct UtilityWindow::Host {};
 
