@@ -91,6 +91,31 @@ void TestDefineWithoutVersion() {
            "a #version inside a line comment is not the version line");
 }
 
+// LoadShaderSource returns Preamble() followed by the file. Preamble is
+// private to Resources.cpp, so these strings match what it writes: desktop
+// GL, and GL ES for text.frag, whose #extension must stay before anything but
+// other directives.
+void TestDefineInDesktopPreamble() {
+    const std::string body = "in vec2 vUv;\n\nuniform sampler2D uTex;\n";
+    const std::string source = "#version 330 core\n" + body;
+    Expect(jadefx::WithShaderDefine(source, "JADEFX_OCCLUDER") ==
+               "#version 330 core\n#define JADEFX_OCCLUDER\n" + body,
+           "with the desktop preamble the define follows #version");
+}
+
+void TestDefineInGlesPreamble() {
+    const std::string body = "in vec2 vUv;\n\nuniform sampler2D uTex;\n";
+    const std::string source = "#version 300 es\n#extension GL_EXT_blend_func_extended : require\n"
+                               "precision highp float;\n" +
+                               body;
+    const std::string result = jadefx::WithShaderDefine(source, "JADEFX_OCCLUDER");
+    Expect(result == "#version 300 es\n#define JADEFX_OCCLUDER\n#extension GL_EXT_blend_func_extended : require\n"
+                     "precision highp float;\n" +
+                         body,
+           "with the GL ES preamble the define follows #version, before #extension and precision");
+    Expect(result.rfind("#version 300 es\n", 0) == 0, "and #version is still first");
+}
+
 }  // namespace
 
 int RunOccluderTests() {
@@ -103,5 +128,7 @@ int RunOccluderTests() {
     TestDefineWithWindowsLineEnds();
     TestDefineWithVersionLast();
     TestDefineWithoutVersion();
+    TestDefineInDesktopPreamble();
+    TestDefineInGlesPreamble();
     return gFailures;
 }
