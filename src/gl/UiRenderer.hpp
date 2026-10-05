@@ -54,6 +54,14 @@ public:
     // pending batch must be flushed whenever the occluder is set or cleared,
     // or draws queued before the change would be hidden by the new occluder,
     // or shown without the old one.
+    //
+    // The texture contract: JadeFX owns texture unit kOccluderUnit (7) for the
+    // whole frame. begin binds a stand-in there, and setOccluder and
+    // clearOccluder bind the occluder or the stand-in when it changes; a draw
+    // binds nothing there. Any code that draws GL between UI draws, such as a
+    // 3D view, must leave every texture unit's bindings as it found them, and
+    // GL_TEXTURE0 active. An occluder lasts until clearOccluder or the next
+    // begin. Without a GL context the state is kept and nothing is bound.
     void setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth);
     void clearOccluder();
     const Occluder& occluder() const { return occluder_; }
@@ -124,6 +132,8 @@ private:
         unsigned sent = ~0u;
     };
     void sendOccluder(OccluderSlots& slots);
+    // Binds texture to kOccluderUnit, then makes GL_TEXTURE0 active again.
+    void bindOccluderUnit(unsigned texture);
     OccluderSlots boxOccluder_;
     OccluderSlots textOccluder_;
     OccluderSlots imageOccluder_;

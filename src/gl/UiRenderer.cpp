@@ -149,7 +149,7 @@ bool UiRenderer::initialize() {
 
     // uOccluder is sampled even while uOccluded is 0, so a texture is always
     // bound at its unit: red 255 reads back as depth 1.0, the far plane, so
-    // this one never occludes anything while it is what sendOccluder binds.
+    // this one never occludes anything while it is bound there instead.
     glGenTextures(1, &occluderDummy_);
     glBindTexture(GL_TEXTURE_2D, occluderDummy_);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -298,6 +298,16 @@ void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixels
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_SCISSOR_TEST);
     clips_.clear();
+    // JadeFX owns kOccluderUnit for the frame. It is bound here, once, and
+    // again only when the occluder changes, so a draw binds nothing there. An
+    // occluder lasts only for the frame it was set in: its depth texture may be
+    // gone by the next one, so the frame starts with none, and with the dummy.
+    if (occluder_.active() || occluder_.texture != 0) {
+        const unsigned revision = occluder_.revision + 1;
+        occluder_ = Occluder{};
+        occluder_.revision = revision;
+    }
+    bindOccluderUnit(occluderDummy_);
     if (clearColor) {
         glClearColor(clear.r, clear.g, clear.b, clear.a);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -366,25 +376,42 @@ void UiRenderer::setOccluder(unsigned depthTexture, int x, int y, int width, int
         return;
     }
     next.revision = occluder_.revision + 1;
+    const bool rebind = next.active() != occluder_.active() || (next.active() && next.texture != occluder_.texture);
     occluder_ = next;
+    if (rebind) {
+        bindOccluderUnit(occluder_.active() ? occluder_.texture : occluderDummy_);
+    }
 }
 
 void UiRenderer::clearOccluder() {
     if (!occluder_.active() && occluder_.texture == 0) {
         return;
     }
+    const bool wasActive = occluder_.active();
     const unsigned revision = occluder_.revision + 1;
     occluder_ = Occluder{};
     occluder_.revision = revision;
+    if (wasActive) {
+        bindOccluderUnit(occluderDummy_);
+    }
+}
+
+void UiRenderer::bindOccluderUnit(unsigned texture) {
+    // Without a context, as in the tests, the state is kept and nothing is bound.
+    if (!ready_) {
+        return;
+    }
+    glActiveTexture(GL_TEXTURE0 + kOccluderUnit);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    // Every other draw binds its texture to unit 0, and expects it active.
+    glActiveTexture(GL_TEXTURE0);
 }
 
 void UiRenderer::sendOccluder(OccluderSlots& slots) {
+    // The texture is already bound to kOccluderUnit, by begin, setOccluder,
+    // or clearOccluder, and anything drawn between UI draws leaves it there.
+    // Only the uniforms are sent, and only when the occluder has changed.
     const bool on = occluder_.active();
-    // Bound on every draw, on or off: a 3D view drawn between UI draws binds
-    // its own textures, and the dummy keeps the unit loadable while off.
-    glActiveTexture(GL_TEXTURE0 + kOccluderUnit);
-    glBindTexture(GL_TEXTURE_2D, on ? occluder_.texture : occluderDummy_);
-    glActiveTexture(GL_TEXTURE0);
     if (slots.sent == occluder_.revision) {
         return;
     }
