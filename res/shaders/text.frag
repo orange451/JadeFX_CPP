@@ -23,8 +23,8 @@ bool occluded() {
     }
     return texture(uOccluder, uv).r < uOccluderDepth;
 }
-#endif
 
+#endif
 // uTex.rgb is coverage of the red, green, and blue stripes. The second output
 // is the blend factor, so each stripe composites against the framebuffer on its own.
 layout(location = 0, index = 0) out vec4 fragColor;

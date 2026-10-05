@@ -24,8 +24,8 @@ bool occluded() {
     }
     return texture(uOccluder, uv).r < uOccluderDepth;
 }
-#endif
 
+#endif
 out vec4 fragColor;
 
 void main() {

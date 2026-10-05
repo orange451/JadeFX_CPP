@@ -27,8 +27,8 @@ bool occluded() {
     }
     return texture(uOccluder, uv).r < uOccluderDepth;
 }
-#endif
 
+#endif
 out vec4 fragColor;
 
 // uParams: mode, exact edges, blur radius, gradient angle in degrees.
