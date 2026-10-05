@@ -1,6 +1,7 @@
 #include "UiRenderer.hpp"
 
 #include "Resources.hpp"
+#include "ShaderDefine.hpp"
 #include "gl.hpp"
 #include "internal/Subpixel.hpp"
 #include "platform/ErrorDialog.hpp"
@@ -12,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <vector>
@@ -97,68 +99,42 @@ bool UiRenderer::initialize() {
         return false;
     }
 
-    boxProgram_ = jadefx_LinkShaderProgram(boxVertex, boxFragment, "Box");
-    boxUniforms_.reset();
-    textProgram_ = jadefx_LinkShaderProgram(textVertex, textFragment, "Text");
-    subpixel_ = textProgram_ != 0;
+    // Each fragment shader is linked twice: plain, and with JADEFX_OCCLUDER
+    // defined, for draws while an occluder is set. Only the occluded programs
+    // sample a texture at kOccluderUnit, so an app that never sets an occluder
+    // pays nothing for it and leaves that unit to the app.
+    const auto occludedSource = [](const std::string& source) {
+        return WithShaderDefine(source, "JADEFX_OCCLUDER");
+    };
+    box_.id = jadefx_LinkShaderProgram(boxVertex, boxFragment, "Box");
+    text_.id = jadefx_LinkShaderProgram(textVertex, textFragment, "Text");
+    subpixel_ = text_.id != 0;
     if (!subpixel_) {
         std::fprintf(stderr, "LCD subpixel text is unavailable. Using grayscale coverage.\n");
-        textProgram_ = jadefx_LinkShaderProgram(textVertex, textGray, "Text");
+        text_.id = jadefx_LinkShaderProgram(textVertex, textGray, "Text");
     }
-    imageProgram_ = jadefx_LinkShaderProgram(imageVertex, imageFragment, "Image");
-    if (boxProgram_ == 0 || textProgram_ == 0 || imageProgram_ == 0) {
+    image_.id = jadefx_LinkShaderProgram(imageVertex, imageFragment, "Image");
+    if (box_.id == 0 || text_.id == 0 || image_.id == 0) {
         shutdown();
         return false;
     }
-
-    boxRect_ = Location(boxProgram_, "uRect");
-    boxViewport_ = Location(boxProgram_, "uViewport");
-    boxBox_ = Location(boxProgram_, "uBox");
-    boxRadii_ = Location(boxProgram_, "uRadii");
-    boxParams_ = Location(boxProgram_, "uParams");
-    boxBorder_ = Location(boxProgram_, "uBorder");
-    boxClip_ = Location(boxProgram_, "uClip");
-    boxClipRadii_ = Location(boxProgram_, "uClipRadii");
-    boxStopCount_ = Location(boxProgram_, "uStopCount");
-    for (int i = 0; i < 8; ++i) {
-        const std::string stop = "uStops[" + std::to_string(i) + "]";
-        const std::string at = "uStopAt[" + std::to_string(i) + "]";
-        boxStops_[i] = Location(boxProgram_, stop.c_str());
-        boxStopAt_[i] = Location(boxProgram_, at.c_str());
+    // An occluded program that fails to link stays 0: the occluder then hides
+    // nothing for that kind of draw, and the UI draws as it would without it.
+    boxOccluded_.id = jadefx_LinkShaderProgram(boxVertex, occludedSource(boxFragment), "Occluded box");
+    textOccluded_.id =
+        jadefx_LinkShaderProgram(textVertex, occludedSource(subpixel_ ? textFragment : textGray), "Occluded text");
+    imageOccluded_.id = jadefx_LinkShaderProgram(imageVertex, occludedSource(imageFragment), "Occluded image");
+    if (boxOccluded_.id == 0 || textOccluded_.id == 0 || imageOccluded_.id == 0) {
+        std::fprintf(stderr, "A UI occluder shader did not link. UI drawn inside a 3D view will show through what "
+                             "is in front of it.\n");
     }
-    textViewport_ = Location(textProgram_, "uViewport");
-    textColor_ = Location(textProgram_, "uColor");
-    textGamma_ = Location(textProgram_, "uGamma");
-    textSampler_ = Location(textProgram_, "uTex");
-    imageViewport_ = Location(imageProgram_, "uViewport");
-    imageOpacity_ = Location(imageProgram_, "uOpacity");
-    imageSampler_ = Location(imageProgram_, "uTex");
-    imageTint_ = Location(imageProgram_, "uTint");
-    imageTinted_ = Location(imageProgram_, "uTinted");
 
-    const auto occluderSlots = [](unsigned program, OccluderSlots& slots) {
-        slots.texture = Location(program, "uOccluder");
-        slots.rect = Location(program, "uOccluderRect");
-        slots.depth = Location(program, "uOccluderDepth");
-        slots.on = Location(program, "uOccluded");
-        slots.sent = ~0u;
-    };
-    occluderSlots(boxProgram_, boxOccluder_);
-    occluderSlots(textProgram_, textOccluder_);
-    occluderSlots(imageProgram_, imageOccluder_);
-
-    // uOccluder is sampled even while uOccluded is 0, so a texture is always
-    // bound at its unit: red 255 reads back as depth 1.0, the far plane, so
-    // this one never occludes anything while it is bound there instead.
-    glGenTextures(1, &occluderDummy_);
-    glBindTexture(GL_TEXTURE_2D, occluderDummy_);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    const unsigned char farDepth = 255;
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, 1, 1, 0, GL_RED, GL_UNSIGNED_BYTE, &farDepth);
-    glBindTexture(GL_TEXTURE_2D, 0);
+    locateBox(box_);
+    locateBox(boxOccluded_);
+    locateText(text_);
+    locateText(textOccluded_);
+    locateImage(image_);
+    locateImage(imageOccluded_);
 
     const float quad[] = {0.f, 0.f, 1.f, 0.f, 1.f, 1.f, 0.f, 0.f, 1.f, 1.f, 0.f, 1.f};
     glGenVertexArrays(1, &boxVao_);
@@ -209,6 +185,58 @@ bool UiRenderer::initialize() {
     return true;
 }
 
+void UiRenderer::locateBox(BoxProgram& program) {
+    const unsigned id = program.id;
+    program.rect = Location(id, "uRect");
+    program.viewport = Location(id, "uViewport");
+    program.box = Location(id, "uBox");
+    program.radii = Location(id, "uRadii");
+    program.params = Location(id, "uParams");
+    program.border = Location(id, "uBorder");
+    program.clip = Location(id, "uClip");
+    program.clipRadii = Location(id, "uClipRadii");
+    program.stopCount = Location(id, "uStopCount");
+    for (int i = 0; i < 8; ++i) {
+        const std::string stop = "uStops[" + std::to_string(i) + "]";
+        const std::string at = "uStopAt[" + std::to_string(i) + "]";
+        program.stops[i] = Location(id, stop.c_str());
+        program.stopAt[i] = Location(id, at.c_str());
+    }
+    program.uniforms.reset();
+    locateOccluder(id, program.occluder);
+}
+
+void UiRenderer::locateText(TextProgram& program) {
+    const unsigned id = program.id;
+    program.viewport = Location(id, "uViewport");
+    program.color = Location(id, "uColor");
+    program.gamma = Location(id, "uGamma");
+    program.sampler = Location(id, "uTex");
+    locateOccluder(id, program.occluder);
+}
+
+void UiRenderer::locateImage(ImageProgram& program) {
+    const unsigned id = program.id;
+    program.viewport = Location(id, "uViewport");
+    program.opacity = Location(id, "uOpacity");
+    program.sampler = Location(id, "uTex");
+    program.tint = Location(id, "uTint");
+    program.tinted = Location(id, "uTinted");
+    locateOccluder(id, program.occluder);
+}
+
+void UiRenderer::locateOccluder(unsigned program, OccluderSlots& slots) {
+    // A program that did not link, or a plain one, has no occluder uniforms,
+    // and every location stays -1.
+    slots = OccluderSlots{};
+    if (program == 0) {
+        return;
+    }
+    slots.texture = Location(program, "uOccluder");
+    slots.rect = Location(program, "uOccluderRect");
+    slots.depth = Location(program, "uOccluderDepth");
+}
+
 void UiRenderer::allocateAtlas(int size) {
     // Blank, not left undefined: the texel between two glyphs must be empty, or
     // the grayscale atlas's linear filter would draw an edge of its neighbor.
@@ -243,10 +271,6 @@ void UiRenderer::shutdown() {
         glDeleteTextures(1, &atlas_);
         atlas_ = 0;
     }
-    if (occluderDummy_ != 0) {
-        glDeleteTextures(1, &occluderDummy_);
-        occluderDummy_ = 0;
-    }
     if (textVbo_ != 0) {
         glDeleteBuffers(1, &textVbo_);
         textVbo_ = 0;
@@ -263,19 +287,15 @@ void UiRenderer::shutdown() {
         glDeleteVertexArrays(1, &boxVao_);
         boxVao_ = 0;
     }
-    if (textProgram_ != 0) {
-        glDeleteProgram(textProgram_);
-        textProgram_ = 0;
+    for (unsigned* program : {&box_.id, &boxOccluded_.id, &text_.id, &textOccluded_.id, &image_.id,
+                              &imageOccluded_.id}) {
+        if (*program != 0) {
+            glDeleteProgram(*program);
+            *program = 0;
+        }
     }
-    if (imageProgram_ != 0) {
-        glDeleteProgram(imageProgram_);
-        imageProgram_ = 0;
-    }
-    if (boxProgram_ != 0) {
-        glDeleteProgram(boxProgram_);
-        boxProgram_ = 0;
-        boxUniforms_.reset();
-    }
+    box_.uniforms.reset();
+    boxOccluded_.uniforms.reset();
     for (GpuImage& image : gpuImages_) {
         if (image.texture != 0) {
             glDeleteTextures(1, &image.texture);
@@ -298,16 +318,14 @@ void UiRenderer::begin(int framebufferWidth, int framebufferHeight, float pixels
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_SCISSOR_TEST);
     clips_.clear();
-    // JadeFX owns kOccluderUnit for the frame. It is bound here, once, and
-    // again only when the occluder changes, so a draw binds nothing there. An
-    // occluder lasts only for the frame it was set in: its depth texture may be
-    // gone by the next one, so the frame starts with none, and with the dummy.
+    // An occluder lasts only for the frame it was set in: its depth texture
+    // may be gone by the next one, so the frame starts with none. Nothing is
+    // bound at kOccluderUnit here; only setOccluder binds there.
     if (occluder_.active() || occluder_.texture != 0) {
         const unsigned revision = occluder_.revision + 1;
         occluder_ = Occluder{};
         occluder_.revision = revision;
     }
-    bindOccluderUnit(occluderDummy_);
     if (clearColor) {
         glClearColor(clear.r, clear.g, clear.b, clear.a);
         glClear(GL_COLOR_BUFFER_BIT);
@@ -376,10 +394,17 @@ void UiRenderer::setOccluder(unsigned depthTexture, int x, int y, int width, int
         return;
     }
     next.revision = occluder_.revision + 1;
-    const bool rebind = next.active() != occluder_.active() || (next.active() && next.texture != occluder_.texture);
+    // Bound only when the texture changes: while one occluder is set, the
+    // caller leaves kOccluderUnit as JadeFX left it. After clearOccluder or a
+    // new frame the caller may have used the unit, so it is bound again then.
+    const bool bind = next.active() && (!occluder_.active() || next.texture != occluder_.texture);
     occluder_ = next;
-    if (rebind) {
-        bindOccluderUnit(occluder_.active() ? occluder_.texture : occluderDummy_);
+    // Without a context, as in the tests, the state is kept and nothing is bound.
+    if (bind && ready_) {
+        glActiveTexture(GL_TEXTURE0 + kOccluderUnit);
+        glBindTexture(GL_TEXTURE_2D, occluder_.texture);
+        // Every draw binds its own texture to unit 0, and expects it active.
+        glActiveTexture(GL_TEXTURE0);
     }
 }
 
@@ -387,31 +412,21 @@ void UiRenderer::clearOccluder() {
     if (!occluder_.active() && occluder_.texture == 0) {
         return;
     }
-    const bool wasActive = occluder_.active();
+    // kOccluderUnit is left as it is: from now on only plain programs draw,
+    // and they sample nothing there, so unbinding it would be a GL call for
+    // nothing. The unit is the app's again, to bind or leave as it likes.
     const unsigned revision = occluder_.revision + 1;
     occluder_ = Occluder{};
     occluder_.revision = revision;
-    if (wasActive) {
-        bindOccluderUnit(occluderDummy_);
-    }
-}
-
-void UiRenderer::bindOccluderUnit(unsigned texture) {
-    // Without a context, as in the tests, the state is kept and nothing is bound.
-    if (!ready_) {
-        return;
-    }
-    glActiveTexture(GL_TEXTURE0 + kOccluderUnit);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    // Every other draw binds its texture to unit 0, and expects it active.
-    glActiveTexture(GL_TEXTURE0);
 }
 
 void UiRenderer::sendOccluder(OccluderSlots& slots) {
-    // The texture is already bound to kOccluderUnit, by begin, setOccluder,
-    // or clearOccluder, and anything drawn between UI draws leaves it there.
-    // Only the uniforms are sent, and only when the occluder has changed.
-    const bool on = occluder_.active();
+    // setOccluder bound the texture to kOccluderUnit, and the caller leaves it
+    // there while the occluder is set. Only the uniforms are sent, and only
+    // when the occluder has changed since this program last had them.
+    if (slots.texture < 0 && slots.rect < 0 && slots.depth < 0) {
+        return;
+    }
     if (slots.sent == occluder_.revision) {
         return;
     }
@@ -419,7 +434,6 @@ void UiRenderer::sendOccluder(OccluderSlots& slots) {
     glUniform1i(slots.texture, kOccluderUnit);
     glUniform4f(slots.rect, occluder_.rect[0], occluder_.rect[1], occluder_.rect[2], occluder_.rect[3]);
     glUniform1f(slots.depth, occluder_.depth);
-    glUniform1f(slots.on, on ? 1.f : 0.f);
 }
 
 void UiRenderer::drawBox(float x, float y, float width, float height, float boxX, float boxY, float boxW, float boxH,
@@ -434,62 +448,64 @@ void UiRenderer::drawBox(float x, float y, float width, float height, float boxX
     const int count = std::min(stopCount, 8);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     // Always bound: other code, such as a 3D view drawn between UI draws, binds its own.
-    glUseProgram(boxProgram_);
-    sendOccluder(boxOccluder_);
-    // A uniform keeps its value in its program, so only what changed is sent.
-    UniformCache& u = boxUniforms_;
+    BoxProgram& program = pick(box_, boxOccluded_);
+    glUseProgram(program.id);
+    sendOccluder(program.occluder);
+    // A uniform keeps its value in its program, so only what changed is sent;
+    // each program has its own cache.
+    UniformCache& u = program.uniforms;
     if (u.changed(kBoxRect, x * s, y * s, width * s, height * s)) {
-        glUniform4f(boxRect_, x * s, y * s, width * s, height * s);
+        glUniform4f(program.rect, x * s, y * s, width * s, height * s);
     }
     const float vw = static_cast<float>(viewportW_);
     const float vh = static_cast<float>(viewportH_);
     if (u.changed(kBoxViewport, vw, vh)) {
-        glUniform2f(boxViewport_, vw, vh);
+        glUniform2f(program.viewport, vw, vh);
     }
     if (u.changed(kBoxBox, boxX * s, boxY * s, boxW * s, boxH * s)) {
-        glUniform4f(boxBox_, boxX * s, boxY * s, boxW * s, boxH * s);
+        glUniform4f(program.box, boxX * s, boxY * s, boxW * s, boxH * s);
     }
     if (u.changed(kBoxRadii, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s)) {
-        glUniform4f(boxRadii_, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s);
+        glUniform4f(program.radii, radius[0] * s, radius[1] * s, radius[2] * s, radius[3] * s);
     }
     const float edge = exact ? 1.f : 0.f;
     const float soft = std::max(blur * s, 0.f);
     if (u.changed(kBoxParams, mode, edge, soft, angleDeg)) {
-        glUniform4f(boxParams_, mode, edge, soft, angleDeg);
+        glUniform4f(program.params, mode, edge, soft, angleDeg);
     }
     const float top = sides != nullptr ? sides[0] * s : 0.f;
     const float right = sides != nullptr ? sides[1] * s : 0.f;
     const float bottom = sides != nullptr ? sides[2] * s : 0.f;
     const float left = sides != nullptr ? sides[3] * s : 0.f;
     if (u.changed(kBoxBorder, top, right, bottom, left)) {
-        glUniform4f(boxBorder_, top, right, bottom, left);
+        glUniform4f(program.border, top, right, bottom, left);
     }
     const float c0 = clip != nullptr ? clip[0] * s : 0.f;
     const float c1 = clip != nullptr ? clip[1] * s : 0.f;
     const float c2 = clip != nullptr ? clip[2] * s : 0.f;
     const float c3 = clip != nullptr ? clip[3] * s : 0.f;
     if (u.changed(kBoxClip, c0, c1, c2, c3)) {
-        glUniform4f(boxClip_, c0, c1, c2, c3);
+        glUniform4f(program.clip, c0, c1, c2, c3);
     }
     const float r0 = clipRadii != nullptr ? clipRadii[0] * s : 0.f;
     const float r1 = clipRadii != nullptr ? clipRadii[1] * s : 0.f;
     const float r2 = clipRadii != nullptr ? clipRadii[2] * s : 0.f;
     const float r3 = clipRadii != nullptr ? clipRadii[3] * s : 0.f;
     if (u.changed(kBoxClipRadii, r0, r1, r2, r3)) {
-        glUniform4f(boxClipRadii_, r0, r1, r2, r3);
+        glUniform4f(program.clipRadii, r0, r1, r2, r3);
     }
     if (u.changed(kBoxStopCount, static_cast<float>(count))) {
-        glUniform1f(boxStopCount_, static_cast<float>(count));
+        glUniform1f(program.stopCount, static_cast<float>(count));
     }
     // box.frag reads only the first uStopCount stops, so the rest are left as they are.
     for (int i = 0; i < count; ++i) {
         const Color& color = stops[i];
         const float at = stopAt != nullptr ? stopAt[i] : 1.f;
         if (u.changed(kBoxStop0 + i, color.r, color.g, color.b, color.a)) {
-            glUniform4f(boxStops_[i], color.r, color.g, color.b, color.a);
+            glUniform4f(program.stops[i], color.r, color.g, color.b, color.a);
         }
         if (u.changed(kBoxStopAt0 + i, at)) {
-            glUniform1f(boxStopAt_[i], at);
+            glUniform1f(program.stopAt[i], at);
         }
     }
     glBindVertexArray(boxVao_);
@@ -735,18 +751,19 @@ void UiRenderer::text(float x, float y, const std::string& utf8, const std::stri
         return;
     }
 
-    glUseProgram(textProgram_);
-    sendOccluder(textOccluder_);
+    TextProgram& program = pick(text_, textOccluded_);
+    glUseProgram(program.id);
+    sendOccluder(program.occluder);
     if (subpixel_) {
         glBlendFunc(GL_SRC1_COLOR, GL_ONE_MINUS_SRC1_COLOR);
     } else {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
-    glUniform2f(textViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
-    glUniform4f(textColor_, color.r, color.g, color.b, color.a);
+    glUniform2f(program.viewport, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
+    glUniform4f(program.color, color.r, color.g, color.b, color.a);
     const TextGamma& gamma = lcd ? kStripeGamma : kGrayGamma;
-    glUniform3f(textGamma_, gamma.gamma, gamma.contrast, lcd ? 0.f : 1.f);
-    glUniform1i(textSampler_, 0);
+    glUniform3f(program.gamma, gamma.gamma, gamma.contrast, lcd ? 0.f : 1.f);
+    glUniform1i(program.sampler, 0);
     glBindTexture(GL_TEXTURE_2D, atlas_);
     glBindVertexArray(textVao_);
     glBindBuffer(GL_ARRAY_BUFFER, textVbo_);
@@ -800,7 +817,7 @@ unsigned UiRenderer::imageTexture(const std::shared_ptr<ImageData>& image) {
 
 void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, float y, float width, float height,
                            float opacity, const Color* tint) {
-    if (!ready_ || imageProgram_ == 0 || opacity <= 0.f || width <= 0.f || height <= 0.f || viewportW_ <= 0 ||
+    if (!ready_ || image_.id == 0 || opacity <= 0.f || width <= 0.f || height <= 0.f || viewportW_ <= 0 ||
         viewportH_ <= 0) {
         return;
     }
@@ -820,15 +837,16 @@ void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, flo
     };
 
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glUseProgram(imageProgram_);
-    sendOccluder(imageOccluder_);
-    glUniform2f(imageViewport_, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
-    glUniform1f(imageOpacity_, opacity);
-    glUniform1i(imageSampler_, 0);
+    ImageProgram& program = pick(image_, imageOccluded_);
+    glUseProgram(program.id);
+    sendOccluder(program.occluder);
+    glUniform2f(program.viewport, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
+    glUniform1f(program.opacity, opacity);
+    glUniform1i(program.sampler, 0);
     if (tint != nullptr) {
-        glUniform4f(imageTint_, tint->r, tint->g, tint->b, tint->a);
+        glUniform4f(program.tint, tint->r, tint->g, tint->b, tint->a);
     }
-    glUniform1f(imageTinted_, tint != nullptr ? 1.f : 0.f);
+    glUniform1f(program.tinted, tint != nullptr ? 1.f : 0.f);
     glBindTexture(GL_TEXTURE_2D, texture);
     glBindVertexArray(textVao_);
     glBindBuffer(GL_ARRAY_BUFFER, textVbo_);

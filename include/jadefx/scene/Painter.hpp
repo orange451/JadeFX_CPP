@@ -34,13 +34,15 @@ public:
     // nearer than depth is not drawn. For UI drawn inside a 3D view. It lasts
     // until clearOccluder or the end of the frame.
     //
-    // JadeFX binds texture unit 7 to the occluder, or to a stand-in, once a
-    // frame and again only when the occluder changes. So any GL drawn between
-    // UI draws, such as a 3D view, must leave unit 7's 2D binding as it found
-    // it, and GL_TEXTURE0 active. Other units are free: JadeFX binds unit 0
-    // again on every text and image draw. Unit 7 left empty draws wrong UI
-    // pixels; bound back to a deleted texture, it is a GL error, which stops
-    // the app.
+    // An app that never calls setOccluder has no texture-unit requirements:
+    // JadeFX then binds textures only at unit 0. setOccluder binds the depth
+    // texture to unit 7, and UI draws sample it there until clearOccluder. So
+    // between the two, any GL drawn between UI draws, such as a 3D view, must
+    // leave unit 7's 2D binding as it found it, and GL_TEXTURE0 active, and
+    // the depth texture must stay alive: bound back to a deleted texture, unit
+    // 7 is a GL error, which stops the app. Other units are free, since JadeFX
+    // binds unit 0 again on every text and image draw. After clearOccluder,
+    // unit 7 is the app's again.
     void setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth);
     void clearOccluder();
     // Device pixels in one point, for drawing that lands on whole pixels.

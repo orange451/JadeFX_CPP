@@ -55,15 +55,18 @@ public:
     // or draws queued before the change would be hidden by the new occluder,
     // or shown without the old one.
     //
-    // The texture contract: JadeFX owns texture unit kOccluderUnit (7) for the
-    // whole frame. begin binds a stand-in there, and setOccluder and
-    // clearOccluder bind the occluder or the stand-in when it changes; a draw
-    // binds nothing there. Any code that draws GL between UI draws, such as a
-    // 3D view, must leave unit 7's 2D binding as it found it, and GL_TEXTURE0
-    // active; other units are free, since each draw binds unit 0 itself. Left
-    // empty, unit 7 draws wrong pixels; bound to a deleted texture, it is a GL
-    // error, which stops the app. An occluder lasts until clearOccluder or the
-    // next begin. Without a GL context the state is kept and nothing is bound.
+    // The texture contract: an app that never sets an occluder has none; JadeFX
+    // then touches no texture unit but 0. Each kind of draw has two programs,
+    // built from one shader file: a plain one, used while no occluder is set,
+    // and one compiled with JADEFX_OCCLUDER, the only one that samples
+    // kOccluderUnit (7). setOccluder binds the depth texture there when it
+    // changes, and a draw binds nothing there. So between setOccluder and
+    // clearOccluder, any GL drawn between UI draws, such as a 3D view, must
+    // leave unit 7's 2D binding as it found it, and GL_TEXTURE0 active; and the
+    // depth texture must stay alive, since a deleted one is a GL error, which
+    // stops the app. Other units are free, since each draw binds unit 0
+    // itself. An occluder lasts until clearOccluder or the next begin. Without
+    // a GL context the state is kept and nothing is bound.
     void setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth);
     void clearOccluder();
     const Occluder& occluder() const { return occluder_; }
@@ -86,8 +89,6 @@ private:
     void resetAtlas(int size);
     unsigned imageTexture(const std::shared_ptr<ImageData>& image);
 
-    unsigned boxProgram_ = 0;
-    unsigned textProgram_ = 0;
     unsigned boxVao_ = 0;
     unsigned boxVbo_ = 0;
     unsigned textVao_ = 0;
@@ -99,53 +100,76 @@ private:
     bool ready_ = false;
     bool subpixel_ = false;
 
-    int boxRect_ = -1;
-    int boxViewport_ = -1;
-    int boxBox_ = -1;
-    int boxRadii_ = -1;
-    int boxParams_ = -1;
-    int boxBorder_ = -1;
-    int boxClip_ = -1;
-    int boxClipRadii_ = -1;
-    int boxStopCount_ = -1;
-    int boxStops_[8] = {};
-    int boxStopAt_[8] = {};
-    // The box program's uniforms as last set: a run of plain rectangles changes
-    // only their place and color, so the rest are skipped.
-    enum BoxSlot { kBoxRect, kBoxViewport, kBoxBox, kBoxRadii, kBoxParams, kBoxBorder, kBoxClip, kBoxClipRadii,
-                   kBoxStopCount, kBoxStop0, kBoxStopAt0 = kBoxStop0 + 8, kBoxSlots = kBoxStopAt0 + 8 };
-    UniformCache boxUniforms_{kBoxSlots};
-    int textViewport_ = -1;
-    int textColor_ = -1;
-    int textGamma_ = -1;
-    int textSampler_ = -1;
-    unsigned imageProgram_ = 0;
-    int imageViewport_ = -1;
-    int imageOpacity_ = -1;
-    int imageSampler_ = -1;
-    int imageTint_ = -1;
-    int imageTinted_ = -1;
-    // Each program's occluder uniforms, and the Occluder revision it last sent.
+    // A program's occluder uniforms, and the Occluder revision it last sent.
+    // Only the occluded programs have them.
     struct OccluderSlots {
         int texture = -1;
         int rect = -1;
         int depth = -1;
-        int on = -1;
         unsigned sent = ~0u;
     };
+    // The box program's uniforms as last set: a run of plain rectangles changes
+    // only their place and color, so the rest are skipped.
+    enum BoxSlot { kBoxRect, kBoxViewport, kBoxBox, kBoxRadii, kBoxParams, kBoxBorder, kBoxClip, kBoxClipRadii,
+                   kBoxStopCount, kBoxStop0, kBoxStopAt0 = kBoxStop0 + 8, kBoxSlots = kBoxStopAt0 + 8 };
+    // One linked box program and its uniforms. GL keeps uniform values per
+    // program, so each has its own cache.
+    struct BoxProgram {
+        unsigned id = 0;
+        int rect = -1;
+        int viewport = -1;
+        int box = -1;
+        int radii = -1;
+        int params = -1;
+        int border = -1;
+        int clip = -1;
+        int clipRadii = -1;
+        int stopCount = -1;
+        int stops[8] = {};
+        int stopAt[8] = {};
+        UniformCache uniforms{kBoxSlots};
+        OccluderSlots occluder;
+    };
+    struct TextProgram {
+        unsigned id = 0;
+        int viewport = -1;
+        int color = -1;
+        int gamma = -1;
+        int sampler = -1;
+        OccluderSlots occluder;
+    };
+    struct ImageProgram {
+        unsigned id = 0;
+        int viewport = -1;
+        int opacity = -1;
+        int sampler = -1;
+        int tint = -1;
+        int tinted = -1;
+        OccluderSlots occluder;
+    };
+    void locateBox(BoxProgram& program);
+    void locateText(TextProgram& program);
+    void locateImage(ImageProgram& program);
+    static void locateOccluder(unsigned program, OccluderSlots& slots);
+    // The program to draw with: the occluded one while an occluder is set and
+    // that program linked, else the plain one. A program that failed to link
+    // has id 0, so then the occluder does nothing.
+    template <typename Program>
+    Program& pick(Program& plain, Program& occluded) {
+        return occluder_.active() && occluded.id != 0 ? occluded : plain;
+    }
+    // Sends the occluder's uniforms to an occluded program, now bound, when
+    // they changed since it last had them; does nothing for a plain one.
     void sendOccluder(OccluderSlots& slots);
-    // Binds texture to kOccluderUnit, then makes GL_TEXTURE0 active again.
-    void bindOccluderUnit(unsigned texture);
-    OccluderSlots boxOccluder_;
-    OccluderSlots textOccluder_;
-    OccluderSlots imageOccluder_;
+    BoxProgram box_;
+    BoxProgram boxOccluded_;
+    TextProgram text_;
+    TextProgram textOccluded_;
+    ImageProgram image_;
+    ImageProgram imageOccluded_;
     Occluder occluder_;
     // The unit the depth texture is bound to; JadeFX samples nothing else there.
     static constexpr int kOccluderUnit = 7;
-    // A 1x1 texture read as the far plane, bound to kOccluderUnit while no
-    // occluder is set: the shaders sample uOccluder even while uOccluded is
-    // 0, and a stricter GL ES driver than desktop GL faults on an unbound unit.
-    unsigned occluderDummy_ = 0;
     struct GpuImage {
         std::weak_ptr<ImageData> data;
         unsigned texture = 0;

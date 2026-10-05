@@ -6,25 +6,24 @@ uniform vec4 uColor;
 // is the contrast boost. z is 1 for grayscale masks, which correct by luminance.
 uniform vec3 uGamma;
 
-// While uOccluded is 1, a fragment inside uOccluderRect (framebuffer pixels:
-// x, y from the bottom left, width, height) whose depth in uOccluder is
-// nearer than uOccluderDepth is not drawn: UI drawn inside a 3D view, behind
-// what the view drew in front of it.
+#ifdef JADEFX_OCCLUDER
+// Compiled in only for the program UiRenderer uses while an occluder is set.
+// A fragment inside uOccluderRect (framebuffer pixels: x, y from the bottom
+// left, width, height) whose depth in uOccluder is nearer than uOccluderDepth
+// is not drawn: UI drawn inside a 3D view, behind what the view drew in front
+// of it.
 uniform sampler2D uOccluder;
 uniform vec4 uOccluderRect;
 uniform float uOccluderDepth;
-uniform float uOccluded;
 
 bool occluded() {
-    if (uOccluded < 0.5) {
-        return false;
-    }
     vec2 uv = (gl_FragCoord.xy - uOccluderRect.xy) / uOccluderRect.zw;
     if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) {
         return false;
     }
     return texture(uOccluder, uv).r < uOccluderDepth;
 }
+#endif
 
 // uTex.rgb is coverage of the red, green, and blue stripes. The second output
 // is the blend factor, so each stripe composites against the framebuffer on its own.
@@ -59,9 +58,11 @@ vec3 correct(vec3 coverage, vec3 src) {
 }
 
 void main() {
+#ifdef JADEFX_OCCLUDER
     if (occluded()) {
         discard;
     }
+#endif
     vec3 coverage = texture(uTex, vUv).rgb;
     float mask = max(coverage.r, max(coverage.g, coverage.b));
     if (mask * uColor.a <= 0.001) {
