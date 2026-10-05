@@ -59,9 +59,11 @@ public:
     // whole frame. begin binds a stand-in there, and setOccluder and
     // clearOccluder bind the occluder or the stand-in when it changes; a draw
     // binds nothing there. Any code that draws GL between UI draws, such as a
-    // 3D view, must leave every texture unit's bindings as it found them, and
-    // GL_TEXTURE0 active. An occluder lasts until clearOccluder or the next
-    // begin. Without a GL context the state is kept and nothing is bound.
+    // 3D view, must leave unit 7's 2D binding as it found it, and GL_TEXTURE0
+    // active; other units are free, since each draw binds unit 0 itself. Left
+    // empty, unit 7 draws wrong pixels; bound to a deleted texture, it is a GL
+    // error, which stops the app. An occluder lasts until clearOccluder or the
+    // next begin. Without a GL context the state is kept and nothing is bound.
     void setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth);
     void clearOccluder();
     const Occluder& occluder() const { return occluder_; }
