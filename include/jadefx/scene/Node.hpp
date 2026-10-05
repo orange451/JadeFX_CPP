@@ -19,6 +19,7 @@
 
 namespace jadefx {
 
+class Image;
 class Node;
 class Scene;
 class SubScene;
@@ -81,6 +82,12 @@ public:
     const Insets& getBorder() const { return border_; }
 
     void setBackground(const Color& color);
+    // Drawn over the background color and gradient, stretched to the box inside
+    // the border, and under the children. opacity, 0 to 1, fades only the image.
+    // Null draws none.
+    void setBackgroundImage(std::shared_ptr<Image> image, float opacity = 1.f);
+    const std::shared_ptr<Image>& getBackgroundImage() const { return backgroundImage_; }
+    float getBackgroundImageOpacity() const { return backgroundImageOpacity_; }
     void setVisible(bool visible) { visible_ = visible; }
     bool isVisible() const { return visible_; }
     void setMouseTransparent(bool value) { mouseTransparent_ = value; }
@@ -372,6 +379,8 @@ private:
 
     Color background_ = Color::transparent();
     bool backgroundExplicit_ = false;
+    std::shared_ptr<Image> backgroundImage_;
+    float backgroundImageOpacity_ = 1.f;
     Font font_{"Open Sans", 16.f};
     bool fontExplicit_ = false;
     Color textFill_ = Color::black();

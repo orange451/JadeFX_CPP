@@ -2,6 +2,7 @@
 
 #include "jadefx/scene/Scene.hpp"
 #include "jadefx/scene/SubScene.hpp"
+#include "jadefx/scene/image/Image.hpp"
 #include "gl/UiRenderer.hpp"
 
 #include <algorithm>
@@ -356,6 +357,11 @@ Pos Node::usingAlignment() const {
 void Node::setBackground(const Color& color) {
     background_ = color;
     backgroundExplicit_ = true;
+}
+
+void Node::setBackgroundImage(std::shared_ptr<Image> image, float opacity) {
+    backgroundImage_ = std::move(image);
+    backgroundImageOpacity_ = std::clamp(opacity, 0.f, 1.f);
 }
 
 void Node::setStyle(std::string css) {
@@ -951,6 +957,12 @@ void Node::drawChrome(UiRenderer& renderer, float opacity) {
             renderer.fillRounded(fillX, fillY, fillW, fillH, innerRadius, stops, at, count,
                                  computed_.background.angleDeg);
         }
+    }
+
+    if (backgroundImage_ && backgroundImage_->data_ && backgroundImageOpacity_ > 0.f) {
+        renderer.drawImage(backgroundImage_->data_, x + borderLeft, y + borderTop,
+                           std::max(0.f, w - borderLeft - borderRight), std::max(0.f, h - borderTop - borderBottom),
+                           opacity * backgroundImageOpacity_);
     }
 
     for (const BoxShadow& shadow : computed_.shadows) {

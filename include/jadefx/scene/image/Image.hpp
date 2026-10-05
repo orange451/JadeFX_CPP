@@ -10,6 +10,7 @@ namespace jadefx {
 
 struct ImageData;
 class ImageView;
+class Node;
 
 // Decoded bitmap. load reads PNG, JPEG, GIF, BMP, and the other formats
 // stb_image accepts. Empty when the file or the bytes cannot be decoded.
@@ -33,6 +34,7 @@ public:
 
 private:
     friend class ImageView;
+    friend class Node;
     explicit Image(std::shared_ptr<ImageData> data);
 
     std::shared_ptr<ImageData> data_;

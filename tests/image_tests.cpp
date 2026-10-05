@@ -193,6 +193,38 @@ void TestImageColor() {
     Expect(ok && CountRed(pixels) > 1000, "image-color: none draws the bitmap's own colors");
 }
 
+void TestBackgroundImage() {
+    const std::shared_ptr<jadefx::Image> image = jadefx::Image::load(kRedPng, sizeof kRedPng);
+    auto pane = jadefx::make<jadefx::StackPane>();
+    pane->setPrefSize(80, 80);
+    pane->setBackground(jadefx::Color{0.f, 0.f, 1.f, 1.f});
+    pane->setBackgroundImage(image);
+    Expect(pane->getBackgroundImage() == image && pane->getBackgroundImageOpacity() == 1.f,
+           "a node keeps its background image");
+    bool ok = false;
+    std::vector<unsigned char> pixels = RenderFrame(pane, ok);
+    Expect(ok && CountRed(pixels) > 1000 && CountColor(pixels, 0, 0, 255) == 0,
+           "a background image stretches over the node's background color");
+
+    pane->setBackgroundImage(image, 0.f);
+    pixels = RenderFrame(pane, ok);
+    Expect(ok && CountRed(pixels) == 0 && CountColor(pixels, 0, 0, 255) > 1000,
+           "a background image with opacity 0 leaves the background color");
+
+    auto child = jadefx::make<jadefx::Pane>();
+    child->setPrefSize(40, 40);
+    child->setBackground(jadefx::Color{0.f, 1.f, 0.f, 1.f});
+    pane->getChildren().add(child);
+    pane->setBackgroundImage(image);
+    pixels = RenderFrame(pane, ok);
+    Expect(ok && CountRed(pixels) > 1000 && CountColor(pixels, 0, 255, 0) > 1000,
+           "children draw over the background image");
+
+    pane->setBackgroundImage(nullptr);
+    pixels = RenderFrame(pane, ok);
+    Expect(ok && CountRed(pixels) == 0, "a null background image draws nothing");
+}
+
 }  // namespace
 
 int RunImageTests() {
@@ -200,5 +232,6 @@ int RunImageTests() {
     TestTreeIcon();
     TestImageFrame();
     TestImageColor();
+    TestBackgroundImage();
     return gFailures;
 }
