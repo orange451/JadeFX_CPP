@@ -43,7 +43,13 @@ constexpr TextGamma kGrayGamma = kStripeGamma;
 constexpr TextGamma kGrayGamma{1.f, 0.f};
 #endif
 
+// -1, the location GL ignores, for program 0: an occluded program that did
+// not link is 0, and asking GL about program 0 is a GL error, which would fail
+// initialize instead of leaving the occluder a no-op.
 int Location(GLuint program, const char* name) {
+    if (program == 0) {
+        return -1;
+    }
     return glGetUniformLocation(program, name);
 }
 
@@ -186,6 +192,7 @@ bool UiRenderer::initialize() {
 }
 
 void UiRenderer::locateBox(BoxProgram& program) {
+    // For a program that did not link, id is 0 and every location is -1.
     const unsigned id = program.id;
     program.rect = Location(id, "uRect");
     program.viewport = Location(id, "uViewport");
@@ -227,11 +234,8 @@ void UiRenderer::locateImage(ImageProgram& program) {
 
 void UiRenderer::locateOccluder(unsigned program, OccluderSlots& slots) {
     // A program that did not link, or a plain one, has no occluder uniforms,
-    // and every location stays -1.
+    // and every location is -1.
     slots = OccluderSlots{};
-    if (program == 0) {
-        return;
-    }
     slots.texture = Location(program, "uOccluder");
     slots.rect = Location(program, "uOccluderRect");
     slots.depth = Location(program, "uOccluderDepth");
@@ -296,6 +300,12 @@ void UiRenderer::shutdown() {
     }
     box_.uniforms.reset();
     boxOccluded_.uniforms.reset();
+    // The occluder goes with the programs: were it kept, the first draw after
+    // initialize would pick an occluded program while nothing JadeFX bound is
+    // at kOccluderUnit.
+    const unsigned revision = occluder_.revision + 1;
+    occluder_ = Occluder{};
+    occluder_.revision = revision;
     for (GpuImage& image : gpuImages_) {
         if (image.texture != 0) {
             glDeleteTextures(1, &image.texture);
