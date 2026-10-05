@@ -49,7 +49,11 @@ public:
     void pushClip(float x, float y, float width, float height);
     void popClip();
     // Hide later draws' fragments behind a depth texture, as Occluder says,
-    // until clearOccluder. Used to draw UI inside a 3D view.
+    // until clearOccluder. Used to draw UI inside a 3D view. Each draw now
+    // reads the occluder when it is issued; if draws are ever batched, the
+    // pending batch must be flushed whenever the occluder is set or cleared,
+    // or draws queued before the change would be hidden by the new occluder,
+    // or shown without the old one.
     void setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth);
     void clearOccluder();
     const Occluder& occluder() const { return occluder_; }
