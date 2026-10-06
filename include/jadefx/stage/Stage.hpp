@@ -11,6 +11,12 @@ namespace jadefx {
 
 class UiRenderer;
 
+// The parts of a window frame, for a host that times them. Wait is the sleep
+// until the next frame is due, Poll the system's event poll, Events the queued
+// input and runLater tasks, Layout the styles and layout, Render the scene's
+// paint, Tail the frame tail, and Swap the buffer swap.
+enum class FramePhase { Wait, Poll, Events, Layout, Render, Tail, Swap };
+
 // One window's scene, input, and frame. Application::launch owns the window.
 // An existing OpenGL program can own a Stage and call frame() after its own clear.
 class Stage {
@@ -121,6 +127,14 @@ public:
     // Runs after the frame has been drawn. A resize requested here shows up next frame.
     void setFrameTail(std::function<void()> tail);
 
+    // Told on the window's thread when each FramePhase begins and ends, so a
+    // profiler can account for the whole frame, not only what the scene draws.
+    // Phases do not overlap. Wait and Tail are reported only when there is one.
+    using FramePhaseHook = std::function<void(FramePhase phase, bool begin)>;
+    void setFramePhaseHook(FramePhaseHook hook) { phaseHook_ = std::move(hook); }
+    // The window loop's way to report a phase. Does nothing without a hook.
+    void notePhase(FramePhase phase, bool begin) const;
+
 private:
     struct Event;
     void processEvents();
@@ -149,6 +163,7 @@ private:
     std::function<std::string()> clipboardGet_;
     std::function<int()> eventPump_;
     std::function<void()> frameTail_;
+    FramePhaseHook phaseHook_;
     std::string clipboard_;
     int pointWidth_ = 0;
     int pointHeight_ = 0;

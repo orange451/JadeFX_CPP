@@ -109,6 +109,29 @@ void Stage::setEventPump(std::function<int()> pump) {
 
 void Stage::setFrameTail(std::function<void()> tail) { frameTail_ = std::move(tail); }
 
+void Stage::notePhase(FramePhase phase, bool begin) const {
+    if (phaseHook_) {
+        phaseHook_(phase, begin);
+    }
+}
+
+namespace {
+
+// Reports a phase from construction to destruction.
+class PhaseScope {
+public:
+    PhaseScope(const Stage& stage, FramePhase phase) : stage_(stage), phase_(phase) { stage_.notePhase(phase_, true); }
+    ~PhaseScope() { stage_.notePhase(phase_, false); }
+    PhaseScope(const PhaseScope&) = delete;
+    PhaseScope& operator=(const PhaseScope&) = delete;
+
+private:
+    const Stage& stage_;
+    FramePhase phase_;
+};
+
+}  // namespace
+
 void Stage::setHostHandlers(ResizeHandler resize, ShowHandler show, TitleHandler title) {
     onResize_ = std::move(resize);
     onShow_ = std::move(show);
@@ -323,27 +346,38 @@ bool Stage::frame(int pointWidth, int pointHeight, int framebufferWidth, int fra
         scene_->setSafeInsets(safe_);
         scene_->layout(layoutWidth, layoutHeight);
     }
-    // Before input, so a task queued by this frame's click runs after that click has finished.
-    drainRunLater();
-    processEvents();
-    scene_->setSafeInsets(safe_);
-    scene_->layout(layoutWidth, layoutHeight);
-    syncCursor();
+    {
+        PhaseScope phase(*this, FramePhase::Events);
+        // Before input, so a task queued by this frame's click runs after that click has finished.
+        drainRunLater();
+        processEvents();
+    }
+    {
+        PhaseScope phase(*this, FramePhase::Layout);
+        scene_->setSafeInsets(safe_);
+        scene_->layout(layoutWidth, layoutHeight);
+        syncCursor();
+    }
 
-    const float scale = static_cast<float>(static_cast<double>(framebufferWidth) / layoutWidth);
-    renderer_->begin(framebufferWidth, framebufferHeight, scale, scene_->themeColor(ThemeColor::Background), clearColor_);
-    scene_->render(*renderer_, 1.f);
-    if (afterUi_) {
-        afterUi_(framebufferWidth, framebufferHeight);
-    }
-    ++frames_;
-    if (const char* path = std::getenv("JADEFX_DUMP_PPM")) {
-        if (frames_ == 2) {
-            renderer_->writePpm(path);
+    {
+        PhaseScope phase(*this, FramePhase::Render);
+        const float scale = static_cast<float>(static_cast<double>(framebufferWidth) / layoutWidth);
+        renderer_->begin(framebufferWidth, framebufferHeight, scale, scene_->themeColor(ThemeColor::Background),
+                         clearColor_);
+        scene_->render(*renderer_, 1.f);
+        if (afterUi_) {
+            afterUi_(framebufferWidth, framebufferHeight);
         }
+        ++frames_;
+        if (const char* path = std::getenv("JADEFX_DUMP_PPM")) {
+            if (frames_ == 2) {
+                renderer_->writePpm(path);
+            }
+        }
+        renderer_->end();
     }
-    renderer_->end();
     if (frameTail_) {
+        PhaseScope phase(*this, FramePhase::Tail);
         frameTail_();
     }
 

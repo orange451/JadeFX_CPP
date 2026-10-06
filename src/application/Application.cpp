@@ -160,7 +160,9 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
         host.framebufferSize(framebufferWidth, framebufferHeight);
         const bool ok = stage.frame(pointWidth, pointHeight, framebufferWidth, framebufferHeight);
         if (ok) {
+            stage.notePhase(FramePhase::Swap, true);
             host.swap();
+            stage.notePhase(FramePhase::Swap, false);
             ++rendered;
         } else {
             host.requestClose();
@@ -175,8 +177,10 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
             return 0;
         }
         ++pumping;
+        stage.notePhase(FramePhase::Poll, true);
         host.poll();
         closeFlaggedDesktopWindows();
+        stage.notePhase(FramePhase::Poll, false);
         const bool closed = host.shouldClose();
         const bool ok = !closed && drawFrame();
         --pumping;
@@ -202,15 +206,21 @@ int Application::launch(std::unique_ptr<Application> app, int argc, char** argv)
             // Sleep in the system's event wait until the frame is due. Input wakes the
             // wait and is queued for that frame, so the loop idles instead of spinning.
             const double interval = 1.0 / fps;
-            for (double now = GlfwHost::now(); now < nextFrame && !host.shouldClose(); now = GlfwHost::now()) {
-                host.waitEvents(nextFrame - now);
+            double now = GlfwHost::now();
+            if (now < nextFrame) {
+                stage.notePhase(FramePhase::Wait, true);
+                for (; now < nextFrame && !host.shouldClose(); now = GlfwHost::now()) {
+                    host.waitEvents(nextFrame - now);
+                }
+                stage.notePhase(FramePhase::Wait, false);
             }
-            const double now = GlfwHost::now();
             // After a slow frame the schedule starts over, rather than rushing to catch up.
             nextFrame = now - nextFrame > interval ? now + interval : nextFrame + interval;
         }
+        stage.notePhase(FramePhase::Poll, true);
         host.poll();
         closeFlaggedDesktopWindows();
+        stage.notePhase(FramePhase::Poll, false);
         if (host.shouldClose() || !drawFrame() || !drawDesktopWindows()) {
             break;
         }
