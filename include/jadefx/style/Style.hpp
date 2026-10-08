@@ -172,9 +172,64 @@ struct Background {
 // parent. Shared between nodes until one declares its own.
 using CssVariables = std::unordered_map<std::string, std::string>;
 
+// Each property applyDeclarations understands. Custom is a --name property, or
+// accent-color, caret-color, or outline-color, which are stored as one. All names
+// every property, for transition.
+enum class PropertyId : unsigned char {
+    Unknown,
+    Custom,
+    FontSize,
+    FontFamily,
+    BackgroundColor,
+    Background,
+    BackgroundImage,
+    FontSmoothing,
+    Color,
+    ImageColor,
+    Width,
+    Height,
+    MinWidth,
+    MinHeight,
+    MaxWidth,
+    MaxHeight,
+    BorderRadius,
+    BorderWidth,
+    BorderColor,
+    BorderStyle,
+    BoxShadow,
+    Padding,
+    Spacing,
+    Gap,
+    RowGap,
+    ColumnGap,
+    Alignment,
+    Orientation,
+    Opacity,
+    IndeterminateBarLength,
+    IndeterminateBarEscape,
+    IndeterminateBarFlip,
+    IndeterminateBarAnimationTime,
+    Transition,
+    Cursor,
+    All,
+    Count,
+};
+
+inline constexpr std::size_t kPropertyIdCount = static_cast<std::size_t>(PropertyId::Count);
+
+// The id for a lower-case property name, or Custom, or Unknown.
+PropertyId propertyIdOf(std::string_view property);
+
 struct TransitionTiming {
     double duration = 0;
     double delay = 0;
+};
+
+// transition durations and delays by property. All covers properties not named.
+// Immutable once a style holds it, so styles share one table.
+struct TransitionTable {
+    TransitionTiming timing[kPropertyIdCount] = {};
+    bool set[kPropertyIdCount] = {};
 };
 
 // The resolved look of one node for this frame, after stylesheets and inline CSS.
@@ -226,62 +281,14 @@ struct ComputedStyle {
     bool indeterminateBarFlip = true;
     bool indeterminateBarAnimationTimeSet = false;
     double indeterminateBarAnimationTime = 2;
-    // Property name, or "all", to duration and delay.
-    std::unordered_map<std::string, TransitionTiming> transitions;
+    // transition timings. Null when no transition applies.
+    std::shared_ptr<const TransitionTable> transitions;
     // Custom properties in effect here, including the ones inherited.
     std::shared_ptr<const CssVariables> variables;
 
     // A custom property's value with any var() in it resolved. Empty when unset.
     std::string variable(std::string_view name) const;
 };
-
-// Each property applyDeclarations understands. Custom is a --name property, or
-// accent-color, caret-color, or outline-color, which are stored as one. All names
-// every property, for transition.
-enum class PropertyId : unsigned char {
-    Unknown,
-    Custom,
-    FontSize,
-    FontFamily,
-    BackgroundColor,
-    Background,
-    BackgroundImage,
-    FontSmoothing,
-    Color,
-    ImageColor,
-    Width,
-    Height,
-    MinWidth,
-    MinHeight,
-    MaxWidth,
-    MaxHeight,
-    BorderRadius,
-    BorderWidth,
-    BorderColor,
-    BorderStyle,
-    BoxShadow,
-    Padding,
-    Spacing,
-    Gap,
-    RowGap,
-    ColumnGap,
-    Alignment,
-    Orientation,
-    Opacity,
-    IndeterminateBarLength,
-    IndeterminateBarEscape,
-    IndeterminateBarFlip,
-    IndeterminateBarAnimationTime,
-    Transition,
-    Cursor,
-    All,
-    Count,
-};
-
-inline constexpr std::size_t kPropertyIdCount = static_cast<std::size_t>(PropertyId::Count);
-
-// The id for a lower-case property name, or Custom, or Unknown.
-PropertyId propertyIdOf(std::string_view property);
 
 // A declaration's value, parsed when its stylesheet loads. Raw means it is parsed
 // as each node applies it, as a value with var() must be. Invalid means it did not

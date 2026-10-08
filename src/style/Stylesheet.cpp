@@ -795,8 +795,11 @@ bool IsTime(std::string_view token, double& seconds) {
 }
 
 void ApplyTransition(ComputedStyle& style, std::string_view text) {
+    // Copied before it changes, since other styles may share the table.
+    auto table = style.transitions ? std::make_shared<TransitionTable>(*style.transitions)
+                                   : std::make_shared<TransitionTable>();
     for (const std::string& part : SplitDepth(text, ',')) {
-        std::string property = "all";
+        PropertyId property = PropertyId::All;
         double duration = 0;
         double delay = 0;
         int times = 0;
@@ -813,18 +816,19 @@ void ApplyTransition(ComputedStyle& style, std::string_view text) {
             } else if (IsEasing(token)) {
                 continue;
             } else if (!sawProperty) {
-                property = lowerCopy(token);
+                property = propertyIdOf(lowerCopy(token));
                 sawProperty = true;
             }
         }
-        if (duration < 0) {
-            duration = 0;
+        // A property nothing animates, or one this engine does not know, has no slot.
+        if (property == PropertyId::Unknown || property == PropertyId::Custom) {
+            continue;
         }
-        if (delay < 0) {
-            delay = 0;
-        }
-        style.transitions[property] = {duration, delay};
+        const auto at = static_cast<std::size_t>(property);
+        table->timing[at] = {std::max(0.0, duration), std::max(0.0, delay)};
+        table->set[at] = true;
     }
+    style.transitions = std::move(table);
 }
 
 std::vector<std::string> ShadowTokens(std::string_view text) {

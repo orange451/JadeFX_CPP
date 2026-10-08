@@ -142,6 +142,48 @@ void TestVarResolvedPerNode() {
     Expect(first->computedStyle().padding.left == 20, "an em length uses the node's own font size");
 }
 
+void TestTransitionTimingsByProperty() {
+    auto root = jadefx::make<jadefx::VBox>();
+    auto box = jadefx::make<jadefx::StackPane>();
+    box->getClassList().add("t");
+    auto edged = jadefx::make<jadefx::StackPane>();
+    edged->getClassList().add("u");
+    root->getChildren().add(box);
+    root->getChildren().add(edged);
+    auto scene = jadefx::make<jadefx::Scene>(root, 200, 200);
+    scene->setStylesheet(".t { background-color: #000000; color: #000000; transition: background-color 1s, color 0s; }"
+                         ".t.on { background-color: #ffffff; color: #ffffff; }"
+                         ".u { border-color: #000000; transition: all 1s; }"
+                         ".u.on { border-color: #ffffff; }");
+    scene->layout(200, 200, 0);
+    box->getClassList().add("on");
+    edged->getClassList().add("on");
+    scene->layout(200, 200, 0);
+    scene->layout(200, 200, 0.5);
+    const float background = box->computedStyle().background.color.r;
+    Expect(background > 0.35f && background < 0.65f, "a timed property is halfway through its transition");
+    Expect(Is(box->computedStyle().color, 255, 255, 255), "a property with a zero-second transition jumps");
+    const float border = edged->computedStyle().borderColor.r;
+    Expect(border > 0.35f && border < 0.65f, "all covers a property it does not name");
+}
+
+void TestDeepTreeInherits() {
+    auto top = jadefx::make<jadefx::StackPane>();
+    top->setStyle("color: #405060;");
+    std::shared_ptr<jadefx::StackPane> parent = top;
+    for (int i = 0; i < 40; ++i) {
+        auto child = jadefx::make<jadefx::StackPane>();
+        parent->getChildren().add(child);
+        parent = child;
+    }
+    auto leaf = jadefx::make<jadefx::Label>("leaf");
+    parent->getChildren().add(leaf);
+    auto scene = jadefx::make<jadefx::Scene>(top, 200, 200);
+    scene->layout(200, 200, 0);
+    scene->layout(200, 200, 0.1);
+    Expect(Is(leaf->computedStyle().color, 64, 80, 96), "a color inherits through forty levels");
+}
+
 }  // namespace
 
 int RunStylePerfTests() {
@@ -151,5 +193,7 @@ int RunStylePerfTests() {
     TestPropertyIds();
     TestDeclarationsParsedOnce();
     TestVarResolvedPerNode();
+    TestTransitionTimingsByProperty();
+    TestDeepTreeInherits();
     return gFailures;
 }

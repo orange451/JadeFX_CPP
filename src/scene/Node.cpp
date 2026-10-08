@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -37,17 +38,76 @@ float ResolvedRadius(const ComputedStyle& style, int index, double width, double
     return radius;
 }
 
-TransitionTiming TimingOf(const ComputedStyle& style, const char* property) {
-    const auto found = style.transitions.find(property);
-    if (found != style.transitions.end()) {
-        return found->second;
+TransitionTiming TimingOf(const ComputedStyle& style, PropertyId property) {
+    if (!style.transitions) {
+        return {};
     }
-    const auto all = style.transitions.find("all");
-    if (all != style.transitions.end()) {
-        return all->second;
+    const TransitionTable& table = *style.transitions;
+    const auto at = static_cast<std::size_t>(property);
+    if (table.set[at]) {
+        return table.timing[at];
     }
-    return {};
+    const auto all = static_cast<std::size_t>(PropertyId::All);
+    return table.set[all] ? table.timing[all] : TransitionTiming{};
 }
+
+// The lists one restyle or one child walk needs. Kept between frames so a pass
+// allocates nothing once the lists have grown.
+struct StyleScratch {
+    std::vector<MatchedDeclaration> agentMatches;
+    std::vector<MatchedDeclaration> authorMatches;
+    std::vector<const Node*> chain;
+    std::vector<const Declaration*> agent;
+    std::vector<const Declaration*> author;
+    std::vector<const Declaration*> agentImportant;
+    std::vector<const Declaration*> authorImportant;
+    std::vector<const Declaration*> inlineImportant;
+    std::vector<const Declaration*> variables;
+    std::vector<Node*> kids;
+
+    void clear() {
+        agentMatches.clear();
+        authorMatches.clear();
+        chain.clear();
+        agent.clear();
+        author.clear();
+        agentImportant.clear();
+        authorImportant.clear();
+        inlineImportant.clear();
+        variables.clear();
+        kids.clear();
+    }
+};
+
+// One StyleScratch per nesting level. A restyle holds one while its children
+// restyle, and a control may call applyCss from styleDidApply, so leases nest.
+class ScratchLease {
+public:
+    ScratchLease() {
+        Pool& pool = ThePool();
+        if (pool.used == pool.items.size()) {
+            pool.items.push_back(std::make_unique<StyleScratch>());
+        }
+        scratch_ = pool.items[pool.used++].get();
+        scratch_->clear();
+    }
+    ~ScratchLease() { --ThePool().used; }
+    ScratchLease(const ScratchLease&) = delete;
+    ScratchLease& operator=(const ScratchLease&) = delete;
+
+    StyleScratch& operator*() { return *scratch_; }
+
+private:
+    struct Pool {
+        std::vector<std::unique_ptr<StyleScratch>> items;
+        std::size_t used = 0;
+    };
+    static Pool& ThePool() {
+        thread_local Pool pool;
+        return pool;
+    }
+    StyleScratch* scratch_ = nullptr;
+};
 
 bool HasControlCursor(Cursor cursor) { return cursor != Cursor::Inherit && cursor != Cursor::Auto; }
 
@@ -512,6 +572,8 @@ Insets Node::animateInsets(InsetAnim& anim, const Insets& target, double duratio
 }
 
 void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
+    ScratchLease lease;
+    StyleScratch& scratch = *lease;
     ComputedStyle style;
     style.color = inherited.color;
     style.fontSize = inherited.fontSize > 0.f ? inherited.fontSize : 16.f;
@@ -535,60 +597,52 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     // then inline declarations. Within a stylesheet the more specific selector
     // wins, and among equals the later one. !important declarations come after
     // every normal one: author, then inline, then user agent.
-    std::vector<MatchedDeclaration> agentMatches;
     if (const Stylesheet* agentSheet = userAgentSheet()) {
-        agentSheet->collectMatching(*this, agentMatches);
+        agentSheet->collectMatching(*this, scratch.agentMatches);
     }
-    std::vector<MatchedDeclaration> authorMatches;
-    std::vector<const Node*> chain;
     for (const Node* node = this; node != nullptr; node = node->parent_) {
-        chain.push_back(node);
+        scratch.chain.push_back(node);
         // A SubScene's root is the top of its cascade.
         if (node->parent_ != nullptr && node->parent_->asSubScene() != nullptr) {
             break;
         }
     }
-    for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+    for (auto it = scratch.chain.rbegin(); it != scratch.chain.rend(); ++it) {
         if (!(*it)->stylesheet_.empty()) {
-            (*it)->stylesheet_.collectMatching(*this, authorMatches);
+            (*it)->stylesheet_.collectMatching(*this, scratch.authorMatches);
         }
     }
     const auto bySpecificity = [](const MatchedDeclaration& a, const MatchedDeclaration& b) {
         return a.specificity < b.specificity;
     };
-    std::stable_sort(agentMatches.begin(), agentMatches.end(), bySpecificity);
-    std::stable_sort(authorMatches.begin(), authorMatches.end(), bySpecificity);
-    std::vector<const Declaration*> agent;
-    std::vector<const Declaration*> author;
-    std::vector<const Declaration*> agentImportant;
-    std::vector<const Declaration*> authorImportant;
-    for (const MatchedDeclaration& match : agentMatches) {
-        (match.declaration->important ? agentImportant : agent).push_back(match.declaration);
+    std::stable_sort(scratch.agentMatches.begin(), scratch.agentMatches.end(), bySpecificity);
+    std::stable_sort(scratch.authorMatches.begin(), scratch.authorMatches.end(), bySpecificity);
+    for (const MatchedDeclaration& match : scratch.agentMatches) {
+        (match.declaration->important ? scratch.agentImportant : scratch.agent).push_back(match.declaration);
     }
-    for (const MatchedDeclaration& match : authorMatches) {
-        (match.declaration->important ? authorImportant : author).push_back(match.declaration);
+    for (const MatchedDeclaration& match : scratch.authorMatches) {
+        (match.declaration->important ? scratch.authorImportant : scratch.author).push_back(match.declaration);
     }
-    std::vector<const Declaration*> inlineImportant;
     for (const Declaration& declaration : inline_) {
-        (declaration.important ? inlineImportant : author).push_back(&declaration);
+        (declaration.important ? scratch.inlineImportant : scratch.author).push_back(&declaration);
     }
-    author.insert(author.end(), authorImportant.begin(), authorImportant.end());
-    author.insert(author.end(), inlineImportant.begin(), inlineImportant.end());
-    author.insert(author.end(), agentImportant.begin(), agentImportant.end());
+    scratch.author.insert(scratch.author.end(), scratch.authorImportant.begin(), scratch.authorImportant.end());
+    scratch.author.insert(scratch.author.end(), scratch.inlineImportant.begin(), scratch.inlineImportant.end());
+    scratch.author.insert(scratch.author.end(), scratch.agentImportant.begin(), scratch.agentImportant.end());
 
     const float inheritedFont = inherited.fontSize > 0.f ? inherited.fontSize : 16.f;
     // Custom properties take one pass over every origin, so a var() in one is
     // resolved against the values the whole cascade leaves on this node.
-    std::vector<const Declaration*> variables = agent;
-    variables.insert(variables.end(), author.begin(), author.end());
-    applyDeclarations(style, variables, StylePass::Variables, inheritedFont, inheritedFont);
-    applyDeclarations(style, agent, StylePass::Fonts, inheritedFont, inheritedFont);
+    scratch.variables.assign(scratch.agent.begin(), scratch.agent.end());
+    scratch.variables.insert(scratch.variables.end(), scratch.author.begin(), scratch.author.end());
+    applyDeclarations(style, scratch.variables, StylePass::Variables, inheritedFont, inheritedFont);
+    applyDeclarations(style, scratch.agent, StylePass::Fonts, inheritedFont, inheritedFont);
     if (fontExplicit_) {
         style.fontSize = font_.size();
         style.fontFamily = font_.family();
     }
-    applyDeclarations(style, author, StylePass::Fonts, inheritedFont, inheritedFont);
-    applyDeclarations(style, agent, StylePass::Rest, inheritedFont, style.fontSize);
+    applyDeclarations(style, scratch.author, StylePass::Fonts, inheritedFont, inheritedFont);
+    applyDeclarations(style, scratch.agent, StylePass::Rest, inheritedFont, style.fontSize);
     if (backgroundExplicit_) {
         style.background.color = background_;
         style.background.hasColor = true;
@@ -602,17 +656,17 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     if (subpixelExplicit_) {
         style.subpixel = subpixel_;
     }
-    applyDeclarations(style, author, StylePass::Rest, inheritedFont, style.fontSize);
+    applyDeclarations(style, scratch.author, StylePass::Rest, inheritedFont, style.fontSize);
     style.cursor =
-        ResolvedNodeCursor(agent, author, inherited.cursor, defaultCursor_, cursorExplicit_, cursor_, isDisabled());
+        ResolvedNodeCursor(scratch.agent, scratch.author, inherited.cursor, defaultCursor_, cursorExplicit_, cursor_, isDisabled());
 
     const ComputedStyle target = style;
-    const TransitionTiming backgroundTiming = TimingOf(target, "background-color");
-    const TransitionTiming imageTiming = TimingOf(target, "background-image");
-    const TransitionTiming colorTiming = TimingOf(target, "color");
-    const TransitionTiming borderColorTiming = TimingOf(target, "border-color");
-    const TransitionTiming borderTiming = TimingOf(target, "border-width");
-    const TransitionTiming shadowTiming = TimingOf(target, "box-shadow");
+    const TransitionTiming backgroundTiming = TimingOf(target, PropertyId::BackgroundColor);
+    const TransitionTiming imageTiming = TimingOf(target, PropertyId::BackgroundImage);
+    const TransitionTiming colorTiming = TimingOf(target, PropertyId::Color);
+    const TransitionTiming borderColorTiming = TimingOf(target, PropertyId::BorderColor);
+    const TransitionTiming borderTiming = TimingOf(target, PropertyId::BorderWidth);
+    const TransitionTiming shadowTiming = TimingOf(target, PropertyId::BoxShadow);
     style.background.color = animateColor(backgroundAnim_, target.background.color, backgroundTiming.duration,
                                           backgroundTiming.delay, timeSeconds);
     const int stops = std::min(target.background.stopCount, kMaxGradientStops);
@@ -672,9 +726,8 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     computed_ = style;
     styleDidApply();
     const ComputedStyle pass = asSubScene() != nullptr ? rootInheritance() : inheritableStyle();
-    std::vector<Node*> kids;
-    visitChildren([&](Node* child) { kids.push_back(child); });
-    for (Node* child : kids) {
+    visitChildren([&](Node* child) { scratch.kids.push_back(child); });
+    for (Node* child : scratch.kids) {
         child->applyStyles(pass, timeSeconds);
     }
 }
