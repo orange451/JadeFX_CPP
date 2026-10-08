@@ -3,6 +3,9 @@
 #include "jadefx/scene/Node.hpp"
 #include "internal/Text.hpp"
 
+#include <cstdint>
+#include <string_view>
+#include <unordered_map>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -983,10 +986,32 @@ void AssignRadius(ComputedStyle& style, const std::vector<ParsedLength>& values)
 
 bool LengthsOk(const std::vector<ParsedLength>& values) { return !values.empty(); }
 
+// A selector, by its rule and its place in that rule.
+struct IndexEntry {
+    std::uint32_t rule = 0;
+    std::uint32_t selector = 0;
+};
+
+bool operator<(const IndexEntry& a, const IndexEntry& b) {
+    return a.rule != b.rule ? a.rule < b.rule : a.selector < b.selector;
+}
+
+bool operator==(const IndexEntry& a, const IndexEntry& b) { return a.rule == b.rule && a.selector == b.selector; }
+
+using IndexBuckets = std::unordered_map<std::string_view, std::vector<IndexEntry>>;
+
 }  // namespace
 
+// Rules, and each selector filed under its rightmost compound: by id when it has
+// one, else by its first class, else by its type, else as universal. A node can
+// only match selectors filed under its own id, classes, or type, or the universal
+// ones. The keys view strings inside rules, which never change after parse.
 struct Stylesheet::Data {
     std::vector<Rule> rules;
+    IndexBuckets byId;
+    IndexBuckets byClass;
+    IndexBuckets byType;
+    std::vector<IndexEntry> universal;
 };
 
 Stylesheet::Stylesheet() : data_(std::make_shared<Data>()) {}
@@ -1033,17 +1058,58 @@ Stylesheet Stylesheet::parse(const std::string& css) {
         }
         index = close + 1;
     }
+    Data& data = *sheet.data_;
+    for (std::uint32_t r = 0; r < data.rules.size(); ++r) {
+        const Rule& rule = data.rules[r];
+        for (std::uint32_t s = 0; s < rule.selectors.size(); ++s) {
+            const Compound& key = rule.selectors[s].compounds.back();
+            const IndexEntry entry{r, s};
+            if (!key.id.empty()) {
+                data.byId[key.id].push_back(entry);
+            } else if (!key.classes.empty()) {
+                data.byClass[key.classes.front()].push_back(entry);
+            } else if (!key.type.empty()) {
+                data.byType[key.type].push_back(entry);
+            } else {
+                data.universal.push_back(entry);
+            }
+        }
+    }
     return sheet;
 }
 
 void Stylesheet::collectMatching(Node& node, std::vector<MatchedDeclaration>& out) const {
-    if (!data_) {
+    if (!data_ || data_->rules.empty()) {
         return;
     }
-    for (const Rule& rule : data_->rules) {
+    const Data& data = *data_;
+    // Reused between calls. Matching never calls back into a stylesheet.
+    thread_local std::vector<IndexEntry> candidates;
+    candidates.clear();
+    auto gather = [&](const IndexBuckets& buckets, std::string_view key) {
+        const auto found = buckets.find(key);
+        if (found != buckets.end()) {
+            candidates.insert(candidates.end(), found->second.begin(), found->second.end());
+        }
+    };
+    if (!node.getElementId().empty()) {
+        gather(data.byId, node.getElementId());
+    }
+    for (const std::string& name : node.getClassList().items()) {
+        gather(data.byClass, name);
+    }
+    gather(data.byType, node.getElementType());
+    candidates.insert(candidates.end(), data.universal.begin(), data.universal.end());
+    // Source order, as the unindexed scan produced. A class listed twice adds its bucket twice.
+    std::sort(candidates.begin(), candidates.end());
+    candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
+    for (std::size_t i = 0; i < candidates.size();) {
+        const std::uint32_t ruleIndex = candidates[i].rule;
+        const Rule& rule = data.rules[ruleIndex];
         // A rule with several selectors counts the most specific one that matches.
         int specificity = -1;
-        for (const Selector& selector : rule.selectors) {
+        for (; i < candidates.size() && candidates[i].rule == ruleIndex; ++i) {
+            const Selector& selector = rule.selectors[candidates[i].selector];
             if (selector.specificity > specificity && Matches(selector, node)) {
                 specificity = selector.specificity;
             }
