@@ -93,7 +93,13 @@ struct Labeled::Block {
 
 Labeled::Labeled(std::string text) : text_(std::move(text)) {}
 
-void Labeled::setText(std::string text) { text_ = std::move(text); }
+void Labeled::setText(std::string text) {
+    if (text_ == text) {
+        return;
+    }
+    text_ = std::move(text);
+    markLayoutDirty();
+}
 
 std::string Labeled::displayedText() const {
     if (!showsText()) {

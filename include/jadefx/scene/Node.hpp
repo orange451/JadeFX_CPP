@@ -89,7 +89,7 @@ public:
     void setBackgroundImage(std::shared_ptr<Image> image, float opacity = 1.f);
     const std::shared_ptr<Image>& getBackgroundImage() const { return backgroundImage_; }
     float getBackgroundImageOpacity() const { return backgroundImageOpacity_; }
-    void setVisible(bool visible) { visible_ = visible; }
+    void setVisible(bool visible);
     bool isVisible() const { return visible_; }
     void setMouseTransparent(bool value) { mouseTransparent_ = value; }
     bool isMouseTransparent() const { return mouseTransparent_; }

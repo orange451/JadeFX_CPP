@@ -347,6 +347,80 @@ void TestFocusWithinReachesDescendants() {
     Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "a descendant :focus-within matches a full pass");
 }
 
+void TestPaintOnlyChangeKeepsLayout() {
+    Fixture f = MakeFixture();
+    f.frame();
+    const Seen target = Of(*f.target);
+    const Seen root = Of(*f.root);
+    f.target->getClassList().add("on");
+    f.frame();
+    Expect(Restyled(*f.target, target), "a color class restyles");
+    Expect(!LaidOut(*f.target, target) && !LaidOut(*f.root, root), "a color change lays nothing out");
+}
+
+void TestPaddingChangeLaysOutUpward() {
+    Fixture f = MakeFixture();
+    f.frame();
+    const Seen target = Of(*f.target);
+    const Seen panelA = Of(*f.panelA);
+    const Seen root = Of(*f.root);
+    const Seen panelB = Of(*f.panelB);
+    f.target->getClassList().add("wide");
+    f.frame();
+    Expect(LaidOut(*f.target, target) && LaidOut(*f.panelA, panelA) && LaidOut(*f.root, root),
+           "a padding change lays out the node and its ancestors");
+    Expect(!LaidOut(*f.panelB, panelB), "a padding change leaves the other panel's layout alone");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "a padding change matches a full pass");
+}
+
+void TestResizeLaysOut() {
+    Fixture f = MakeFixture();
+    // The root fills the scene's width, so a wider scene resizes it.
+    f.root->setPrefWidthRatio(1);
+    f.frame();
+    const Seen root = Of(*f.root);
+    f.scene->layout(400, 200, f.time + 0.1);
+    Expect(LaidOut(*f.root, root), "resizing the scene lays out the root");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "a resize matches a full pass");
+}
+
+void TestAlignmentReachesDescendants() {
+    Fixture f = MakeFixture();
+    f.frame();
+    f.root->setAlignment(jadefx::Pos::BottomRight);
+    f.frame();
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(),
+           "an ancestor's alignment change places descendants that inherit it");
+}
+
+void TestVisibilityLaysOut() {
+    Fixture f = MakeFixture();
+    f.frame();
+    const Seen panelA = Of(*f.panelA);
+    f.target->setVisible(false);
+    f.frame();
+    Expect(LaidOut(*f.panelA, panelA), "hiding a node lays out its parent");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "hiding matches a full pass");
+}
+
+void TestPopupFollowsItsContent() {
+    Fixture f = MakeFixture();
+    auto popup = jadefx::make<jadefx::StackPane>();
+    popup->getClassList().add("item");
+    auto text = jadefx::make<jadefx::Label>("popup");
+    popup->getChildren().add(text);
+    f.scene->showPopup(popup, 10, 10, -1, -1);
+    f.frame();
+    const double before = popup->getWidth();
+    text->setText("a popup with much longer text in it");
+    f.frame();
+    Expect(popup->getWidth() > before + 20, "a measured popup grows with its content");
+    f.scene->movePopup(popup.get(), 30, 40, -1, -1);
+    f.frame();
+    Expect(popup->getX() == 30 && popup->getY() == 40, "a moved popup is placed where it was moved");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "popups match a full pass");
+}
+
 }  // namespace
 
 int RunIncrementalTests() {
@@ -366,5 +440,11 @@ int RunIncrementalTests() {
     TestFocusWithinFollowsFocus();
     TestFocusWithinWithoutWindowFocus();
     TestFocusWithinReachesDescendants();
+    TestPaintOnlyChangeKeepsLayout();
+    TestPaddingChangeLaysOutUpward();
+    TestResizeLaysOut();
+    TestAlignmentReachesDescendants();
+    TestVisibilityLaysOut();
+    TestPopupFollowsItsContent();
     return gFailures;
 }

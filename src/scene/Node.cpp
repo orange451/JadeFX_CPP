@@ -223,6 +223,24 @@ bool SameSize(const SizeSpec& a, const SizeSpec& b) {
     return a.kind == b.kind && a.pixels == b.pixels && a.percent == b.percent && a.em == b.em;
 }
 
+// Fields that change a node's preferred size or how it places its children.
+// Colors, shadows, radii, opacity, and the cursor only change how it paints.
+bool LayoutAffectingChange(const ComputedStyle& a, const ComputedStyle& b) {
+    return !SameInsets(a.padding, b.padding) || !SameInsets(a.border, b.border) || a.fontSize != b.fontSize ||
+           a.fontFamily != b.fontFamily || a.subpixel != b.subpixel || !SameSize(a.width, b.width) ||
+           !SameSize(a.height, b.height) || !SameSize(a.minWidth, b.minWidth) || !SameSize(a.minHeight, b.minHeight) ||
+           !SameSize(a.maxWidth, b.maxWidth) || !SameSize(a.maxHeight, b.maxHeight) || a.spacing != b.spacing ||
+           a.rowGap != b.rowGap || a.columnGap != b.columnGap || a.alignment != b.alignment ||
+           a.alignmentFromCss != b.alignmentFromCss || a.orientationFromCss != b.orientationFromCss ||
+           a.orientation != b.orientation || a.indeterminateBarLengthSet != b.indeterminateBarLengthSet ||
+           !SameSize(a.indeterminateBarLength, b.indeterminateBarLength) ||
+           a.indeterminateBarEscapeSet != b.indeterminateBarEscapeSet ||
+           a.indeterminateBarEscape != b.indeterminateBarEscape ||
+           a.indeterminateBarFlipSet != b.indeterminateBarFlipSet || a.indeterminateBarFlip != b.indeterminateBarFlip ||
+           a.indeterminateBarAnimationTimeSet != b.indeterminateBarAnimationTimeSet ||
+           a.indeterminateBarAnimationTime != b.indeterminateBarAnimationTime;
+}
+
 Insets LerpInsets(const Insets& from, const Insets& to, double t) {
     auto mix = [t](double a, double b) { return a + (b - a) * t; };
     return {mix(from.top, to.top), mix(from.right, to.right), mix(from.bottom, to.bottom), mix(from.left, to.left)};
@@ -349,6 +367,15 @@ void Node::requestFocus() {
         return;
     }
     scene_->requestFocus(this);
+}
+
+void Node::setVisible(bool visible) {
+    if (visible_ == visible) {
+        return;
+    }
+    visible_ = visible;
+    // Containers may skip hidden children when they measure and place them.
+    markLayoutDirty();
 }
 
 void Node::setCursor(Cursor cursor) {
@@ -1058,13 +1085,23 @@ bool Node::resolveStyle(const ComputedStyle& inherited, double timeSeconds) {
     }
 
     const bool inheritChanged = !SameInheritable(computed_, style);
+    const bool layoutChanged = LayoutAffectingChange(computed_, style);
+    // usingAlignment reads ancestors' alignment, so descendants may move as well.
+    const bool alignmentChanged =
+        computed_.alignment != style.alignment || computed_.alignmentFromCss != style.alignmentFromCss;
     computed_ = style;
-    measure_.clear();
+    if (layoutChanged) {
+        // A node restyled partway through a pass, as a cell rebound with applyCss,
+        // measures fresh.
+        measure_.clear();
+    }
     if (incrementalActive()) {
         ++restyleCount_;
-        // Every restyle may move the layout. Only layout-affecting changes will, once
-        // the restyle compares what changed.
-        markLayoutDirty(LayoutDirt::Size);
+        if (alignmentChanged) {
+            markSubtreeLayoutDirty();
+        } else if (layoutChanged) {
+            markLayoutDirty(LayoutDirt::Size);
+        }
     }
     styleDidApply();
     return inheritChanged;
