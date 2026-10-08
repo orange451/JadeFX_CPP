@@ -296,6 +296,7 @@ void Theme::setUserAgentStylesheet(std::string cssOrTheme) {
     Global& global = TheGlobal();
     global.sheet = Stylesheet::parse(expand(cssOrTheme));
     global.source = std::move(cssOrTheme);
+    detail::clearThemeColorCache();
 }
 
 const std::string& Theme::getUserAgentStylesheet() { return TheGlobal().source; }

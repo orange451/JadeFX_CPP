@@ -86,6 +86,7 @@ Scene::Scene(std::shared_ptr<Node> root) : Scene(std::move(root), 0, 0) {}
 void Scene::setUserAgentStylesheet(std::string cssOrTheme) {
     userAgent_ = cssOrTheme.empty() ? Stylesheet() : Stylesheet::parse(Theme::expand(cssOrTheme));
     userAgentSource_ = std::move(cssOrTheme);
+    detail::clearThemeColorCache();
 }
 
 const Stylesheet& Scene::userAgentStylesheet() const {
@@ -135,6 +136,7 @@ void Scene::layout(double width, double height) {
 }
 
 void Scene::layout(double width, double height, double timeSeconds) {
+    beginLayoutPass();
     {
         PassScope pass(passHook_, LayoutPass::Styles);
         applyStyles(rootInheritance(), timeSeconds);
@@ -150,6 +152,7 @@ void Scene::layout(double width, double height, double timeSeconds) {
     laidOut_ = true;
 
     if (!internal_) {
+        endLayoutPass();
         return;
     }
     {
@@ -165,9 +168,10 @@ void Scene::layout(double width, double height, double timeSeconds) {
     {
         PassScope pass(passHook_, LayoutPass::Popups);
         for (std::size_t i = 0; i < popups_.size(); ++i) {
-            layoutPopup(popups_[i]);
+            layoutPopup(popups_[i], false);
         }
     }
+    endLayoutPass();
     if (pointerValid_) {
         updateHoverPopup(pick(pointerX_, pointerY_));
     }
@@ -683,11 +687,13 @@ Scene::PopupRecord* Scene::findPopup(const Node* popup) {
     return nullptr;
 }
 
-void Scene::layoutPopup(PopupRecord& popup) {
+void Scene::layoutPopup(PopupRecord& popup, bool restyle) {
     if (!popup.node) {
         return;
     }
-    popup.node->applyStyles(inheritableStyle(), lastTime_);
+    if (restyle) {
+        popup.node->applyStyles(inheritableStyle(), lastTime_);
+    }
     if (popup.fillScene) {
         popup.node->performLayout(0, 0, std::max(0.0, width_), std::max(0.0, height_));
         return;

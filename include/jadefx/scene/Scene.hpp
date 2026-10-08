@@ -251,7 +251,8 @@ private:
         bool armed = true;
     };
 
-    void layoutPopup(PopupRecord& popup);
+    // restyle is false inside layout, where the scene's own pass already styled the popup.
+    void layoutPopup(PopupRecord& popup, bool restyle = true);
     void updateHoverPopup(Node* hit);
     bool popupStays(const PopupRecord& popup, Node* hit, int depth) const;
     PopupRecord* findPopup(const Node* popup);

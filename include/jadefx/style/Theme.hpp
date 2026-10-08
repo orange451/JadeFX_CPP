@@ -3,6 +3,7 @@
 #include "jadefx/paint/Color.hpp"
 #include "jadefx/style/Style.hpp"
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -43,6 +44,14 @@ enum class ThemeColor {
     Error,          // --error-color
     Success,        // --success-color
 };
+
+// How many ThemeColor values there are. Success is last.
+inline constexpr std::size_t kThemeColorCount = static_cast<std::size_t>(ThemeColor::Success) + 1;
+
+namespace detail {
+// Forgets the theme colors parsed from custom properties. A theme change calls this.
+void clearThemeColorCache();
+}  // namespace detail
 
 // The built-in looks, in the shape of JavaFX's user-agent stylesheets (Modena).
 // A user-agent stylesheet is the lowest layer of the cascade: application

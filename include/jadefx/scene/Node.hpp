@@ -10,6 +10,7 @@
 #include "jadefx/style/Theme.hpp"
 
 #include <any>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -341,6 +342,38 @@ private:
     void dispatchHoverChanges();
     void fireMouse(const MouseHandler Node::* handler, const MouseEvent& event);
     void drawChrome(UiRenderer& renderer, float opacity);
+    // Preferred sizes measured during a layout pass, two of each by their inputs.
+    // Outside a pass nothing is cached, so a measure between frames sees every change.
+    struct MeasureCache {
+        struct Width {
+            double available = 0;
+            double result = 0;
+        };
+        struct Height {
+            double width = 0;
+            double available = 0;
+            double result = 0;
+        };
+        Width widths[2];
+        Height heights[2];
+        int widthCount = 0;
+        int widthNext = 0;
+        int heightCount = 0;
+        int heightNext = 0;
+        std::uint64_t epoch = 0;
+        void clear() {
+            widthCount = 0;
+            widthNext = 0;
+            heightCount = 0;
+            heightNext = 0;
+        }
+    };
+    mutable MeasureCache measure_;
+    // Scene::layout brackets its passes with these. Passes nest.
+    static void beginLayoutPass();
+    static void endLayoutPass();
+    // True inside a pass. Clears entries left from an earlier pass.
+    bool measureCacheUsable() const;
 
     struct ColorAnim {
         Color displayed;

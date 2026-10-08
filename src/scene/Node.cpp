@@ -109,6 +109,36 @@ private:
     StyleScratch* scratch_ = nullptr;
 };
 
+thread_local int gLayoutPassDepth = 0;
+thread_local std::uint64_t gLayoutPassEpoch = 0;
+
+// Theme colors parsed from one set of custom properties. Nodes share sets, so a
+// few entries serve the whole tree. Each holds its set alive, so its address
+// cannot be reused by another set while the entry exists.
+struct ThemeCacheEntry {
+    std::shared_ptr<const CssVariables> variables;
+    // 0 not looked up yet, 1 a color, 2 currentColor.
+    unsigned char state[kThemeColorCount] = {};
+    Color colors[kThemeColorCount] = {};
+};
+
+constexpr std::size_t kThemeCacheEntries = 8;
+thread_local std::vector<ThemeCacheEntry> gThemeCache;
+
+ThemeCacheEntry& ThemeCacheFor(const std::shared_ptr<const CssVariables>& variables) {
+    for (ThemeCacheEntry& entry : gThemeCache) {
+        if (entry.variables == variables) {
+            return entry;
+        }
+    }
+    if (gThemeCache.size() >= kThemeCacheEntries) {
+        gThemeCache.clear();
+    }
+    gThemeCache.emplace_back();
+    gThemeCache.back().variables = variables;
+    return gThemeCache.back();
+}
+
 bool HasControlCursor(Cursor cursor) { return cursor != Cursor::Inherit && cursor != Cursor::Auto; }
 
 Cursor ConcreteCursor(Cursor cursor) {
@@ -176,6 +206,10 @@ Insets LerpInsets(const Insets& from, const Insets& to, double t) {
 }
 
 }  // namespace
+
+namespace detail {
+void clearThemeColorCache() { gThemeCache.clear(); }
+}  // namespace detail
 
 Node::Node() {
     children_.setAddCallback([this](const std::shared_ptr<Node>& child) {
@@ -480,7 +514,34 @@ void Node::detachChild(Node* child) {
     children_.removeIf([&](const std::shared_ptr<Node>& item) { return item.get() == child; });
 }
 
+void Node::beginLayoutPass() {
+    if (gLayoutPassDepth++ == 0) {
+        ++gLayoutPassEpoch;
+    }
+}
+
+void Node::endLayoutPass() { --gLayoutPassDepth; }
+
+bool Node::measureCacheUsable() const {
+    if (gLayoutPassDepth == 0) {
+        return false;
+    }
+    if (measure_.epoch != gLayoutPassEpoch) {
+        measure_.clear();
+        measure_.epoch = gLayoutPassEpoch;
+    }
+    return true;
+}
+
 double Node::measuredWidth(double available) const {
+    const bool cached = measureCacheUsable();
+    if (cached) {
+        for (int i = 0; i < measure_.widthCount; ++i) {
+            if (measure_.widths[i].available == available) {
+                return measure_.widths[i].result;
+            }
+        }
+    }
     double width = 0;
     if (computed_.width.set()) {
         width = resolveSize(computed_.width, available, computed_.fontSize);
@@ -489,10 +550,25 @@ double Node::measuredWidth(double available) const {
         const double inner = std::max(0.0, available - pad);
         width = preferredContentWidth(inner) + pad;
     }
-    return ClampSpec(width, computed_.minWidth, computed_.maxWidth, available, computed_.fontSize);
+    const double result = ClampSpec(width, computed_.minWidth, computed_.maxWidth, available, computed_.fontSize);
+    if (cached) {
+        measure_.widths[measure_.widthNext] = {available, result};
+        measure_.widthNext = (measure_.widthNext + 1) % 2;
+        measure_.widthCount = std::min(measure_.widthCount + 1, 2);
+    }
+    return result;
 }
 
 double Node::measuredHeight(double width, double availableHeight) const {
+    const bool cached = measureCacheUsable();
+    if (cached) {
+        for (int i = 0; i < measure_.heightCount; ++i) {
+            const MeasureCache::Height& entry = measure_.heights[i];
+            if (entry.width == width && entry.available == availableHeight) {
+                return entry.result;
+            }
+        }
+    }
     const bool percent = computed_.height.kind == SizeKind::Percent || computed_.height.kind == SizeKind::Calc;
     double height = 0;
     if (computed_.height.set() && !(percent && availableHeight < 0)) {
@@ -504,7 +580,13 @@ double Node::measuredHeight(double width, double availableHeight) const {
         height = preferredContentHeight(innerWidth) + pad;
     }
     const double available = availableHeight < 0 ? height : availableHeight;
-    return ClampSpec(height, computed_.minHeight, computed_.maxHeight, available, computed_.fontSize);
+    const double result = ClampSpec(height, computed_.minHeight, computed_.maxHeight, available, computed_.fontSize);
+    if (cached) {
+        measure_.heights[measure_.heightNext] = {width, availableHeight, result};
+        measure_.heightNext = (measure_.heightNext + 1) % 2;
+        measure_.heightCount = std::min(measure_.heightCount + 1, 2);
+    }
+    return result;
 }
 
 void Node::performLayout(double x, double y, double width, double height) {
@@ -513,6 +595,11 @@ void Node::performLayout(double x, double y, double width, double height) {
     width_ = std::max(0.0, width);
     height_ = std::max(0.0, height);
     layoutChildren();
+    // Laying out can change what a node measures, as for a page that learns its
+    // height by placing its rows. Its own measures and its ancestors' are fresh after.
+    for (const Node* node = this; node != nullptr; node = node->parent_) {
+        node->measure_.clear();
+    }
 }
 
 Color Node::animateColor(ColorAnim& anim, const Color& target, double duration, double delay, double time) {
@@ -724,6 +811,7 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
     }
 
     computed_ = style;
+    measure_.clear();
     styleDidApply();
     const ComputedStyle pass = asSubScene() != nullptr ? rootInheritance() : inheritableStyle();
     visitChildren([&](Node* child) { scratch.kids.push_back(child); });
@@ -733,16 +821,23 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
 }
 
 Color Node::themeColor(ThemeColor color) const {
-    const std::string value = computed_.variable(Theme::variableName(color));
-    constexpr std::string_view kCurrentColor = "currentcolor";
-    if (std::equal(value.begin(), value.end(), kCurrentColor.begin(), kCurrentColor.end(), [](char a, char b) {
-            return std::tolower(static_cast<unsigned char>(a)) == b;
-        })) {
-        return computed_.color;
+    const auto at = static_cast<std::size_t>(color);
+    ThemeCacheEntry& entry = ThemeCacheFor(computed_.variables);
+    if (entry.state[at] == 0) {
+        const std::string value = computed_.variable(Theme::variableName(color));
+        constexpr std::string_view kCurrentColor = "currentcolor";
+        if (std::equal(value.begin(), value.end(), kCurrentColor.begin(), kCurrentColor.end(), [](char a, char b) {
+                return std::tolower(static_cast<unsigned char>(a)) == b;
+            })) {
+            entry.state[at] = 2;
+        } else {
+            bool ok = false;
+            const Color parsed = value.empty() ? Color() : Color::parse(value, &ok);
+            entry.colors[at] = ok ? parsed : Theme::defaultColor(color);
+            entry.state[at] = 1;
+        }
     }
-    bool ok = false;
-    const Color parsed = value.empty() ? Color() : Color::parse(value, &ok);
-    return ok ? parsed : Theme::defaultColor(color);
+    return entry.state[at] == 2 ? computed_.color : entry.colors[at];
 }
 
 ComputedStyle Node::inheritableStyle() const {

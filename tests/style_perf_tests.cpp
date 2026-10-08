@@ -184,6 +184,79 @@ void TestDeepTreeInherits() {
     Expect(Is(leaf->computedStyle().color, 64, 80, 96), "a color inherits through forty levels");
 }
 
+void TestMeasureFollowsTextBetweenFrames() {
+    auto root = jadefx::make<jadefx::HBox>();
+    auto label = jadefx::make<jadefx::Label>("short");
+    root->getChildren().add(label);
+    auto scene = jadefx::make<jadefx::Scene>(root, 600, 100);
+    scene->layout(600, 100, 0);
+    const double before = label->getWidth();
+    label->setText("a much longer piece of text than before");
+    scene->layout(600, 100, 0.1);
+    Expect(label->getWidth() > before + 20, "a label laid out again after new text is wider");
+}
+
+void TestMeasureOutsideLayoutIsFresh() {
+    auto root = jadefx::make<jadefx::HBox>();
+    auto label = jadefx::make<jadefx::Label>("short");
+    root->getChildren().add(label);
+    auto scene = jadefx::make<jadefx::Scene>(root, 600, 100);
+    scene->layout(600, 100, 0);
+    const double before = label->measuredWidth(600);
+    label->setText("a much longer piece of text than before");
+    Expect(label->measuredWidth(600) > before + 20, "a measure between frames sees the new text");
+}
+
+void TestThemeColorFollowsStylesheet() {
+    auto box = jadefx::make<jadefx::StackPane>();
+    box->getClassList().add("x");
+    auto scene = jadefx::make<jadefx::Scene>(box, 100, 100);
+    scene->setStylesheet(".x { --accent-color: #ff0000; }");
+    scene->layout(100, 100, 0);
+    Expect(Is(box->themeColor(jadefx::ThemeColor::Accent), 255, 0, 0), "a theme color reads the custom property");
+    Expect(Is(box->themeColor(jadefx::ThemeColor::Accent), 255, 0, 0), "and reads it again the same");
+    scene->setStylesheet(".x { --accent-color: #00ff00; }");
+    scene->layout(100, 100, 0.1);
+    Expect(Is(box->themeColor(jadefx::ThemeColor::Accent), 0, 255, 0), "a changed custom property changes the color");
+    scene->setStylesheet(".x { --accent-color: currentColor; color: #0000ff; }");
+    scene->layout(100, 100, 0.2);
+    Expect(Is(box->themeColor(jadefx::ThemeColor::Accent), 0, 0, 255), "currentColor is the node's text color");
+}
+
+// A page whose height is known only once its rows are placed, like a panel that
+// lays itself out to learn its height.
+class GrowingPage : public jadefx::Pane {
+public:
+    double rows = 1;
+
+protected:
+    void layoutChildren() override { rows = 10; }
+    double preferredContentHeight(double) const override { return rows * 20; }
+};
+
+// Lays its page out, then measures it again, as a scroll pane does when the
+// content changed height.
+class TwiceLayer : public jadefx::Pane {
+public:
+    std::shared_ptr<GrowingPage> page = jadefx::make<GrowingPage>();
+    double second = 0;
+    TwiceLayer() { getChildren().add(page); }
+
+protected:
+    void layoutChildren() override {
+        page->performLayout(0, 0, getWidth(), page->measuredHeight(getWidth(), -1));
+        second = page->measuredHeight(getWidth(), -1);
+        page->performLayout(0, 0, getWidth(), second);
+    }
+};
+
+void TestMeasureAfterOwnLayoutIsFresh() {
+    auto layer = jadefx::make<TwiceLayer>();
+    auto scene = jadefx::make<jadefx::Scene>(layer, 200, 400);
+    scene->layout(200, 400, 0);
+    Expect(layer->second == 200, "a measure after a node's own layout sees the height that layout found");
+}
+
 }  // namespace
 
 int RunStylePerfTests() {
@@ -195,5 +268,9 @@ int RunStylePerfTests() {
     TestVarResolvedPerNode();
     TestTransitionTimingsByProperty();
     TestDeepTreeInherits();
+    TestMeasureFollowsTextBetweenFrames();
+    TestMeasureOutsideLayoutIsFresh();
+    TestThemeColorFollowsStylesheet();
+    TestMeasureAfterOwnLayoutIsFresh();
     return gFailures;
 }
