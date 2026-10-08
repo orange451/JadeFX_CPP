@@ -20,6 +20,9 @@ struct NodeSnapshot {
     // clock does. A second pass in the same frame may move it, so its subtree's
     // bounds are not compared.
     bool animating = false;
+    // The flag :focus-within reads, and the same answer found by walking the subtree.
+    bool focusWithin = false;
+    bool focusWithinWalk = false;
 };
 
 // The check behind JADEFX_VERIFY_INCREMENTAL: a full pass over a scene that an
@@ -39,6 +42,7 @@ public:
 
 private:
     static void collect(Node& node, const std::string& path, std::vector<NodeSnapshot>& out);
+    static bool walkFocusWithin(Node& node);
 };
 
 }  // namespace jadefx

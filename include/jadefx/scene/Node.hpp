@@ -160,7 +160,7 @@ public:
     void setPressed(bool pressed);
     bool isFocused() const { return focused_; }
     // True when this node or a descendant is focused. Matches the :focus-within pseudo.
-    bool isFocusWithin();
+    bool isFocusWithin() const { return focusWithinCount_ > 0; }
     void setSelected(bool selected);
     bool isSelected() const { return selected_; }
 
@@ -355,6 +355,11 @@ private:
     bool incrementalActive() const;
     // Lays out this node and every node under it again, as a subtree that moved needs.
     void markSubtreeLayoutDirty();
+    // Sets focused_ and keeps every ancestor's focus-within count and style in step.
+    void setFocusedFlag(bool focused);
+    // Adds delta to this node's and each ancestor's count of focused nodes inside it.
+    void addFocusWithin(int delta);
+    int focusWithinCount_ = 0;
     // Sets a size from code, marking the node when it changes.
     void setSizeSpec(SizeSpec& slot, const SizeSpec& value);
     // Runs layoutChildren, then forgets the measures it may have changed.
@@ -375,7 +380,8 @@ private:
     // Like pick, but a disabled node still supplies its cursor.
     Node* pickCursorTarget(double x, double y);
     void setPressedChain(Node* hit);
-    void clearFocus();
+    // Clears the focused flag in this subtree, except on keep.
+    void clearFocus(Node* keep = nullptr);
     void markFocused(Node* hit);
     void dispatchHoverChanges();
     void fireMouse(const MouseHandler Node::* handler, const MouseEvent& event);

@@ -459,7 +459,15 @@ const HoverPopup* Node::getHoverPopup() const {
 void Node::setParent(Node* parent) {
     Node* const previousParent = parent_;
     Scene* previousScene = scene_;
+    // A subtree holding the focus takes its count from the old ancestors to the new.
+    const int focusCount = focusWithinCount_;
+    if (focusCount > 0 && previousParent != parent && previousParent != nullptr) {
+        previousParent->addFocusWithin(-focusCount);
+    }
     parent_ = parent;
+    if (focusCount > 0 && previousParent != parent && parent_ != nullptr) {
+        parent_->addFocusWithin(focusCount);
+    }
     if (asScene() != nullptr) {
         scene_ = asScene();
     } else if (parent_ != nullptr) {
@@ -1150,17 +1158,23 @@ void Node::applyCss() {
     applyStyles(inheritedFromParent(), time, StyleForce::Subtree);
 }
 
-bool Node::isFocusWithin() {
-    if (focused_) {
-        return true;
-    }
-    bool found = false;
-    visitChildren([&](Node* child) {
-        if (!found && child->isFocusWithin()) {
-            found = true;
+void Node::addFocusWithin(int delta) {
+    for (Node* node = this; node != nullptr; node = node->parent_) {
+        const bool was = node->focusWithinCount_ > 0;
+        node->focusWithinCount_ += delta;
+        if (was != (node->focusWithinCount_ > 0)) {
+            node->markStyleDirty(focusWithinReachesDescendants() ? StyleDirt::Subtree : StyleDirt::Self);
         }
-    });
-    return found;
+    }
+}
+
+void Node::setFocusedFlag(bool focused) {
+    if (focused_ == focused) {
+        return;
+    }
+    focused_ = focused;
+    markStyleDirty(StyleDirt::Subtree);
+    addFocusWithin(focused ? 1 : -1);
 }
 
 bool Node::contains(double x, double y) const {
@@ -1281,19 +1295,21 @@ void Node::setPressedChain(Node* hit) {
     }
 }
 
-void Node::clearFocus() {
+void Node::clearFocus(Node* keep) {
     std::vector<Node*> stack{this};
     while (!stack.empty()) {
         Node* node = stack.back();
         stack.pop_back();
-        node->focused_ = false;
+        if (node != keep) {
+            node->setFocusedFlag(false);
+        }
         node->visitChildren([&](Node* child) { stack.push_back(child); });
     }
 }
 
 void Node::markFocused(Node* hit) {
     if (hit != nullptr) {
-        hit->focused_ = true;
+        hit->setFocusedFlag(true);
     }
 }
 

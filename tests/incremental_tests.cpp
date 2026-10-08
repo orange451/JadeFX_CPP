@@ -290,6 +290,63 @@ void TestThemeSwitchRestylesEverything() {
     jadefx::Theme::setUserAgentStylesheet(previous);
 }
 
+void TestFocusWithinFollowsFocus() {
+    Fixture f = MakeFixture();
+    std::shared_ptr<jadefx::Label> secondLabel;
+    auto second = Item("second", secondLabel);
+    f.panelA->getChildren().add(second);
+    f.frame();
+    const Seen panelA = Of(*f.panelA);
+    const Seen panelB = Of(*f.panelB);
+    f.scene->requestFocus(f.target.get());
+    f.frame();
+    Expect(Restyled(*f.panelA, panelA), "focusing inside a panel restyles the panel");
+    Expect(Is(f.panelA->computedStyle().background.color, 0, 255, 255), "the panel matches :focus-within");
+    Expect(Is(f.target->computedStyle().background.color, 255, 0, 255), "the focused item matches :focus");
+    Expect(!Restyled(*f.panelB, panelB), "focus leaves the other panel alone");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "focus matches a full pass");
+
+    const Seen panelAgain = Of(*f.panelA);
+    const Seen secondSeen = Of(*second);
+    f.scene->requestFocus(second.get());
+    f.frame();
+    Expect(Restyled(*second, secondSeen), "the newly focused item restyles");
+    Expect(!Restyled(*f.panelA, panelAgain), "focus moving within a panel leaves the panel's :focus-within as it was");
+
+    f.panelA->getChildren().removeIf([&](const std::shared_ptr<jadefx::Node>& n) { return n == second; });
+    f.frame();
+    Expect(!f.panelA->isFocusWithin(), "removing the focused node clears :focus-within above it");
+    Expect(!Is(f.panelA->computedStyle().background.color, 0, 255, 255), "and the panel's :focus-within style goes");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "removing the focused node matches a full pass");
+}
+
+void TestFocusWithinWithoutWindowFocus() {
+    Fixture f = MakeFixture();
+    f.scene->requestFocus(f.target.get());
+    f.frame();
+    f.scene->noteWindowFocus(false);
+    f.frame();
+    Expect(!f.panelA->isFocusWithin(), "a window without the system focus has nothing focused within");
+    f.scene->noteWindowFocus(true);
+    f.frame();
+    Expect(f.panelA->isFocusWithin(), "the focus returns with the window");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "window focus matches a full pass");
+}
+
+void TestFocusWithinReachesDescendants() {
+    Fixture f = MakeFixture();
+    std::shared_ptr<jadefx::Label> otherLabel;
+    auto other = Item("other", otherLabel);
+    f.panelA->getChildren().add(other);
+    f.panelA->setStylesheet(".panel:focus-within .inner { color: #00aa00; }");
+    f.frame();
+    f.scene->requestFocus(f.target.get());
+    f.frame();
+    Expect(Is(otherLabel->computedStyle().color, 0, 170, 0),
+           "a label under a panel with the focus within matches .panel:focus-within .inner");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "a descendant :focus-within matches a full pass");
+}
+
 }  // namespace
 
 int RunIncrementalTests() {
@@ -306,5 +363,8 @@ int RunIncrementalTests() {
     TestInheritedChangePropagates();
     TestUserAgentSheetRestylesEverything();
     TestThemeSwitchRestylesEverything();
+    TestFocusWithinFollowsFocus();
+    TestFocusWithinWithoutWindowFocus();
+    TestFocusWithinReachesDescendants();
     return gFailures;
 }

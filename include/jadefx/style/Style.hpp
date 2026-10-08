@@ -339,6 +339,11 @@ void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration
                        float inheritedFontSize, float emFontSize);
 std::vector<Declaration> parseInlineDeclarations(const std::string& css);
 
+// True once any stylesheet has used :focus-within on a compound left of the last,
+// as in .panel:focus-within .label. A node's focus-within change then restyles
+// its whole subtree; otherwise only the node itself.
+bool focusWithinReachesDescendants();
+
 // A parsed CSS stylesheet. Copying shares the parsed rules.
 class Stylesheet {
 public:

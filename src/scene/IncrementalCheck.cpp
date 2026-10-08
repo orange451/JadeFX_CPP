@@ -96,6 +96,15 @@ bool IncrementalCheck::requested() {
 #endif
 }
 
+bool IncrementalCheck::walkFocusWithin(Node& node) {
+    if (node.focused_) {
+        return true;
+    }
+    bool found = false;
+    node.visitChildren([&](Node* child) { found = found || walkFocusWithin(*child); });
+    return found;
+}
+
 void IncrementalCheck::collect(Node& node, const std::string& path, std::vector<NodeSnapshot>& out) {
     NodeSnapshot shot;
     shot.node = &node;
@@ -106,6 +115,8 @@ void IncrementalCheck::collect(Node& node, const std::string& path, std::vector<
     shot.width = node.width_;
     shot.height = node.height_;
     shot.animating = node.layoutDirty_;
+    shot.focusWithin = node.isFocusWithin();
+    shot.focusWithinWalk = walkFocusWithin(node);
     out.push_back(std::move(shot));
     int index = 0;
     node.visitChildren([&](Node* child) { collect(*child, path + " > " + Segment(*child, index++), out); });
@@ -170,6 +181,9 @@ std::string IncrementalCheck::compare(const std::vector<NodeSnapshot>& increment
         }
         if (const char* field = firstStyleDifference(a.style, b.style)) {
             return a.path + ": " + field;
+        }
+        if (a.focusWithin != a.focusWithinWalk) {
+            return a.path + ": focus-within flag";
         }
         const bool skipped = !skipBelow.empty() && a.path.rfind(skipBelow, 0) == 0;
         if (!skipped) {

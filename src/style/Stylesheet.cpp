@@ -3,6 +3,7 @@
 #include "jadefx/scene/Node.hpp"
 #include "internal/Text.hpp"
 
+#include <atomic>
 #include <cstdint>
 #include <string_view>
 #include <unordered_map>
@@ -36,6 +37,8 @@ struct Compound {
     std::vector<Nth> nthChild;
     bool universal = false;
 };
+
+std::atomic<bool> gFocusWithinReachesDescendants{false};
 
 struct Selector {
     std::vector<Compound> compounds;
@@ -1201,6 +1204,11 @@ Stylesheet Stylesheet::parse(const std::string& css) {
                 continue;
             }
             Selector selector = ParseSelector(piece);
+            for (std::size_t c = 0; selector.valid && c + 1 < selector.compounds.size(); ++c) {
+                if (selector.compounds[c].focusWithin) {
+                    gFocusWithinReachesDescendants = true;
+                }
+            }
             if (selector.valid) {
                 rule.selectors.push_back(std::move(selector));
             }
@@ -1274,6 +1282,8 @@ void Stylesheet::collectMatching(Node& node, std::vector<MatchedDeclaration>& ou
         }
     }
 }
+
+bool focusWithinReachesDescendants() { return gFocusWithinReachesDescendants.load(std::memory_order_relaxed); }
 
 PropertyId propertyIdOf(std::string_view property) {
     if (property.rfind("--", 0) == 0 || property == "accent-color" || property == "caret-color" ||
