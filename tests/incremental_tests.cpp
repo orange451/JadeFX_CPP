@@ -450,6 +450,49 @@ void TestOnlyTheAnimatingNodeRestyles() {
     Expect(!Restyled(*f.target, settled), "a finished transition stops restyling");
 }
 
+void TestLabelTextLaysOut() {
+    Fixture f = MakeFixture();
+    f.frame();
+    const Seen target = Of(*f.target);
+    f.targetLabel->setText("a much longer label than before");
+    f.frame();
+    Expect(LaidOut(*f.target, target), "new label text lays out the label's parent");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "label text matches a full pass");
+}
+
+void TestIndeterminateBarKeepsMoving() {
+    auto root = jadefx::make<jadefx::VBox>();
+    auto bar = jadefx::make<jadefx::ProgressBar>(-1.0);
+    bar->setPrefSize(200, 12);
+    root->getChildren().add(bar);
+    auto scene = jadefx::make<jadefx::Scene>(root, 300, 100);
+    scene->setIncrementalUpdates(true);
+    scene->layout(300, 100, 0);
+    const std::uint32_t before = bar->debugLayoutCount();
+    for (int i = 1; i <= 5; ++i) {
+        scene->layout(300, 100, i / 60.0);
+    }
+    Expect(bar->debugLayoutCount() >= before + 5, "an indeterminate bar lays out every frame with nothing else changing");
+    Expect(jadefx::IncrementalCheck::verify(*scene).empty(), "an indeterminate bar matches a full pass");
+}
+
+void TestListViewFollowsItemChanges() {
+    auto list = jadefx::make<jadefx::ListView<std::string>>();
+    list->getItems().add("one");
+    list->getItems().add("two");
+    list->setPrefSize(200, 120);
+    auto scene = jadefx::make<jadefx::Scene>(list, 200, 120);
+    scene->setIncrementalUpdates(true);
+    scene->layout(200, 120, 0);
+    list->getItems().set(0, "a much longer first item");
+    list->getItems().add("three");
+    scene->layout(200, 120, 0.1);
+    Expect(jadefx::IncrementalCheck::verify(*scene).empty(), "a list view follows its items");
+    list->getSelectionModel().select(1);
+    scene->layout(200, 120, 0.2);
+    Expect(jadefx::IncrementalCheck::verify(*scene).empty(), "a list view follows its selection");
+}
+
 }  // namespace
 
 int RunIncrementalTests() {
@@ -476,5 +519,8 @@ int RunIncrementalTests() {
     TestVisibilityLaysOut();
     TestPopupFollowsItsContent();
     TestOnlyTheAnimatingNodeRestyles();
+    TestLabelTextLaysOut();
+    TestIndeterminateBarKeepsMoving();
+    TestListViewFollowsItemChanges();
     return gFailures;
 }

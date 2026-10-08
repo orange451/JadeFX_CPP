@@ -8,7 +8,13 @@ ImageView::ImageView() = default;
 
 ImageView::ImageView(std::shared_ptr<Image> image) : image_(std::move(image)) {}
 
-void ImageView::setImage(std::shared_ptr<Image> image) { image_ = std::move(image); }
+void ImageView::setImage(std::shared_ptr<Image> image) {
+    if (image_ == image) {
+        return;
+    }
+    image_ = std::move(image);
+    markLayoutDirty();
+}
 
 double ImageView::preferredContentWidth(double) const {
     return image_ ? static_cast<double>(image_->getWidth()) : 0;

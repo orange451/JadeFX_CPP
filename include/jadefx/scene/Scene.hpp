@@ -59,10 +59,15 @@ public:
     void setSafeInsets(const Insets& insets) { safe_ = insets; }
     // Told when each LayoutPass of layout begins and ends. Stage sets this.
     void setLayoutPassHook(LayoutPassHook hook) { passHook_ = std::move(hook); }
-    // Skip nodes whose style and layout did not change since the last frame. Off
-    // restyles and lays out every node every frame.
+    // Skip nodes whose style and layout did not change since the last frame. On by
+    // default; off restyles and lays out every node every frame.
     void setIncrementalUpdates(bool enabled);
     bool incrementalUpdates() const { return incremental_; }
+    // Lays out again the nodes an input event may have changed: the one under the
+    // pointer, the one pressed, and the focused one, with their ancestors. A control
+    // often changes what it lays out (a scroll offset, an open list, a drag) in its
+    // handlers, so input marks the path instead of every handler marking itself.
+    void markInputTargets();
 
     void noteMove(double x, double y);
     // The pointer left the window. Hover ends and the cursor returns to the arrow.
@@ -276,7 +281,7 @@ private:
     bool pointerValid_ = false;
     std::function<int()> eventPump_;
     LayoutPassHook passHook_;
-    bool incremental_ = false;
+    bool incremental_ = true;
     // Nodes with a transition still running. Each is restyled again next frame.
     std::vector<Node*> animating_;
     void noteAnimating(Node* node);

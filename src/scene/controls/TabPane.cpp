@@ -638,6 +638,7 @@ void TabPane::setSide(Side side) {
         return;
     }
     impl_->side = side;
+    markLayoutDirty();
 }
 
 Side TabPane::getSide() const { return impl_ ? impl_->side : Side::Top; }
@@ -655,26 +656,30 @@ TabPane::TabClosingPolicy TabPane::getTabClosingPolicy() const {
 }
 
 void TabPane::setTabMinWidth(double value) {
-    if (impl_) {
+    if (impl_ && impl_->tabMinWidth != value) {
         impl_->tabMinWidth = value;
+        markLayoutDirty();
     }
 }
 
 void TabPane::setTabMaxWidth(double value) {
-    if (impl_) {
+    if (impl_ && impl_->tabMaxWidth != value) {
         impl_->tabMaxWidth = value;
+        markLayoutDirty();
     }
 }
 
 void TabPane::setTabMinHeight(double value) {
-    if (impl_) {
+    if (impl_ && impl_->tabMinHeight != value) {
         impl_->tabMinHeight = value;
+        markLayoutDirty();
     }
 }
 
 void TabPane::setTabMaxHeight(double value) {
-    if (impl_) {
+    if (impl_ && impl_->tabMaxHeight != value) {
         impl_->tabMaxHeight = value;
+        markLayoutDirty();
     }
 }
 

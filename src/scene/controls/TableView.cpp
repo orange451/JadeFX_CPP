@@ -66,6 +66,8 @@ public:
             }
         }
         slots_ = std::move(next);
+        // The cells are placed in column order, and the widths add up to the row's.
+        markLayoutDirty();
     }
 
     void updateIndex(int index) override {
@@ -288,6 +290,7 @@ TableViewBase::~TableViewBase() {
     for (const std::shared_ptr<TableColumnBase>& column : columns_) {
         if (column && column->table_ == this) {
             column->table_ = nullptr;
+            column->changed_ = nullptr;
         }
     }
 }
@@ -295,7 +298,17 @@ TableViewBase::~TableViewBase() {
 void TableViewBase::columnAdded(const std::shared_ptr<TableColumnBase>& column) {
     if (column) {
         column->table_ = this;
+        column->changed_ = [this] { columnsChanged(); };
     }
+    columnsChanged();
+}
+
+void TableViewBase::columnsChanged() {
+    // getVisibleLeafColumns, the header, and the rows all read the column list. The
+    // rows sit in the flow, which keeps its own flags, so it binds them again.
+    markLayoutDirty();
+    markStyleDirty(StyleDirt::Subtree);
+    flow().refresh();
 }
 
 void TableViewBase::columnRemoved(const std::shared_ptr<TableColumnBase>& column) {
@@ -307,6 +320,7 @@ void TableViewBase::columnRemoved(const std::shared_ptr<TableColumnBase>& column
         return;
     }
     column->table_ = nullptr;
+    column->changed_ = nullptr;
     TableColumnBase* raw = column.get();
     if (editColumn_ == raw) {
         edit(-1, nullptr);
@@ -315,6 +329,7 @@ void TableViewBase::columnRemoved(const std::shared_ptr<TableColumnBase>& column
         focusedColumn_ = nullptr;
     }
     sortOrder_.erase(std::remove(sortOrder_.begin(), sortOrder_.end(), raw), sortOrder_.end());
+    columnsChanged();
 }
 
 std::vector<TableColumnBase*> TableViewBase::getVisibleLeafColumns() const {
@@ -333,7 +348,13 @@ void TableViewBase::setSortOrder(std::vector<TableColumnBase*> order) {
                                    return column == nullptr || column->getTableViewBase() != this;
                                }),
                 order.end());
-    sortOrder_ = std::move(order);
+    // Each header's sorted/ascending/descending pseudo-states read the order
+    // through its own refresh, called from this table's layoutChildren.
+    if (order != sortOrder_) {
+        sortOrder_ = std::move(order);
+        markLayoutDirty();
+        markStyleDirty(StyleDirt::Subtree);
+    }
     sort();
 }
 

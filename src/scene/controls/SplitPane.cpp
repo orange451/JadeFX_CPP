@@ -845,6 +845,7 @@ void SplitPane::setOrientation(Orientation orientation) {
     orientation_ = orientation;
     if (changed && impl_) {
         impl_->previousSize = -1;
+        markLayoutDirty();
     }
     syncChrome();
 }
@@ -1137,6 +1138,9 @@ void SplitPane::onDividerPositionChanged(Divider* divider) {
             impl_->bars[i].posExplicit = true;
         }
     }
+    // The bands and the divider itself are placed again; the pane's own
+    // preferred size never reads a divider's position.
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 double SplitPane::contentSpan() const { return horizontalSplit() ? contentWidth() : contentHeight(); }

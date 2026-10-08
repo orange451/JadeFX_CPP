@@ -40,15 +40,17 @@ public:
     void setOrientation(Orientation orientation);
     Orientation getOrientation() const { return orientation_; }
 
-    void setShowTickLabels(bool value) { showLabels_ = value; }
+    // Tick marks and labels add to the slider's breadth, so showing or hiding them changes its preferred size.
+    void setShowTickLabels(bool value) { setLayoutValue(showLabels_, value); }
     bool isShowTickLabels() const { return showLabels_; }
-    void setShowTickMarks(bool value) { showMarks_ = value; }
+    void setShowTickMarks(bool value) { setLayoutValue(showMarks_, value); }
     bool isShowTickMarks() const { return showMarks_; }
 
     // Non-positive values are ignored. The distance is in value units.
     void setMajorTickUnit(double value);
     double getMajorTickUnit() const { return major_; }
-    // Minor ticks drawn between two majors. Zero draws majors only.
+    // Minor ticks drawn between two majors. Zero draws majors only. Rendered only; the
+    // extra row's height comes from the major ticks and labels, not the minor count.
     void setMinorTickCount(int value) { minor_ = value; }
     int getMinorTickCount() const { return minor_; }
 
@@ -61,7 +63,7 @@ public:
     double getBlockIncrement() const { return block_; }
 
     // Replaces the default major-tick text. An empty function restores it.
-    void setLabelFormatter(std::function<std::string(double)> formatter) { formatter_ = std::move(formatter); }
+    void setLabelFormatter(std::function<std::string(double)> formatter);
 
     // Snaps when snapToTicks is on, then clamps. max <= min does nothing.
     void adjustValue(double value);

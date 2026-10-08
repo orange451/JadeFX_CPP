@@ -20,6 +20,10 @@ struct NodeSnapshot {
     // clock does. A second pass in the same frame may move it, so its subtree's
     // bounds are not compared.
     bool animating = false;
+    // The node was marked to restyle next frame during this one, as a control that
+    // sets its own size while laying out does. Its style catches up then, as it
+    // would after a full pass, so it is not compared now.
+    bool restylePending = false;
     // The flag :focus-within reads, and the same answer found by walking the subtree.
     bool focusWithin = false;
     bool focusWithinWalk = false;

@@ -11,7 +11,15 @@ IndexedCell::IndexedCell() : Labeled("") {
     updateEmpty(true);
 }
 
-void IndexedCell::updateIndex(int index) { index_ = index; }
+void IndexedCell::updateIndex(int index) {
+    if (index_ == index) {
+        return;
+    }
+    index_ = index;
+    // :nth-child reads the item's place, and a descendant selector may use it.
+    markStyleDirty(StyleDirt::Subtree);
+    markLayoutDirty();
+}
 
 void IndexedCell::updateEmpty(bool empty) {
     empty_ = empty;

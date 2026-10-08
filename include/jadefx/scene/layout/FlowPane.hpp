@@ -24,16 +24,19 @@ public:
 
     void setOrientation(Orientation orientation);
     Orientation getOrientation() const { return orientation_; }
-    void setHgap(double gap) { hgap_ = gap; }
+    void setHgap(double gap) { setLayoutValue(hgap_, gap); }
     double getHgap() const { return hgap_; }
-    void setVgap(double gap) { vgap_ = gap; }
+    void setVgap(double gap) { setLayoutValue(vgap_, gap); }
     double getVgap() const { return vgap_; }
     // Where the preferred size wraps. The default is 400.
-    void setPrefWrapLength(double length) { prefWrapLength_ = length; }
+    void setPrefWrapLength(double length) { setLayoutValue(prefWrapLength_, length); }
     double getPrefWrapLength() const { return prefWrapLength_; }
-    void setRowValignment(VPos alignment) { rowValignment_ = alignment; }
+    // Only layoutChildren reads these, not the preferred size, so Arrange is enough.
+    void setRowValignment(VPos alignment) { setLayoutValue(rowValignment_, alignment, LayoutDirt::Arrange); }
     VPos getRowValignment() const { return rowValignment_; }
-    void setColumnHalignment(HPos alignment) { columnHalignment_ = alignment; }
+    void setColumnHalignment(HPos alignment) {
+        setLayoutValue(columnHalignment_, alignment, LayoutDirt::Arrange);
+    }
     HPos getColumnHalignment() const { return columnHalignment_; }
 
     // Space kept around a child.

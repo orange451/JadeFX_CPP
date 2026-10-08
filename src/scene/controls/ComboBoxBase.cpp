@@ -19,7 +19,7 @@ ComboBoxBase::ComboBoxBase() {
     setPadding(Insets::axes(4, 8));
 }
 
-ComboBoxBase::~ComboBoxBase() { releaseKeyHook(); }
+ComboBoxBase::~ComboBoxBase() { releaseHooks(); }
 
 void ComboBoxBase::show() {
     Scene* scene = getScene();
@@ -39,11 +39,19 @@ void ComboBoxBase::show() {
     popupShowing();
     open_ = true;
     if (opening) {
-        releaseKeyHook();
+        releaseHooks();
         hookScene_ = scene;
         keyHook_ = scene->addKeyHook([this](KeyEvent& event) {
             if (isShowing() && handlePopupKey(event)) {
                 event.consume();
+            }
+        });
+        // The scene may close the popup on its own (an outside press, Escape, or a
+        // focus or window change) on a frame that never lays this control out again.
+        // The pulse runs after every layout, so it always catches that.
+        pulseHook_ = scene->addPostLayoutPulseListener([this] {
+            if (open_ && (!isShowing() || focusLeftControl())) {
+                hide();
             }
         });
     }
@@ -58,7 +66,7 @@ void ComboBoxBase::hide() {
         return;
     }
     hiding_ = true;
-    releaseKeyHook();
+    releaseHooks();
     Scene* scene = getScene();
     if (popup_ != nullptr && scene != nullptr && !scene->isTearingDown() && scene->isPopupShowing(popup_.get())) {
         scene->hidePopup(popup_.get());
@@ -77,12 +85,18 @@ bool ComboBoxBase::isShowing() const {
     return popup_ != nullptr && getScene() != nullptr && getScene()->isPopupShowing(popup_.get());
 }
 
-void ComboBoxBase::releaseKeyHook() {
-    if (hookScene_ != nullptr && keyHook_ != 0 && !hookScene_->isTearingDown()) {
-        hookScene_->removeKeyHook(keyHook_);
+void ComboBoxBase::releaseHooks() {
+    if (hookScene_ != nullptr && !hookScene_->isTearingDown()) {
+        if (keyHook_ != 0) {
+            hookScene_->removeKeyHook(keyHook_);
+        }
+        if (pulseHook_ != 0) {
+            hookScene_->removePostLayoutPulseListener(pulseHook_);
+        }
     }
     hookScene_ = nullptr;
     keyHook_ = 0;
+    pulseHook_ = 0;
 }
 
 void ComboBoxBase::setEditable(bool editable) {
@@ -126,10 +140,16 @@ void ComboBoxBase::setEditable(bool editable) {
 }
 
 void ComboBoxBase::setPromptText(std::string text) {
+    if (prompt_ == text) {
+        return;
+    }
     prompt_ = std::move(text);
     if (editor_ != nullptr) {
         editor_->setPromptText(prompt_);
     }
+    // A subclass's preferredContentWidth may measure the prompt, as ComboBox and
+    // DatePicker do, so the box's own preferred size can change with it.
+    markLayoutDirty();
 }
 
 void ComboBoxBase::syncEditor() {
@@ -298,6 +318,7 @@ void ComboBoxBase::sceneChanged(Scene* previous) {
         open_ = false;
         hookScene_ = nullptr;
         keyHook_ = 0;
+        pulseHook_ = 0;
         return;
     }
     if (previous != nullptr) {

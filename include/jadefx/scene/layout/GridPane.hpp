@@ -71,16 +71,26 @@ public:
     // Adds children down one column, starting past the last child already in it.
     void addColumn(int columnIndex, std::initializer_list<std::shared_ptr<Node>> children);
 
-    void setHgap(double gap) { hgap_ = gap; }
+    void setHgap(double gap) { setLayoutValue(hgap_, gap); }
     double getHgap() const { return hgap_; }
-    void setVgap(double gap) { vgap_ = gap; }
+    void setVgap(double gap) { setLayoutValue(vgap_, gap); }
     double getVgap() const { return vgap_; }
-    // Draws each cell's edges, to see how the grid divides the space.
+    // Draws each cell's edges, to see how the grid divides the space. Only renderContent
+    // reads this, so it does not touch layout.
     void setGridLinesVisible(bool visible) { gridLines_ = visible; }
     bool isGridLinesVisible() const { return gridLines_; }
 
-    std::vector<ColumnConstraints>& getColumnConstraints() { return columns_; }
-    std::vector<RowConstraints>& getRowConstraints() { return rows_; }
+    // Mutable, since a caller edits entries or reassigns the whole list after getting it
+    // (ColumnConstraints and RowConstraints are not Nodes and cannot mark themselves), so
+    // getting either one marks the grid for layout.
+    std::vector<ColumnConstraints>& getColumnConstraints() {
+        markLayoutDirty();
+        return columns_;
+    }
+    std::vector<RowConstraints>& getRowConstraints() {
+        markLayoutDirty();
+        return rows_;
+    }
 
     // Columns and rows as of the last layout, and their sizes.
     int getColumnCount() const;

@@ -282,6 +282,8 @@ void DatePicker::changed(bool fire) {
 void DatePicker::setConverter(StringConverter<LocalDate> converter) {
     converter_ = std::move(converter);
     syncEditor();
+    // preferredContentWidth measures a sample date with this converter.
+    markLayoutDirty();
 }
 
 void DatePicker::setShowWeekNumbers(bool show) {

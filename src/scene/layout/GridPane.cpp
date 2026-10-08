@@ -164,9 +164,13 @@ Insets GridPane::getMargin(const Node& child) {
 }
 
 void GridPane::clearConstraints(Node& child) {
+    bool changed = false;
     for (const char* key : {kColumn, kRow, kColumnSpan, kRowSpan, kHalignment, kValignment, kHgrow, kVgrow, kFillWidth,
                             kFillHeight, kMargin}) {
-        child.getProperties().erase(key);
+        changed = child.getProperties().erase(key) > 0 || changed;
+    }
+    if (changed) {
+        child.markLayoutDirty();
     }
 }
 

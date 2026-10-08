@@ -37,9 +37,13 @@ FlowPane::FlowPane(Orientation orientation, double hgap, double vgap) : hgap_(hg
 }
 
 void FlowPane::setOrientation(Orientation orientation) {
+    if (orientation_ == orientation) {
+        return;
+    }
     orientation_ = orientation;
     setPseudoState("horizontal", orientation == Orientation::Horizontal);
     setPseudoState("vertical", orientation == Orientation::Vertical);
+    markLayoutDirty();
 }
 
 void FlowPane::setMargin(Node& child, const Insets& margin) { layout_detail::SetConstraint(child, kMargin, margin); }
@@ -48,7 +52,11 @@ Insets FlowPane::getMargin(const Node& child) {
     return layout_detail::GetConstraint<Insets>(child, kMargin).value_or(Insets{});
 }
 
-void FlowPane::clearConstraints(Node& child) { child.getProperties().erase(kMargin); }
+void FlowPane::clearConstraints(Node& child) {
+    if (child.getProperties().erase(kMargin) > 0) {
+        child.markLayoutDirty();
+    }
+}
 
 double FlowPane::alongGap() const {
     const ComputedStyle& style = computedStyle();

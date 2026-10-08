@@ -52,21 +52,21 @@ public:
     void setVmax(double value);
     double getVmax() const { return vmax_; }
 
-    void setFitToWidth(bool value) { fitToWidth_ = value; }
+    void setFitToWidth(bool value) { setLayoutValue(fitToWidth_, value, LayoutDirt::Arrange); }
     bool isFitToWidth() const { return fitToWidth_; }
-    void setFitToHeight(bool value) { fitToHeight_ = value; }
+    void setFitToHeight(bool value) { setLayoutValue(fitToHeight_, value, LayoutDirt::Arrange); }
     bool isFitToHeight() const { return fitToHeight_; }
 
-    void setHbarPolicy(ScrollBarPolicy policy) { hbarPolicy_ = policy; }
+    void setHbarPolicy(ScrollBarPolicy policy) { setLayoutValue(hbarPolicy_, policy); }
     ScrollBarPolicy getHbarPolicy() const { return hbarPolicy_; }
-    void setVbarPolicy(ScrollBarPolicy policy) { vbarPolicy_ = policy; }
+    void setVbarPolicy(ScrollBarPolicy policy) { setLayoutValue(vbarPolicy_, policy); }
     ScrollBarPolicy getVbarPolicy() const { return vbarPolicy_; }
 
     // The viewport size this pane asks its parent for. Zero or less uses the
     // content's preferred size.
-    void setPrefViewportWidth(double value) { prefViewportWidth_ = value; }
+    void setPrefViewportWidth(double value) { setLayoutValue(prefViewportWidth_, value); }
     double getPrefViewportWidth() const { return prefViewportWidth_; }
-    void setPrefViewportHeight(double value) { prefViewportHeight_ = value; }
+    void setPrefViewportHeight(double value) { setLayoutValue(prefViewportHeight_, value); }
     double getPrefViewportHeight() const { return prefViewportHeight_; }
 
     // The viewport as of the last layout, in points.

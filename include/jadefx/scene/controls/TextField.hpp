@@ -22,7 +22,7 @@ public:
     void setEditable(bool editable) { editable_ = editable; }
     bool isEditable() const { return editable_; }
 
-    void setPrefColumnCount(int columns) { columns_ = columns; }
+    void setPrefColumnCount(int columns) { setLayoutValue(columns_, columns); }
     int getPrefColumnCount() const { return columns_; }
 
     // Indexes are Unicode code points, clamped to 0..length.

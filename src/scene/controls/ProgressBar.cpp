@@ -191,6 +191,8 @@ void ProgressBar::setProgress(double value) {
     }
     progress_ = value;
     syncPseudos();
+    // The bar length changes, but the control's preferred size does not.
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void ProgressBar::setIndeterminateBarLength(double value) {
@@ -199,16 +201,19 @@ void ProgressBar::setIndeterminateBarLength(double value) {
     }
     lengthSpec_ = SizeSpec::px(value);
     usedLength_ = value;
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void ProgressBar::setIndeterminateBarEscape(bool value) {
     escape_ = value;
     usedEscape_ = value;
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void ProgressBar::setIndeterminateBarFlip(bool value) {
     flip_ = value;
     usedFlip_ = value;
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void ProgressBar::setIndeterminateBarAnimationTime(double seconds) {
@@ -217,6 +222,7 @@ void ProgressBar::setIndeterminateBarAnimationTime(double seconds) {
     }
     animationTime_ = seconds;
     usedAnimationTime_ = seconds;
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void ProgressBar::syncPseudos() {
@@ -299,6 +305,10 @@ void ProgressBar::layoutChildren() {
     bar_->performLayout(left, top, length, breadth);
     if (isIndeterminate() && barUsesDefaultFill_) {
         static_cast<ProgressFill*>(bar_.get())->setTravelFill(mirrored);
+    }
+    // The indeterminate bar moves with the clock, so it is placed again next frame.
+    if (isIndeterminate() && getScene() != nullptr) {
+        markLayoutDirty(LayoutDirt::Arrange);
     }
 }
 

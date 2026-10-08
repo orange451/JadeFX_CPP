@@ -86,6 +86,9 @@ void MenuItem::notifyParent() const {
     if (parent_ != nullptr) {
         parent_->refreshIfOpen();
     }
+    if (onChanged_) {
+        onChanged_();
+    }
 }
 
 SeparatorMenuItem::SeparatorMenuItem() = default;

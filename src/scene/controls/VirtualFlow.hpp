@@ -42,13 +42,20 @@ public:
     // Vertical rows stack downward; horizontal ones run left to right.
     void setVertical(bool vertical);
     bool isVertical() const { return vertical_; }
-    // Zero or less measures the first row on screen.
-    void setFixedCellSize(double size) { fixedSize_ = size; }
+    // Zero or less measures the first row on screen. Only layoutChildren reads
+    // this, so arranging again is enough.
+    void setFixedCellSize(double size) { setLayoutValue(fixedSize_, size, LayoutDirt::Arrange); }
     // Zero or less makes cells as broad as the viewport or their widest preference.
-    void setFixedCellBreadth(double breadth) { fixedBreadth_ = breadth; }
+    void setFixedCellBreadth(double breadth) { setLayoutValue(fixedBreadth_, breadth, LayoutDirt::Arrange); }
 
     // Rebinds every cell on screen at the next layout, for rows whose items changed.
-    void refresh() { rebindAll_ = true; }
+    void refresh() {
+        if (rebindAll_) {
+            return;
+        }
+        rebindAll_ = true;
+        markLayoutDirty(LayoutDirt::Arrange);
+    }
 
     // Moves so row index is the first on screen, as far as the end allows.
     void scrollTo(int index);

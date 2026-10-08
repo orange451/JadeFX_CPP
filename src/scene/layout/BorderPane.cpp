@@ -22,7 +22,7 @@ BorderPane::~BorderPane() {
     release(right_);
 }
 
-void BorderPane::setSpacing(double spacing) { regionSpacing_ = spacing; }
+void BorderPane::setSpacing(double spacing) { setLayoutValue(regionSpacing_, spacing); }
 
 void BorderPane::releaseSlot(std::shared_ptr<Node>& slot, Node* child) {
     if (slot.get() != child) {

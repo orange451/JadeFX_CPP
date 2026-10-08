@@ -224,6 +224,7 @@ bool Scene::finishDrag(double x, double y, bool drop) {
 }
 
 bool Scene::noteFileDrop(double x, double y, std::vector<std::string> paths) {
+    markInputTargets();
     if (paths.empty() || drag_ != nullptr) {
         return false;
     }

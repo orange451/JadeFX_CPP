@@ -115,6 +115,7 @@ void IncrementalCheck::collect(Node& node, const std::string& path, std::vector<
     shot.width = node.width_;
     shot.height = node.height_;
     shot.animating = node.layoutDirty_;
+    shot.restylePending = node.styleDirty_;
     shot.focusWithin = node.isFocusWithin();
     shot.focusWithinWalk = walkFocusWithin(node);
     out.push_back(std::move(shot));
@@ -179,22 +180,24 @@ std::string IncrementalCheck::compare(const std::vector<NodeSnapshot>& increment
         if (a.node != b.node) {
             return b.path + ": the tree changed during the full pass";
         }
-        if (const char* field = firstStyleDifference(a.style, b.style)) {
-            return a.path + ": " + field;
-        }
         if (a.focusWithin != a.focusWithinWalk) {
             return a.path + ": focus-within flag";
         }
-        const bool skipped = !skipBelow.empty() && a.path.rfind(skipBelow, 0) == 0;
-        if (!skipped) {
-            skipBelow.clear();
-            if (a.animating) {
-                skipBelow = a.path;
-                continue;
-            }
-            if (a.x != b.x || a.y != b.y || a.width != b.width || a.height != b.height) {
-                return a.path + ": bounds";
-            }
+        // Below a node laid out on the clock, a second pass sets what the clock says
+        // now, such as a fading row's opacity, so neither style nor bounds compare.
+        if (!skipBelow.empty() && a.path.rfind(skipBelow + " > ", 0) == 0) {
+            continue;
+        }
+        skipBelow.clear();
+        if (const char* field = a.restylePending ? nullptr : firstStyleDifference(a.style, b.style)) {
+            return a.path + ": " + field;
+        }
+        if (a.animating) {
+            skipBelow = a.path;
+            continue;
+        }
+        if (a.x != b.x || a.y != b.y || a.width != b.width || a.height != b.height) {
+            return a.path + ": bounds";
         }
     }
     if (incremental.size() != full.size()) {
@@ -205,12 +208,16 @@ std::string IncrementalCheck::compare(const std::vector<NodeSnapshot>& increment
 
 std::string IncrementalCheck::verify(Scene& scene) {
     const std::vector<NodeSnapshot> incremental = snapshot(scene);
+    // The host times the frame's own passes, not this check's.
+    LayoutPassHook hook;
+    hook.swap(scene.passHook_);
     Node::beginLayoutPass();
     Node::setFullPass(true);
     scene.stylePass(scene.lastTime_);
     scene.placePass();
     Node::setFullPass(false);
     Node::endLayoutPass();
+    hook.swap(scene.passHook_);
     return compare(incremental, snapshot(scene));
 }
 

@@ -763,7 +763,12 @@ void TreeView::setIndent(double indent) {
     if (indent < 0) {
         indent = 0;
     }
+    // preferredContentWidth and layoutChildren both read the indent.
+    if (impl_->indent == indent) {
+        return;
+    }
     impl_->indent = indent;
+    markLayoutDirty();
 }
 
 double TreeView::getIndent() const { return impl_ ? impl_->indent : kDefaultIndent; }
@@ -772,7 +777,13 @@ void TreeView::setFixedCellSize(double size) {
     if (!impl_) {
         return;
     }
-    impl_->cellSize = size < kMinRow ? kMinRow : size;
+    const double clamped = size < kMinRow ? kMinRow : size;
+    // preferredContentHeight (through rowSize) and layoutChildren both read it.
+    if (impl_->cellSize == clamped) {
+        return;
+    }
+    impl_->cellSize = clamped;
+    markLayoutDirty();
 }
 
 double TreeView::getFixedCellSize() const { return impl_ ? impl_->cellSize : kDefaultRow; }
@@ -1085,6 +1096,10 @@ void TreeView::setHoverAccessory(std::shared_ptr<Node> node) {
     if (impl_->accessory) {
         impl_->accessory->setVisible(false);
     }
+    // Reparented through setParent, not children(), so the Node base did not
+    // mark this view on its own.
+    markLayoutDirty();
+    markStyleDirty(StyleDirt::Subtree);
 }
 
 TreeItem* TreeView::getHoveredItem() const {
@@ -1126,7 +1141,9 @@ void TreeView::scrollTo(int row) {
     if (row < 0) {
         row = 0;
     }
+    // Only layoutChildren reads the scroll offset.
     impl_->scroll = static_cast<double>(row) * rowSize();
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void TreeView::scrollTo(const TreeItem* item) {
@@ -1210,6 +1227,10 @@ void TreeView::rebuild() {
     if (!impl_ || !impl_->alive) {
         return;
     }
+    // The rows are rebuilt here, outside the children() list the Node base
+    // marks on its own, and nth-child depends on which items are now visible.
+    markLayoutDirty();
+    markStyleDirty(StyleDirt::Subtree);
     std::unordered_map<TreeItem*, std::shared_ptr<TreeCell>> pool;
     for (const std::shared_ptr<TreeCell>& row : impl_->rows) {
         if (row && row->item() != nullptr) {
@@ -1564,6 +1585,7 @@ void TreeView::layoutChildren() {
     constexpr double kAppearSeconds = 0.18;
     const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     std::unordered_set<const TreeItem*> present;
+    bool appearing = false;
     for (int i = 0; i < count; ++i) {
         TreeCell* cell = impl_->rows[static_cast<std::size_t>(i)].get();
         if (cell == nullptr) {
@@ -1574,6 +1596,7 @@ void TreeView::layoutChildren() {
         const auto seen = impl_->seenAt.emplace(item, impl_->seeded ? now : 0.0).first;
         const double appear = (now - seen->second) / kAppearSeconds;
         const double eased = appear >= 1.0 ? 1.0 : 1.0 - std::pow(1.0 - std::max(0.0, appear), 3.0);
+        appearing = appearing || appear < 1.0;
         cell->setOpacity(static_cast<float>(eased));
         const double trail = impl_->hoverItem != nullptr && cell->item() == impl_->hoverItem ? kHoverSlot : 0;
         cell->prepare(shownLevel(cell->item()), impl_->indent, trail);
@@ -1611,6 +1634,10 @@ void TreeView::layoutChildren() {
     scroll::PlaceBar(*impl_->vbar, {maxScroll > 0, 0, maxScroll, scroll, height, content, left, top,
                                     {rowWidth, height}});
     tickDrag();
+    // Smooth scrolling, rows fading in, and a drag near an edge move with the clock.
+    if (impl_->smoothing || appearing || impl_->dragging) {
+        markLayoutDirty(LayoutDirt::Arrange);
+    }
 }
 
 void TreeView::visitChildren(const std::function<void(Node*)>& visitor) {

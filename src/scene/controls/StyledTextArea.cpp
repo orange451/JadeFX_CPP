@@ -632,11 +632,18 @@ void StyledTextArea::setWrapText(bool wrap) {
 }
 
 void StyledTextArea::setTabSize(int spaces) {
-    tabSize_ = std::max(1, spaces);
+    const int clamped = std::max(1, spaces);
+    if (tabSize_ == clamped) {
+        return;
+    }
+    tabSize_ = clamped;
     markDirty();
 }
 
 void StyledTextArea::setShowLineNumbers(bool show) {
+    if (lineNumbers_ == show) {
+        return;
+    }
     lineNumbers_ = show;
     markDirty();
 }
@@ -732,9 +739,16 @@ void StyledTextArea::unfoldParagraphs(int paragraph) {
 }
 
 void StyledTextArea::scrollTo(double x, double y) {
+    const double previousX = scrollX_;
+    const double previousY = scrollY_;
     scrollX_ = x;
     scrollY_ = y;
     rebuild();
+    // placeInlineNodes reads the scroll offset to place inline nodes, so a real move
+    // needs another layout even though the control's own size never changes.
+    if (scrollX_ != previousX || scrollY_ != previousY) {
+        markLayoutDirty(LayoutDirt::Arrange);
+    }
 }
 
 void StyledTextArea::showPosition(int offset) {
@@ -871,7 +885,12 @@ ParagraphStyle StyledTextArea::paragraphStyleForInsertion(int offset) const {
     return content_.paragraph(content_.position(std::max(0, offset)).paragraph).paragraphStyle();
 }
 
-void StyledTextArea::markDirty() { layoutDirty_ = true; }
+void StyledTextArea::markDirty() {
+    layoutDirty_ = true;
+    // Content, wrapping, folds, and marks all feed layoutChildren (through rebuild and
+    // placeInlineNodes), but never the control's own preferred size, which is fixed.
+    markLayoutDirty(LayoutDirt::Arrange);
+}
 
 void StyledTextArea::flushPending() {
     if (flushing_) {
@@ -1650,6 +1669,8 @@ void StyledTextArea::ensureCaretVisible() {
     if (view_.paragraphs.empty() || view_.textH <= 0.f) {
         return;
     }
+    const double previousScrollX = scrollX_;
+    const double previousScrollY = scrollY_;
     int offset = primary().caret;
     TextPos pos = content_.position(offset);
     if (isHidden(pos.paragraph)) {
@@ -1700,6 +1721,11 @@ void StyledTextArea::ensureCaretVisible() {
     const float maxX = wrap_ ? 0.f : std::max(0.f, view_.contentWidth - view_.textW);
     scrollY_ = std::max(0.0, std::min(static_cast<double>(maxY), scrollY_));
     scrollX_ = std::max(0.0, std::min(static_cast<double>(maxX), scrollX_));
+    // An autoscroll moves where placeInlineNodes puts the inline nodes, even though
+    // the caret and selection it followed are render-only state.
+    if (scrollX_ != previousScrollX || scrollY_ != previousScrollY) {
+        markLayoutDirty(LayoutDirt::Arrange);
+    }
 }
 
 MeasuredLine StyledTextArea::measureLine(int paragraph, int start, int end) const {
@@ -1731,6 +1757,8 @@ void StyledTextArea::setInlineNodes(std::vector<InlineNode> nodes) {
         }
     }
     inlineNodes_ = std::move(nodes);
+    // A node that stays keeps its child slot, which marks nothing on its own, so an
+    // offset-only change still needs to place it again.
     markDirty();
 }
 
@@ -2696,6 +2724,9 @@ void StyledTextArea::handleKey(KeyEvent& event) {
 
 void StyledTextArea::renderContent(UiRenderer& renderer, float opacity) {
     advanceSmoothScroll();
+    if (smoothScrolling_) {
+        markLayoutDirty(LayoutDirt::Arrange);
+    }
     rebuild();
     const float absX = static_cast<float>(getAbsoluteX());
     const float absY = static_cast<float>(getAbsoluteY());

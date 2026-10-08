@@ -39,7 +39,10 @@ public:
     const ObservableList<std::shared_ptr<TableColumnBase>>& getColumns() const { return columns_; }
     std::vector<TableColumnBase*> getVisibleLeafColumns() const;
 
-    void setColumnResizePolicy(ColumnResizePolicy policy) { resizePolicy_ = policy; }
+    // Only fitColumns, in this table's own layoutChildren, reads the policy.
+    void setColumnResizePolicy(ColumnResizePolicy policy) {
+        setLayoutValue(resizePolicy_, policy, LayoutDirt::Arrange);
+    }
     ColumnResizePolicy getColumnResizePolicy() const { return resizePolicy_; }
 
     // The columns the rows are sorted by, first to last. A header click sorts by
@@ -88,6 +91,8 @@ private:
     struct Header;
 
     void columnAdded(const std::shared_ptr<TableColumnBase>& column);
+    // The column list or a column changed: lays out and binds the rows again.
+    void columnsChanged();
     void columnRemoved(const std::shared_ptr<TableColumnBase>& column);
     // Sets each visible column's width by the resize policy.
     void fitColumns(const std::vector<TableColumnBase*>& visible, double available);

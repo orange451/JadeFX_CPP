@@ -45,7 +45,14 @@ void VirtualFlow::setCellFactory(CellFactory factory) {
     factory_ = std::move(factory);
 }
 
-void VirtualFlow::setCellCount(int count) { count_ = std::max(0, count); }
+void VirtualFlow::setCellCount(int count) {
+    const int clamped = std::max(0, count);
+    if (clamped == count_) {
+        return;
+    }
+    count_ = clamped;
+    markLayoutDirty(LayoutDirt::Arrange);
+}
 
 void VirtualFlow::setVertical(bool vertical) {
     if (vertical == vertical_) {
@@ -55,16 +62,19 @@ void VirtualFlow::setVertical(bool vertical) {
     position_ = 0;
     breadthOffset_ = 0;
     rebindAll_ = true;
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void VirtualFlow::scrollTo(int index) {
     pendingTop_ = index;
     pendingShow_ = -1;
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void VirtualFlow::show(int index) {
     pendingShow_ = index;
     pendingTop_ = -1;
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 double VirtualFlow::maxPosition() const {
@@ -74,7 +84,11 @@ double VirtualFlow::maxPosition() const {
 bool VirtualFlow::scrollPixels(double delta) {
     const double before = position_;
     position_ = std::clamp(position_ + delta, 0.0, maxPosition());
-    return position_ != before;
+    const bool moved = position_ != before;
+    if (moved) {
+        markLayoutDirty(LayoutDirt::Arrange);
+    }
+    return moved;
 }
 
 void VirtualFlow::setBreadthOffset(double offset) {
@@ -82,6 +96,7 @@ void VirtualFlow::setBreadthOffset(double offset) {
         return;
     }
     breadthOffset_ = offset;
+    markLayoutDirty(LayoutDirt::Arrange);
     if (onBreadth_) {
         onBreadth_();
     }

@@ -84,24 +84,27 @@ Slider::Slider(double min, double max, double value) {
 }
 
 void Slider::setMin(double value) {
-    if (!std::isfinite(value)) {
+    if (!std::isfinite(value) || min_ == value) {
         return;
     }
     min_ = value;
     if (min_ > max_) {
         max_ = min_;
     }
+    // A vertical slider's preferred width can depend on min through its tick labels.
+    markLayoutDirty();
     clampValue();
 }
 
 void Slider::setMax(double value) {
-    if (!std::isfinite(value)) {
+    if (!std::isfinite(value) || max_ == value) {
         return;
     }
     max_ = value;
     if (max_ < min_) {
         min_ = max_;
     }
+    markLayoutDirty();
     clampValue();
 }
 
@@ -126,15 +129,24 @@ void Slider::setValueChanging(bool value) {
 }
 
 void Slider::setOrientation(Orientation orientation) {
+    // syncPseudos always runs, even on the first call from the constructor, so the
+    // vertical and horizontal pseudo-classes are set from the start.
+    const bool orientationChanged = orientation_ != orientation;
     orientation_ = orientation;
     syncPseudos();
+    if (orientationChanged) {
+        // Preferred width and height swap between the along-track span and the thumb breadth.
+        markLayoutDirty();
+    }
 }
 
 void Slider::setMajorTickUnit(double value) {
-    if (!std::isfinite(value) || !(value > 0)) {
+    if (!std::isfinite(value) || !(value > 0) || major_ == value) {
         return;
     }
     major_ = value;
+    // The major spacing sets how many tick labels fit, which a vertical slider measures into its width.
+    markLayoutDirty();
 }
 
 void Slider::setBlockIncrement(double value) {
@@ -159,6 +171,12 @@ void Slider::adjustValue(double value) {
         return;
     }
     setValue(snap(Clamp(min_, value, max_)));
+}
+
+void Slider::setLabelFormatter(std::function<std::string(double)> formatter) {
+    formatter_ = std::move(formatter);
+    // A vertical slider measures its labels into its preferred width.
+    markLayoutDirty();
 }
 
 void Slider::increment() { adjustValue(value_ + block_); }

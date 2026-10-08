@@ -64,6 +64,8 @@ void ScrollPane::changeHvalue(double value) {
         return;
     }
     hvalue_ = value;
+    // The content and the bar's thumb move; neither's preferred size changes.
+    markLayoutDirty(LayoutDirt::Arrange);
     if (onHvalue_) {
         onHvalue_();
     }
@@ -75,6 +77,7 @@ void ScrollPane::changeVvalue(double value) {
         return;
     }
     vvalue_ = value;
+    markLayoutDirty(LayoutDirt::Arrange);
     if (onVvalue_) {
         onVvalue_();
     }
@@ -94,32 +97,49 @@ void ScrollPane::setVvalue(double value) {
 
 void ScrollPane::setHmin(double value) {
     if (std::isfinite(value)) {
+        const double before = hmin_;
         hmin_ = value;
         Order(hmin_, hmax_, true);
+        if (hmin_ != before) {
+            // The bar's range changes even when the clamped value does not.
+            markLayoutDirty(LayoutDirt::Arrange);
+        }
         changeHvalue(hvalue_);
     }
 }
 
 void ScrollPane::setHmax(double value) {
     if (std::isfinite(value)) {
+        const double before = hmax_;
         hmax_ = value;
         Order(hmin_, hmax_, false);
+        if (hmax_ != before) {
+            markLayoutDirty(LayoutDirt::Arrange);
+        }
         changeHvalue(hvalue_);
     }
 }
 
 void ScrollPane::setVmin(double value) {
     if (std::isfinite(value)) {
+        const double before = vmin_;
         vmin_ = value;
         Order(vmin_, vmax_, true);
+        if (vmin_ != before) {
+            markLayoutDirty(LayoutDirt::Arrange);
+        }
         changeVvalue(vvalue_);
     }
 }
 
 void ScrollPane::setVmax(double value) {
     if (std::isfinite(value)) {
+        const double before = vmax_;
         vmax_ = value;
         Order(vmin_, vmax_, false);
+        if (vmax_ != before) {
+            markLayoutDirty(LayoutDirt::Arrange);
+        }
         changeVvalue(vvalue_);
     }
 }

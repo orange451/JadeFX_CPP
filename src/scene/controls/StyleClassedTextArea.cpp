@@ -6,6 +6,9 @@ namespace jadefx {
 
 void StyleClassedTextArea::defineStyleClass(std::string name, TextStyle style) {
     classes_[std::move(name)] = std::move(style);
+    // A class's fill, weight, or size changes what resolveStyle returns for every
+    // span that names it, which the layout measures and wraps around.
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 void StyleClassedTextArea::setStyleClass(int start, int end, std::string className) {

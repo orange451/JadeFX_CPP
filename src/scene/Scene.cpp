@@ -15,6 +15,18 @@
 namespace jadefx {
 namespace {
 
+// Marks the scene's input targets when an input handler returns.
+class InputMarks {
+public:
+    explicit InputMarks(Scene& scene) : scene_(scene) {}
+    ~InputMarks() { scene_.markInputTargets(); }
+    InputMarks(const InputMarks&) = delete;
+    InputMarks& operator=(const InputMarks&) = delete;
+
+private:
+    Scene& scene_;
+};
+
 // How far the pointer may wander from a press, in points, and still be a click.
 constexpr double kPressHysteresis = 4;
 
@@ -143,6 +155,23 @@ void Scene::setIncrementalUpdates(bool enabled) {
     markSubtreeLayoutDirty();
 }
 
+void Scene::markInputTargets() {
+    if (!incremental_ || isTearingDown()) {
+        return;
+    }
+    if (pointerValid_) {
+        if (Node* hit = pick(pointerX_, pointerY_)) {
+            hit->markLayoutDirty();
+        }
+    }
+    if (pressedTarget_ != nullptr) {
+        pressedTarget_->markLayoutDirty();
+    }
+    if (focused_ != nullptr && focused_->getScene() == this) {
+        focused_->markLayoutDirty();
+    }
+}
+
 void Scene::noteAnimating(Node* node) {
     if (std::find(animating_.begin(), animating_.end(), node) == animating_.end()) {
         animating_.push_back(node);
@@ -216,7 +245,9 @@ void Scene::layout(double width, double height, double timeSeconds) {
         const std::string difference = IncrementalCheck::verify(*this);
         if (!difference.empty()) {
             std::fprintf(stderr, "JADEFX_VERIFY_INCREMENTAL: %s\n", difference.c_str());
-            std::abort();
+            std::fflush(stderr);
+            // Not abort, which waits on a dialog in a debug build.
+            std::_Exit(3);
         }
     }
     if (pointerValid_) {
@@ -232,6 +263,7 @@ void Scene::layout(double width, double height, double timeSeconds) {
 }
 
 void Scene::notePointerExit() {
+    InputMarks marks(*this);
     pointerValid_ = false;
     syncHover(nullptr);
     updateHoverPopup(nullptr);
@@ -258,6 +290,7 @@ Cursor Scene::hoverCursor() {
 }
 
 void Scene::noteMove(double x, double y) {
+    InputMarks marks(*this);
     pointerX_ = x;
     pointerY_ = y;
     pointerValid_ = true;
@@ -303,6 +336,7 @@ void Scene::noteMove(double x, double y) {
 }
 
 void Scene::noteButton(int button, bool down, double x, double y, int mods) {
+    InputMarks marks(*this);
     keyMods_ = mods;
     noteMove(x, y);
     // GLFW button 1 is the right button and 2 the middle. Neither clicks.
@@ -378,6 +412,7 @@ void Scene::noteButton(int button, bool down, double x, double y, int mods) {
 }
 
 void Scene::noteOtherButton(int button, bool down, double x, double y, int mods) {
+    InputMarks marks(*this);
     MouseEvent event;
     event.x = x;
     event.y = y;
@@ -453,6 +488,7 @@ void Scene::releaseHeldButtons() {
 }
 
 void Scene::noteScroll(double x, double y, double deltaX, double deltaY) {
+    InputMarks marks(*this);
     noteMove(x, y);
     ScrollEvent event;
     event.x = x;
@@ -466,6 +502,7 @@ void Scene::noteScroll(double x, double y, double deltaX, double deltaY) {
 }
 
 bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
+    InputMarks marks(*this);
     // A modifier key's own event carries the state from before it (GLFW on X11), so it is folded in here.
     const int bit = ModifierBit(key);
     if (bit != 0) {
@@ -566,6 +603,7 @@ bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
 }
 
 bool Scene::noteText(const std::string& text) {
+    InputMarks marks(*this);
     if (text.empty()) {
         return false;
     }
@@ -721,6 +759,7 @@ void Scene::takePointerDelta(double& dx, double& dy) {
 void Scene::setPointerLockBridge(std::function<void(bool)> bridge) { pointerLockBridge_ = std::move(bridge); }
 
 void Scene::notePointerDelta(double dx, double dy) {
+    InputMarks marks(*this);
     if (!pointerLocked_) {
         return;
     }

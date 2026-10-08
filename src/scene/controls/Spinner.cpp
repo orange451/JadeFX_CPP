@@ -488,6 +488,9 @@ Spinner::Spinner() {
     children().add(editor_);
     children().add(decrementArrow_);
     children().add(incrementArrow_);
+    // arrowLayout() reads the style classes directly, so a class change needs to place
+    // the editor and arrows again, not only restyle them.
+    getClassList().addListener([this](const ObservableList<std::string>::Change&) { markLayoutDirty(); });
 }
 
 Spinner::Spinner(std::shared_ptr<SpinnerValueFactory> factory) : Spinner() { setValueFactory(std::move(factory)); }
@@ -803,6 +806,10 @@ void Spinner::layoutChildren() {
     }
     editorHadFocus_ = editorFocused;
     advanceSpin();
+    // A held arrow repeats on the clock.
+    if (spinning_) {
+        markLayoutDirty(LayoutDirt::Arrange);
+    }
 }
 
 void Spinner::render(UiRenderer& renderer, float opacity) {

@@ -32,40 +32,100 @@ public:
     TableColumnBase(const TableColumnBase&) = delete;
     TableColumnBase& operator=(const TableColumnBase&) = delete;
 
-    void setText(std::string text) { text_ = std::move(text); }
+    // The header reads getText, getGraphic, and getId only when the table's own
+    // layout runs, so a change tells the table to lay out again.
+    void setText(std::string text) {
+        if (text_ == text) {
+            return;
+        }
+        text_ = std::move(text);
+        notifyChanged();
+    }
     const std::string& getText() const { return text_; }
     // Drawn beside the header text.
-    void setGraphic(std::shared_ptr<Node> graphic) { graphic_ = std::move(graphic); }
+    void setGraphic(std::shared_ptr<Node> graphic) {
+        if (graphic_ == graphic) {
+            return;
+        }
+        graphic_ = std::move(graphic);
+        notifyChanged();
+    }
     const std::shared_ptr<Node>& getGraphic() const { return graphic_; }
-    void setId(std::string id) { id_ = std::move(id); }
+    void setId(std::string id) {
+        if (id_ == id) {
+            return;
+        }
+        id_ = std::move(id);
+        notifyChanged();
+    }
     const std::string& getId() const { return id_; }
     ObservableList<std::string>& getStyleClass() { return styleClass_; }
     const ObservableList<std::string>& getStyleClass() const { return styleClass_; }
 
-    void setPrefWidth(double width) { prefWidth_ = width; }
+    // The table's own preferred width sums every visible column's clamped
+    // prefWidth, and fitColumns reads all three during layoutChildren.
+    void setPrefWidth(double width) {
+        if (prefWidth_ == width) {
+            return;
+        }
+        prefWidth_ = width;
+        notifyChanged();
+    }
     double getPrefWidth() const { return prefWidth_; }
-    void setMinWidth(double width) { minWidth_ = width; }
+    void setMinWidth(double width) {
+        if (minWidth_ == width) {
+            return;
+        }
+        minWidth_ = width;
+        notifyChanged();
+    }
     double getMinWidth() const { return minWidth_; }
-    void setMaxWidth(double width) { maxWidth_ = width; }
+    void setMaxWidth(double width) {
+        if (maxWidth_ == width) {
+            return;
+        }
+        maxWidth_ = width;
+        notifyChanged();
+    }
     double getMaxWidth() const { return maxWidth_; }
     // The width as of the table's last layout.
     double getWidth() const { return width_; }
 
-    void setVisible(bool visible) { visible_ = visible; }
+    // getVisibleLeafColumns reads this, so it changes which columns the rows and
+    // the header show.
+    void setVisible(bool visible) {
+        if (visible_ == visible) {
+            return;
+        }
+        visible_ = visible;
+        notifyChanged();
+    }
     bool isVisible() const { return visible_; }
-    // Lets the header's right edge be dragged.
+    // Lets the header's right edge be dragged. Only header event handling reads
+    // this, so it needs no mark.
     void setResizable(bool resizable) { resizable_ = resizable; }
     bool isResizable() const { return resizable_; }
-    // Lets a header click sort by this column.
+    // Lets a header click sort by this column. Only header event handling reads
+    // this, so it needs no mark.
     void setSortable(bool sortable) { sortable_ = sortable; }
     bool isSortable() const { return sortable_; }
-    // Lets the header be dragged to another place.
+    // Lets the header be dragged to another place. Only header event handling
+    // reads this, so it needs no mark.
     void setReorderable(bool reorderable) { reorderable_ = reorderable; }
     bool isReorderable() const { return reorderable_; }
-    // Cells in this column edit when the table is editable too.
+    // Cells in this column edit when the table is editable too. Only canEdit
+    // reads this, so it needs no mark.
     void setEditable(bool editable) { editable_ = editable; }
     bool isEditable() const { return editable_; }
-    void setSortType(SortType type) { sortType_ = type; }
+    // The header's ascending/descending pseudo-states read this through its own
+    // refresh, called from the table's layoutChildren.
+    void setSortType(SortType type) {
+        if (sortType_ == type) {
+            return;
+        }
+        sortType_ = type;
+        notifyChanged();
+    }
     SortType getSortType() const { return sortType_; }
 
     // The table this column is in, or null.
@@ -85,6 +145,15 @@ protected:
 private:
     friend class TableViewBase;
 
+    // The table sets this when the column joins it, and clears it when the
+    // column leaves, so a column is not a Node but can still tell its table to
+    // lay out and restyle.
+    void notifyChanged() {
+        if (changed_) {
+            changed_();
+        }
+    }
+
     std::string text_;
     std::shared_ptr<Node> graphic_;
     std::string id_;
@@ -101,6 +170,7 @@ private:
     SortType sortType_ = SortType::Ascending;
     int generation_ = 0;
     TableViewBase* table_ = nullptr;
+    std::function<void()> changed_;
 };
 
 // One cell of a TableView<S>, in the shape of OpenJFX TableCell. The table moves

@@ -326,6 +326,8 @@ void ComboBox::handleKey(KeyEvent& event) {
 }
 
 void ComboBox::onItemsChanged() {
+    // preferredContentWidth measures every item's text, even while the list is closed.
+    markLayoutDirty();
     selection_ = indexOf(value_);
     const int count = static_cast<int>(items_.size());
     if (highlight_ >= count) {

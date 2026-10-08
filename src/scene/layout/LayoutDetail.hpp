@@ -141,6 +141,8 @@ inline void ShareShrink(double& first, double firstFloor, double& second, double
 template <typename T>
 void SetConstraint(Node& node, const char* key, const T& value) {
     node.getProperties()[key] = value;
+    // The parent reads constraints when it lays its children out.
+    node.markLayoutDirty();
 }
 
 template <typename T>

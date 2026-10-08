@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace jadefx {
@@ -298,6 +299,17 @@ public:
     virtual void render(UiRenderer& renderer, float opacity);
 
 protected:
+    // Assigns value and marks layout when it changed. For a setter whose value
+    // layoutChildren or the preferred size reads. Arrange is enough only when the
+    // preferred size cannot read it.
+    template <typename T>
+    void setLayoutValue(T& slot, T value, LayoutDirt dirt = LayoutDirt::Size) {
+        if (slot == value) {
+            return;
+        }
+        slot = std::move(value);
+        markLayoutDirty(dirt);
+    }
     ObservableList<std::shared_ptr<Node>>& children() { return children_; }
     const ObservableList<std::shared_ptr<Node>>& children() const { return children_; }
 

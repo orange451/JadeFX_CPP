@@ -34,7 +34,7 @@ public:
     void setFont(const Font& font);
     Font getFont() const { return font(); }
 
-    void setTextScaled(bool scaled) { textScaled_ = scaled; }
+    void setTextScaled(bool scaled);
     bool isTextScaled() const { return textScaled_; }
     // The size the text is drawn at in the current content box: the font
     // size, or with textScaled, the size that fits.
@@ -44,10 +44,10 @@ public:
     // Null clears it. A node in another parent moves here.
     void setGraphic(std::shared_ptr<Node> graphic);
     const std::shared_ptr<Node>& getGraphic() const { return graphic_; }
-    void setContentDisplay(ContentDisplay display) { contentDisplay_ = display; }
+    void setContentDisplay(ContentDisplay display);
     ContentDisplay getContentDisplay() const { return contentDisplay_; }
     // Points between the graphic and the text. The default is 4.
-    void setGraphicTextGap(double gap) { graphicTextGap_ = gap; }
+    void setGraphicTextGap(double gap);
     double getGraphicTextGap() const { return graphicTextGap_; }
 
     void detachChild(Node* child) override;

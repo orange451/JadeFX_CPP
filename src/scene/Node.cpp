@@ -829,11 +829,29 @@ double Node::measuredHeight(double width, double availableHeight) const {
 }
 
 void Node::layoutChildrenAndForgetMeasures() {
+    // What the parent measured this node as, before its own layout ran.
+    const MeasureCache before = measure_;
     layoutChildren();
     // Laying out can change what a node measures, as for a page that learns its
     // height by placing its rows. Its own measures and its ancestors' are fresh after.
     for (const Node* node = this; node != nullptr; node = node->parent_) {
         node->measure_.clear();
+    }
+    if (!incrementalActive() || before.epoch != measure_.epoch) {
+        return;
+    }
+    // When the answer changed, the ancestors lay out again next frame with the new
+    // size, as a full pass would. Nothing else would tell them.
+    bool changed = false;
+    for (int i = 0; !changed && i < before.widthCount; ++i) {
+        changed = measuredWidth(before.widths[i].available) != before.widths[i].result;
+    }
+    for (int i = 0; !changed && i < before.heightCount; ++i) {
+        const MeasureCache::Height& entry = before.heights[i];
+        changed = measuredHeight(entry.width, entry.available) != entry.result;
+    }
+    if (changed) {
+        markLayoutDirty();
     }
 }
 

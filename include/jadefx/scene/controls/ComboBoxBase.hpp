@@ -94,7 +94,7 @@ protected:
     static constexpr double kArrowWidth = 28.0;
 
 private:
-    void releaseKeyHook();
+    void releaseHooks();
 
     std::shared_ptr<Node> popup_;
     std::shared_ptr<TextField> editor_;
@@ -104,6 +104,10 @@ private:
     std::function<void()> onHidden_;
     Scene* hookScene_ = nullptr;
     int keyHook_ = 0;
+    // Catches a popup the scene closed on its own (an outside press, Escape, a
+    // focus change, or the window losing focus), which may happen on a frame
+    // that never dirties this control's own layout.
+    int pulseHook_ = 0;
     // True from show until the base has seen the popup close.
     bool open_ = false;
     bool hiding_ = false;

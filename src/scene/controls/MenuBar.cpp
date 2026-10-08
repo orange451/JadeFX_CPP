@@ -219,6 +219,9 @@ void MenuBar::adoptMenu(std::shared_ptr<Menu> menu, std::size_t index) {
         mute_ = false;
         return;
     }
+    // A top-level menu has no parent menu to tell when its text, enabled state,
+    // or visibility changes, so the bar lays its titles out again instead.
+    menu->setChangeNotifier([this] { markLayoutDirty(); });
     rebuildTitles();
 }
 
@@ -227,6 +230,7 @@ void MenuBar::releaseMenu(std::shared_ptr<Menu> menu, std::size_t) {
         return;
     }
     if (menu) {
+        menu->setChangeNotifier(nullptr);
         menu->hide();
     }
     rebuildTitles();

@@ -18,8 +18,18 @@ RowViewBase::RowViewBase(std::unique_ptr<MultipleSelectionModel> selection, Orie
     });
     selection_->setItemCount([this] { return itemCount(); });
     focus_.setItemCount([this] { return itemCount(); });
-    selectionListener_ = selection_->addListener([this] { syncRows(); });
-    focus_.setOnFocusChanged([this] { syncRows(); });
+    // Cells match :selected and :focus-visible, and the newly picked row may be
+    // off screen, so the view's own layout runs again to show it.
+    selectionListener_ = selection_->addListener([this] {
+        syncRows();
+        markLayoutDirty();
+        markStyleDirty(StyleDirt::Subtree);
+    });
+    focus_.setOnFocusChanged([this] {
+        syncRows();
+        markLayoutDirty();
+        markStyleDirty(StyleDirt::Subtree);
+    });
     children().add(flow_);
     setRowOrientation(orientation);
 }
@@ -48,13 +58,23 @@ void RowViewBase::rowFactoryChanged() {
 }
 
 void RowViewBase::setRowOrientation(Orientation orientation) {
+    // preferredContentWidth/Height (ListViewBase's) swap on this, so the view
+    // measures again. flow_->setVertical and setPseudoState already compare and
+    // mark on their own, so only the view's own layout needs a flag here.
+    const bool changed = orientation_ != orientation;
     orientation_ = orientation;
     flow_->setVertical(orientation == Orientation::Vertical);
     setPseudoState("vertical", orientation == Orientation::Vertical);
     setPseudoState("horizontal", orientation == Orientation::Horizontal);
+    if (changed) {
+        markLayoutDirty();
+    }
 }
 
 void RowViewBase::setFixedCellSize(double size) {
+    if (fixedCellSize_ == size) {
+        return;
+    }
     fixedCellSize_ = size;
     flow_->setFixedCellSize(size);
 }
@@ -87,6 +107,8 @@ void RowViewBase::itemsInserted(int index, int count) {
     focus_.itemsInserted(index, count);
     flow_->setCellCount(itemCount());
     flow_->refresh();
+    // The placeholder's visibility is decided in this view's own layoutChildren.
+    markLayoutDirty();
 }
 
 void RowViewBase::itemsRemoved(int index, int count) {
@@ -95,9 +117,13 @@ void RowViewBase::itemsRemoved(int index, int count) {
     focus_.itemsRemoved(index, count);
     flow_->setCellCount(itemCount());
     flow_->refresh();
+    markLayoutDirty();
 }
 
-void RowViewBase::itemReplaced(int) { flow_->refresh(); }
+void RowViewBase::itemReplaced(int) {
+    flow_->refresh();
+    markLayoutDirty();
+}
 
 void RowViewBase::itemsReset(bool keepSelection) {
     cancelEditing();
@@ -107,6 +133,7 @@ void RowViewBase::itemsReset(bool keepSelection) {
     }
     flow_->setCellCount(itemCount());
     flow_->refresh();
+    markLayoutDirty();
 }
 
 void RowViewBase::syncRow(IndexedCell& row) {

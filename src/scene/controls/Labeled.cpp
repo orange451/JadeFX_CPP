@@ -155,6 +155,31 @@ void Labeled::setGraphic(std::shared_ptr<Node> graphic) {
     if (graphic_) {
         children().add(graphic_);
     }
+    markLayoutDirty();
+}
+
+void Labeled::setTextScaled(bool scaled) {
+    if (textScaled_ == scaled) {
+        return;
+    }
+    textScaled_ = scaled;
+    markLayoutDirty();
+}
+
+void Labeled::setContentDisplay(ContentDisplay display) {
+    if (contentDisplay_ == display) {
+        return;
+    }
+    contentDisplay_ = display;
+    markLayoutDirty();
+}
+
+void Labeled::setGraphicTextGap(double gap) {
+    if (graphicTextGap_ == gap) {
+        return;
+    }
+    graphicTextGap_ = gap;
+    markLayoutDirty();
 }
 
 void Labeled::detachChild(Node* child) {

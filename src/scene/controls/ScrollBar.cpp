@@ -14,8 +14,15 @@ ScrollBar::ScrollBar(Orientation orientation) : orientation_(orientation) {
 }
 
 void ScrollBar::setOrientation(Orientation orientation) {
+    // syncPseudos always runs, even on the first call from the constructor, so the
+    // vertical and horizontal pseudo-classes are set from the start.
+    const bool orientationChanged = orientation_ != orientation;
     orientation_ = orientation;
     syncPseudos();
+    if (orientationChanged) {
+        // Preferred width and height swap between the thickness and the 100-point span.
+        markLayoutDirty();
+    }
 }
 
 void ScrollBar::syncPseudos() {
