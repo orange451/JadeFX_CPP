@@ -73,13 +73,13 @@ public:
     double getTranslateX() const { return translateX_; }
     double getTranslateY() const { return translateY_; }
 
-    void setAlignment(Pos pos) { alignment_ = pos; }
+    void setAlignment(Pos pos);
     Pos getAlignment() const { return alignment_; }
     Pos usingAlignment() const;
 
-    void setPadding(const Insets& insets) { padding_ = insets; }
+    void setPadding(const Insets& insets);
     const Insets& getPadding() const { return padding_; }
-    void setBorder(const Insets& insets) { border_ = insets; }
+    void setBorder(const Insets& insets);
     const Insets& getBorder() const { return border_; }
 
     void setBackground(const Color& color);
@@ -99,7 +99,7 @@ public:
     // should only catch the mouse on its contents uses it.
     void setPickOnBounds(bool value) { pickOnBounds_ = value; }
     bool isPickOnBounds() const { return pickOnBounds_; }
-    void setOpacity(float opacity) { opacity_ = opacity; }
+    void setOpacity(float opacity);
     float getOpacity() const { return opacity_; }
 
     Node* getParent() const { return parent_; }
@@ -120,7 +120,7 @@ public:
     std::unordered_map<std::string, std::any>& getProperties() { return properties_; }
     const std::unordered_map<std::string, std::any>& getProperties() const { return properties_; }
 
-    void setElementId(std::string id) { id_ = std::move(id); }
+    void setElementId(std::string id);
     const std::string& getElementId() const { return id_; }
 
     void setOnMousePressed(MouseHandler handler) { onPressed_ = std::move(handler); }
@@ -157,11 +157,11 @@ public:
     bool isHovered() const { return hovered_; }
     bool isPressed() const { return pressed_; }
     // Keyboard arming uses the same flag as a mouse press, so :active matches.
-    void setPressed(bool pressed) { pressed_ = pressed; }
+    void setPressed(bool pressed);
     bool isFocused() const { return focused_; }
     // True when this node or a descendant is focused. Matches the :focus-within pseudo.
     bool isFocusWithin();
-    void setSelected(bool selected) { selected_ = selected; }
+    void setSelected(bool selected);
     bool isSelected() const { return selected_; }
 
     // Extra pseudo-classes such as :horizontal and :vertical, as JavaFX's PseudoClass.
@@ -332,13 +332,13 @@ protected:
     bool fillExplicit() const { return fillExplicit_; }
     const Color& textFill() const { return textFill_; }
     float spacingValue() const { return spacing_; }
-    void setSpacingValue(double spacing) { spacing_ = static_cast<float>(spacing); }
+    void setSpacingValue(double spacing);
 
     void setFontInternal(const Font& font, bool explicitSize);
     void setTextFillInternal(const Color& color, bool explicitColor);
     void setSubpixelRenderingInternal(bool enabled);
     // Buttons and text controls set this. setCursor and stylesheets replace it.
-    void setDefaultCursor(Cursor cursor) { defaultCursor_ = cursor; }
+    void setDefaultCursor(Cursor cursor);
 
     friend class Scene;
     friend class IncrementalCheck;
@@ -355,6 +355,8 @@ private:
     bool incrementalActive() const;
     // Lays out this node and every node under it again, as a subtree that moved needs.
     void markSubtreeLayoutDirty();
+    // Sets a size from code, marking the node when it changes.
+    void setSizeSpec(SizeSpec& slot, const SizeSpec& value);
     // Runs layoutChildren, then forgets the measures it may have changed.
     void layoutChildrenAndForgetMeasures();
     // The child list changed: :nth-child may match differently and the layout moves.

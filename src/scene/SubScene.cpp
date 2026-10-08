@@ -42,6 +42,7 @@ void SubScene::detachChild(Node* child) {
 void SubScene::setUserAgentStylesheet(std::string cssOrTheme) {
     userAgent_ = cssOrTheme.empty() ? Stylesheet() : Stylesheet::parse(Theme::expand(cssOrTheme));
     userAgentSource_ = std::move(cssOrTheme);
+    markStyleDirty(StyleDirt::Subtree);
 }
 
 const Stylesheet& SubScene::userAgentStylesheet() const {

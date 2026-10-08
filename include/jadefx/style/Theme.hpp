@@ -4,6 +4,7 @@
 #include "jadefx/style/Style.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -59,6 +60,8 @@ void clearThemeColorCache();
 // light and dark share every rule and differ only in their ThemeColor values.
 class Theme {
 public:
+    // Counts setUserAgentStylesheet calls, so a scene can see that the theme changed.
+    static std::uint64_t generation();
     // Keywords for setUserAgentStylesheet, here and on Application and Scene.
     static constexpr const char* LIGHT = "light";
     static constexpr const char* DARK = "dark";

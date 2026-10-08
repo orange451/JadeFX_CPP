@@ -193,6 +193,103 @@ void TestCompareNamesPathAndField() {
            "a bounds difference says so");
 }
 
+// Runs mutate between two frames and checks that only panel A's side restyled.
+void ExpectRestyle(const char* what, const std::function<void(Fixture&)>& mutate, bool labelToo) {
+    Fixture f = MakeFixture();
+    f.frame();
+    const Seen target = Of(*f.target);
+    const Seen label = Of(*f.targetLabel);
+    const Seen sibling = Of(*f.sibling);
+    const Seen siblingLabel = Of(*f.siblingLabel);
+    mutate(f);
+    f.frame();
+    const std::string name(what);
+    Expect(Restyled(*f.target, target), (name + " restyles the node").c_str());
+    if (labelToo) {
+        Expect(Restyled(*f.targetLabel, label), (name + " restyles the node's subtree").c_str());
+    }
+    Expect(!Restyled(*f.sibling, sibling) && !Restyled(*f.siblingLabel, siblingLabel),
+           (name + " leaves the other panel alone").c_str());
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), (name + " matches a full pass").c_str());
+}
+
+void TestStyleSources() {
+    ExpectRestyle("adding a class", [](Fixture& f) { f.target->getClassList().add("on"); }, true);
+    ExpectRestyle("removing a class",
+                  [](Fixture& f) { f.target->getClassList().removeIf([](const std::string& n) { return n == "item"; }); },
+                  true);
+    ExpectRestyle("changing the id", [](Fixture& f) { f.target->setElementId("special"); }, true);
+    ExpectRestyle("an inline style", [](Fixture& f) { f.target->setStyle("background-color: #123456;"); }, false);
+    ExpectRestyle("a node's stylesheet", [](Fixture& f) { f.target->setStylesheet(".inner { color: #654321; }"); }, true);
+    ExpectRestyle("pressing", [](Fixture& f) { f.target->setPressed(true); }, true);
+    ExpectRestyle("selecting", [](Fixture& f) { f.target->setSelected(true); }, true);
+    ExpectRestyle("disabling", [](Fixture& f) { f.target->setDisable(true); }, true);
+    ExpectRestyle("a pseudo-class state", [](Fixture& f) { f.target->setPseudoState("open", true); }, true);
+    ExpectRestyle("a size set from code", [](Fixture& f) { f.target->setPrefSize(150, 40); }, false);
+    ExpectRestyle("a background set from code", [](Fixture& f) { f.target->setBackground(jadefx::Color::black()); }, false);
+}
+
+void TestStyleSourceResults() {
+    Fixture f = MakeFixture();
+    f.target->setDisable(true);
+    f.frame();
+    Expect(Is(f.targetLabel->computedStyle().color, 51, 51, 51), "a descendant of a disabled node matches :disabled");
+    f.target->setPressed(true);
+    f.frame();
+    Expect(Is(f.target->computedStyle().background.color, 17, 17, 17), "a pressed node matches :active");
+}
+
+void TestHoverRestylesDescendants() {
+    Fixture f = MakeFixture();
+    // Inside panel A but outside the item, so the root and the panel are already hovered.
+    f.scene->noteMove(f.panelA->getAbsoluteX() + 2, f.panelA->getAbsoluteY() + 2);
+    f.frame();
+    const Seen label = Of(*f.targetLabel);
+    const Seen sibling = Of(*f.sibling);
+    f.scene->noteMove(f.target->getAbsoluteX() + 4, f.target->getAbsoluteY() + 4);
+    f.frame();
+    Expect(Restyled(*f.targetLabel, label), "hovering an item restyles the label inside it");
+    Expect(Is(f.targetLabel->computedStyle().color, 0, 0, 255), "the label matches .item:hover .inner");
+    Expect(!Restyled(*f.sibling, sibling), "hovering one item leaves the other alone");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "hover matches a full pass");
+}
+
+void TestInheritedChangePropagates() {
+    Fixture f = MakeFixture();
+    f.frame();
+    const Seen label = Of(*f.targetLabel);
+    const Seen siblingLabel = Of(*f.siblingLabel);
+    f.panelA->setStyle("color: #00aa00;");
+    f.frame();
+    Expect(Restyled(*f.targetLabel, label) && Is(f.targetLabel->computedStyle().color, 0, 170, 0),
+           "a changed inherited color restyles the descendants that inherit it");
+    Expect(!Restyled(*f.siblingLabel, siblingLabel), "and leaves the other panel alone");
+}
+
+void TestUserAgentSheetRestylesEverything() {
+    Fixture f = MakeFixture();
+    f.frame();
+    const Seen sibling = Of(*f.sibling);
+    const jadefx::Color before = f.scene->themeColor(jadefx::ThemeColor::Background);
+    f.scene->setUserAgentStylesheet(jadefx::Theme::DARK);
+    f.frame();
+    Expect(Restyled(*f.sibling, sibling), "a scene's user-agent stylesheet restyles every node");
+    Expect(f.scene->themeColor(jadefx::ThemeColor::Background).r != before.r, "the dark theme applies");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "a user-agent change matches a full pass");
+}
+
+void TestThemeSwitchRestylesEverything() {
+    const std::string previous = jadefx::Theme::getUserAgentStylesheet();
+    Fixture f = MakeFixture();
+    f.frame();
+    const Seen sibling = Of(*f.sibling);
+    jadefx::Theme::setUserAgentStylesheet(jadefx::Theme::DARK);
+    f.frame();
+    Expect(Restyled(*f.sibling, sibling), "switching the application theme restyles every node");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "a theme switch matches a full pass");
+    jadefx::Theme::setUserAgentStylesheet(previous);
+}
+
 }  // namespace
 
 int RunIncrementalTests() {
@@ -203,5 +300,11 @@ int RunIncrementalTests() {
     TestFullPassWhenIncrementalOff();
     TestVerifyAgreesOnCleanScene();
     TestCompareNamesPathAndField();
+    TestStyleSources();
+    TestStyleSourceResults();
+    TestHoverRestylesDescendants();
+    TestInheritedChangePropagates();
+    TestUserAgentSheetRestylesEverything();
+    TestThemeSwitchRestylesEverything();
     return gFailures;
 }

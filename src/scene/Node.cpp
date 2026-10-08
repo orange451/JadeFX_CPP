@@ -219,6 +219,10 @@ bool SameInsets(const Insets& a, const Insets& b) {
     return a.top == b.top && a.right == b.right && a.bottom == b.bottom && a.left == b.left;
 }
 
+bool SameSize(const SizeSpec& a, const SizeSpec& b) {
+    return a.kind == b.kind && a.pixels == b.pixels && a.percent == b.percent && a.em == b.em;
+}
+
 Insets LerpInsets(const Insets& from, const Insets& to, double t) {
     auto mix = [t](double a, double b) { return a + (b - a) * t; };
     return {mix(from.top, to.top), mix(from.right, to.right), mix(from.bottom, to.bottom), mix(from.left, to.left)};
@@ -245,6 +249,81 @@ Node::Node() {
             child->setParent(nullptr);
         }
     });
+    // A class can appear in any compound of a descendant selector.
+    classList_.addListener([this](const ObservableList<std::string>::Change&) { markStyleDirty(StyleDirt::Subtree); });
+}
+
+void Node::setAlignment(Pos pos) {
+    if (alignment_ == pos) {
+        return;
+    }
+    alignment_ = pos;
+    markStyleDirty();
+}
+
+void Node::setPadding(const Insets& insets) {
+    if (SameInsets(padding_, insets)) {
+        return;
+    }
+    padding_ = insets;
+    markStyleDirty();
+}
+
+void Node::setBorder(const Insets& insets) {
+    if (SameInsets(border_, insets)) {
+        return;
+    }
+    border_ = insets;
+    markStyleDirty();
+}
+
+void Node::setOpacity(float opacity) {
+    if (opacity_ == opacity) {
+        return;
+    }
+    opacity_ = opacity;
+    markStyleDirty();
+}
+
+void Node::setPressed(bool pressed) {
+    if (pressed_ == pressed) {
+        return;
+    }
+    pressed_ = pressed;
+    markStyleDirty(StyleDirt::Subtree);
+}
+
+void Node::setSelected(bool selected) {
+    if (selected_ == selected) {
+        return;
+    }
+    selected_ = selected;
+    markStyleDirty(StyleDirt::Subtree);
+}
+
+void Node::setElementId(std::string id) {
+    if (id_ == id) {
+        return;
+    }
+    id_ = std::move(id);
+    markStyleDirty(StyleDirt::Subtree);
+}
+
+void Node::setSpacingValue(double spacing) {
+    const float value = static_cast<float>(spacing);
+    if (spacing_ == value) {
+        return;
+    }
+    spacing_ = value;
+    markStyleDirty();
+}
+
+void Node::setDefaultCursor(Cursor cursor) {
+    if (defaultCursor_ == cursor) {
+        return;
+    }
+    defaultCursor_ = cursor;
+    markStyleDirty();
 }
 
 Node::~Node() {
@@ -273,8 +352,12 @@ void Node::requestFocus() {
 }
 
 void Node::setCursor(Cursor cursor) {
+    if (cursorExplicit_ && cursor_ == cursor) {
+        return;
+    }
     cursorExplicit_ = true;
     cursor_ = cursor;
+    markStyleDirty();
 }
 
 Cursor Node::getCursor() const { return cursorExplicit_ ? cursor_ : Cursor::Inherit; }
@@ -284,11 +367,13 @@ void Node::setPseudoState(const std::string& name, bool enabled) {
     if (enabled) {
         if (found == pseudoStates_.end()) {
             pseudoStates_.push_back(name);
+            markStyleDirty(StyleDirt::Subtree);
         }
         return;
     }
     if (found != pseudoStates_.end()) {
         pseudoStates_.erase(found);
+        markStyleDirty(StyleDirt::Subtree);
     }
 }
 
@@ -316,6 +401,8 @@ void Node::setDisable(bool value) {
         return;
     }
     disable_ = value;
+    // A descendant's :disabled and its cursor follow an ancestor's flag.
+    markStyleDirty(StyleDirt::Subtree);
     if (!value) {
         return;
     }
@@ -436,19 +523,27 @@ void Node::setPrefSize(double width, double height) {
     setPrefHeight(height);
 }
 
-void Node::setPrefWidth(double width) { prefWidth_ = SizeSpec::px(width); }
-void Node::setPrefHeight(double height) { prefHeight_ = SizeSpec::px(height); }
-void Node::setPrefWidthRatio(double ratio) { prefWidth_ = SizeSpec::ratio(ratio); }
-void Node::setPrefHeightRatio(double ratio) { prefHeight_ = SizeSpec::ratio(ratio); }
+void Node::setSizeSpec(SizeSpec& slot, const SizeSpec& value) {
+    if (SameSize(slot, value)) {
+        return;
+    }
+    slot = value;
+    markStyleDirty();
+}
+
+void Node::setPrefWidth(double width) { setSizeSpec(prefWidth_, SizeSpec::px(width)); }
+void Node::setPrefHeight(double height) { setSizeSpec(prefHeight_, SizeSpec::px(height)); }
+void Node::setPrefWidthRatio(double ratio) { setSizeSpec(prefWidth_, SizeSpec::ratio(ratio)); }
+void Node::setPrefHeightRatio(double ratio) { setSizeSpec(prefHeight_, SizeSpec::ratio(ratio)); }
 
 void Node::setMinSize(double width, double height) {
-    minWidth_ = SizeSpec::px(width);
-    minHeight_ = SizeSpec::px(height);
+    setSizeSpec(minWidth_, SizeSpec::px(width));
+    setSizeSpec(minHeight_, SizeSpec::px(height));
 }
 
 void Node::setMaxSize(double width, double height) {
-    maxWidth_ = SizeSpec::px(width);
-    maxHeight_ = SizeSpec::px(height);
+    setSizeSpec(maxWidth_, SizeSpec::px(width));
+    setSizeSpec(maxHeight_, SizeSpec::px(height));
 }
 
 double Node::getPrefWidth() const {
@@ -481,8 +576,12 @@ Pos Node::usingAlignment() const {
 }
 
 void Node::setBackground(const Color& color) {
+    if (backgroundExplicit_ && SameColor(background_, color)) {
+        return;
+    }
     background_ = color;
     backgroundExplicit_ = true;
+    markStyleDirty();
 }
 
 void Node::setBackgroundImage(std::shared_ptr<Image> image, float opacity) {
@@ -491,25 +590,43 @@ void Node::setBackgroundImage(std::shared_ptr<Image> image, float opacity) {
 }
 
 void Node::setStyle(std::string css) {
+    if (styleText_ == css) {
+        return;
+    }
     styleText_ = std::move(css);
     inline_ = parseInlineDeclarations(styleText_);
+    markStyleDirty();
 }
 
 void Node::setStylesheet(std::string css) {
     stylesheet_ = Stylesheet::parse(css);
+    // A sheet covers its subtree.
+    markStyleDirty(StyleDirt::Subtree);
 }
 
 void Node::setFontInternal(const Font& font, bool explicitSize) {
+    if (fontExplicit_ == explicitSize && font_.family() == font.family() && font_.size() == font.size()) {
+        return;
+    }
     font_ = font;
     fontExplicit_ = explicitSize;
+    markStyleDirty();
 }
 
 void Node::setTextFillInternal(const Color& color, bool explicitColor) {
+    if (fillExplicit_ == explicitColor && SameColor(textFill_, color)) {
+        return;
+    }
     textFill_ = color;
     fillExplicit_ = explicitColor;
+    markStyleDirty();
 }
 
 void Node::setSubpixelRenderingInternal(bool enabled) {
+    if (subpixelExplicit_ && subpixel_ == enabled) {
+        return;
+    }
+    markStyleDirty();
     subpixel_ = enabled;
     subpixelExplicit_ = true;
     computed_.subpixel = enabled;
@@ -1135,6 +1252,7 @@ void Node::syncHover(Node* hit) {
         if (node->wasHovered_ == node->hovered_) {
             continue;
         }
+        node->markStyleDirty(StyleDirt::Subtree);
         node->handleHoverChanged();
         MouseEvent event;
         event.target = node;
@@ -1150,19 +1268,16 @@ void Node::syncHover(Node* hit) {
 }
 
 void Node::setPressedChain(Node* hit) {
-    std::vector<Node*> all;
+    std::vector<Node*> chain;
+    for (Node* node = hit; node != nullptr; node = node->parent_) {
+        chain.push_back(node);
+    }
     std::vector<Node*> stack{this};
     while (!stack.empty()) {
         Node* node = stack.back();
         stack.pop_back();
-        all.push_back(node);
+        node->setPressed(std::find(chain.begin(), chain.end(), node) != chain.end());
         node->visitChildren([&](Node* child) { stack.push_back(child); });
-    }
-    for (Node* node : all) {
-        node->pressed_ = false;
-    }
-    for (Node* node = hit; node != nullptr; node = node->parent_) {
-        node->pressed_ = true;
     }
 }
 

@@ -90,6 +90,7 @@ void Scene::setUserAgentStylesheet(std::string cssOrTheme) {
     userAgent_ = cssOrTheme.empty() ? Stylesheet() : Stylesheet::parse(Theme::expand(cssOrTheme));
     userAgentSource_ = std::move(cssOrTheme);
     detail::clearThemeColorCache();
+    markStyleDirty(StyleDirt::Subtree);
 }
 
 const Stylesheet& Scene::userAgentStylesheet() const {
@@ -99,6 +100,7 @@ const Stylesheet& Scene::userAgentStylesheet() const {
 Scene::Scene(std::shared_ptr<Node> root, double prefWidth, double prefHeight)
     : requestedWidth_(prefWidth), requestedHeight_(prefHeight) {
     scene_ = this;
+    themeGeneration_ = Theme::generation();
     // The scene is the document root, so :root rules and their variables start here.
     setPseudoState("root", true);
     internal_ = std::make_shared<StackPane>();
@@ -177,6 +179,13 @@ void Scene::placePass() {
 
 void Scene::layout(double width, double height, double timeSeconds) {
     beginLayoutPass();
+    // A scene without its own user-agent sheet follows the application theme.
+    if (themeGeneration_ != Theme::generation()) {
+        themeGeneration_ = Theme::generation();
+        if (userAgentSource_.empty()) {
+            markStyleDirty(StyleDirt::Subtree);
+        }
+    }
     stylePass(timeSeconds);
     x_ = 0;
     y_ = 0;

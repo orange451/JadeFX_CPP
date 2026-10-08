@@ -277,6 +277,7 @@ private:
     std::function<int()> eventPump_;
     LayoutPassHook passHook_;
     bool incremental_ = false;
+    std::uint64_t themeGeneration_ = 0;
 };
 
 }  // namespace jadefx

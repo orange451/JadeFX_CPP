@@ -232,6 +232,7 @@ const PaletteEntry* EntryFor(ThemeColor color) {
 // Set and read on the UI thread, like the rest of the scene graph.
 struct Global {
     std::string source;
+    std::uint64_t generation = 0;
     Stylesheet sheet = Stylesheet::parse(Theme::stylesheet(Theme::LIGHT));
 };
 
@@ -296,8 +297,11 @@ void Theme::setUserAgentStylesheet(std::string cssOrTheme) {
     Global& global = TheGlobal();
     global.sheet = Stylesheet::parse(expand(cssOrTheme));
     global.source = std::move(cssOrTheme);
+    ++global.generation;
     detail::clearThemeColorCache();
 }
+
+std::uint64_t Theme::generation() { return TheGlobal().generation; }
 
 const std::string& Theme::getUserAgentStylesheet() { return TheGlobal().source; }
 
