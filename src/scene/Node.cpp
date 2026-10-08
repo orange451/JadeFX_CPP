@@ -74,7 +74,7 @@ Cursor ResolveCursor(Cursor specified, Cursor inheritedCursor, Cursor controlCur
 bool LastCursor(const std::vector<const Declaration*>& declarations, Cursor& cursor) {
     bool found = false;
     for (const Declaration* declaration : declarations) {
-        if (declaration->property != "cursor") {
+        if (declaration->id != PropertyId::Cursor) {
             continue;
         }
         Cursor parsed = Cursor::Default;

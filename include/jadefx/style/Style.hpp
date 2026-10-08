@@ -3,6 +3,7 @@
 #include "jadefx/geometry/Geometry.hpp"
 #include "jadefx/paint/Color.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -234,11 +235,77 @@ struct ComputedStyle {
     std::string variable(std::string_view name) const;
 };
 
+// Each property applyDeclarations understands. Custom is a --name property, or
+// accent-color, caret-color, or outline-color, which are stored as one. All names
+// every property, for transition.
+enum class PropertyId : unsigned char {
+    Unknown,
+    Custom,
+    FontSize,
+    FontFamily,
+    BackgroundColor,
+    Background,
+    BackgroundImage,
+    FontSmoothing,
+    Color,
+    ImageColor,
+    Width,
+    Height,
+    MinWidth,
+    MinHeight,
+    MaxWidth,
+    MaxHeight,
+    BorderRadius,
+    BorderWidth,
+    BorderColor,
+    BorderStyle,
+    BoxShadow,
+    Padding,
+    Spacing,
+    Gap,
+    RowGap,
+    ColumnGap,
+    Alignment,
+    Orientation,
+    Opacity,
+    IndeterminateBarLength,
+    IndeterminateBarEscape,
+    IndeterminateBarFlip,
+    IndeterminateBarAnimationTime,
+    Transition,
+    Cursor,
+    All,
+    Count,
+};
+
+inline constexpr std::size_t kPropertyIdCount = static_cast<std::size_t>(PropertyId::Count);
+
+// The id for a lower-case property name, or Custom, or Unknown.
+PropertyId propertyIdOf(std::string_view property);
+
+// A declaration's value, parsed when its stylesheet loads. Raw means it is parsed
+// as each node applies it, as a value with var() must be. Invalid means it did not
+// parse, so applying it changes nothing. Lengths keeps up to four lengths with px
+// in pixels, % in percent, and em in em, as padding, border-width, and
+// border-radius list them.
+struct DeclarationValue {
+    enum class Kind : unsigned char { Raw, Color, Size, Lengths, Invalid };
+    Kind kind = Kind::Raw;
+    Color color;
+    SizeSpec size;
+    int lengthCount = 0;
+    SizeSpec lengths[4];
+};
+
 struct Declaration {
     std::string property;
     std::string value;
     // Declared with !important, which wins over normal declarations of any origin.
     bool important = false;
+    PropertyId id = PropertyId::Unknown;
+    // The value has var() in it and is resolved against each node's custom properties.
+    bool hasVar = false;
+    DeclarationValue parsed;
 };
 
 // A declaration a stylesheet matched, with the specificity of the selector that

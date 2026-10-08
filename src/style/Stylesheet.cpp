@@ -486,6 +486,8 @@ Selector ParseSelector(std::string_view text) {
     return selector;
 }
 
+void PrepareDeclaration(Declaration& declaration);
+
 std::vector<Declaration> ParseDeclarations(std::string_view body) {
     std::vector<Declaration> declarations;
     for (const std::string& part : SplitDepth(body, ';')) {
@@ -510,6 +512,7 @@ std::vector<Declaration> ParseDeclarations(std::string_view body) {
             declaration.value = trimCopy(declaration.value.substr(0, bang));
         }
         if (!declaration.property.empty() && !declaration.value.empty()) {
+            PrepareDeclaration(declaration);
             declarations.push_back(std::move(declaration));
         }
     }
@@ -933,35 +936,35 @@ std::vector<ParsedLength> LengthList(std::string_view text) {
     return values;
 }
 
-Insets BoxFromLengths(const std::vector<ParsedLength>& values, float emFontSize) {
+Insets BoxFromLengths(const ParsedLength* values, std::size_t count, float emFontSize) {
     double resolved[4] = {};
-    const std::size_t count = std::min<std::size_t>(values.size(), 4);
-    for (std::size_t i = 0; i < count; ++i) {
+    const std::size_t used = std::min<std::size_t>(count, 4);
+    for (std::size_t i = 0; i < used; ++i) {
         resolved[i] = ResolveLength(values[i], emFontSize);
     }
-    if (values.size() == 1) {
+    if (count == 1) {
         return Insets::uniform(resolved[0]);
     }
-    if (values.size() == 2) {
+    if (count == 2) {
         return Insets::axes(resolved[0], resolved[1]);
     }
-    if (values.size() == 3) {
+    if (count == 3) {
         return {resolved[0], resolved[1], resolved[2], resolved[1]};
     }
     return {resolved[0], resolved[1], resolved[2], resolved[3]};
 }
 
-void AssignRadius(ComputedStyle& style, const std::vector<ParsedLength>& values) {
-    if (values.empty()) {
+void AssignRadius(ComputedStyle& style, const ParsedLength* values, std::size_t count) {
+    if (count == 0) {
         return;
     }
     ParsedLength expanded[4];
-    if (values.size() == 1) {
+    if (count == 1) {
         expanded[0] = expanded[1] = expanded[2] = expanded[3] = values[0];
-    } else if (values.size() == 2) {
+    } else if (count == 2) {
         expanded[0] = expanded[2] = values[0];
         expanded[1] = expanded[3] = values[1];
-    } else if (values.size() == 3) {
+    } else if (count == 3) {
         expanded[0] = values[0];
         expanded[1] = expanded[3] = values[1];
         expanded[2] = values[2];
@@ -984,7 +987,152 @@ void AssignRadius(ComputedStyle& style, const std::vector<ParsedLength>& values)
     }
 }
 
-bool LengthsOk(const std::vector<ParsedLength>& values) { return !values.empty(); }
+struct PropertyName {
+    std::string_view name;
+    PropertyId id;
+};
+
+constexpr PropertyName kPropertyNames[] = {
+    {"font-size", PropertyId::FontSize},
+    {"font-family", PropertyId::FontFamily},
+    {"background-color", PropertyId::BackgroundColor},
+    {"background", PropertyId::Background},
+    {"background-image", PropertyId::BackgroundImage},
+    {"font-smoothing", PropertyId::FontSmoothing},
+    {"color", PropertyId::Color},
+    {"image-color", PropertyId::ImageColor},
+    {"width", PropertyId::Width},
+    {"height", PropertyId::Height},
+    {"min-width", PropertyId::MinWidth},
+    {"min-height", PropertyId::MinHeight},
+    {"max-width", PropertyId::MaxWidth},
+    {"max-height", PropertyId::MaxHeight},
+    {"border-radius", PropertyId::BorderRadius},
+    {"border-width", PropertyId::BorderWidth},
+    {"border-color", PropertyId::BorderColor},
+    {"border-style", PropertyId::BorderStyle},
+    {"box-shadow", PropertyId::BoxShadow},
+    {"padding", PropertyId::Padding},
+    {"spacing", PropertyId::Spacing},
+    {"gap", PropertyId::Gap},
+    {"row-gap", PropertyId::RowGap},
+    {"column-gap", PropertyId::ColumnGap},
+    {"alignment", PropertyId::Alignment},
+    {"orientation", PropertyId::Orientation},
+    {"opacity", PropertyId::Opacity},
+    {"indeterminate-bar-length", PropertyId::IndeterminateBarLength},
+    {"indeterminate-bar-escape", PropertyId::IndeterminateBarEscape},
+    {"indeterminate-bar-flip", PropertyId::IndeterminateBarFlip},
+    {"indeterminate-bar-animation-time", PropertyId::IndeterminateBarAnimationTime},
+    {"transition", PropertyId::Transition},
+    {"cursor", PropertyId::Cursor},
+    {"all", PropertyId::All},
+};
+
+void PrepareDeclaration(Declaration& declaration) {
+    declaration.id = propertyIdOf(declaration.property);
+    declaration.hasVar = declaration.value.find("var(") != std::string::npos;
+    if (declaration.hasVar) {
+        return;
+    }
+    DeclarationValue& parsed = declaration.parsed;
+    switch (declaration.id) {
+        case PropertyId::Color:
+        case PropertyId::BackgroundColor:
+        case PropertyId::BorderColor: {
+            bool ok = false;
+            parsed.color = Color::parse(declaration.value, &ok);
+            parsed.kind = ok ? DeclarationValue::Kind::Color : DeclarationValue::Kind::Invalid;
+            break;
+        }
+        case PropertyId::Background: {
+            // A gradient is parsed as it is applied. A plain color is parsed now.
+            if (lowerCopy(declaration.value).find("gradient") != std::string::npos) {
+                break;
+            }
+            bool ok = false;
+            parsed.color = Color::parse(declaration.value, &ok);
+            parsed.kind = ok ? DeclarationValue::Kind::Color : DeclarationValue::Kind::Invalid;
+            break;
+        }
+        case PropertyId::Width:
+        case PropertyId::Height:
+        case PropertyId::MinWidth:
+        case PropertyId::MinHeight:
+        case PropertyId::MaxWidth:
+        case PropertyId::MaxHeight:
+            parsed.size = LengthToSpec(declaration.value);
+            parsed.kind = parsed.size.set() ? DeclarationValue::Kind::Size : DeclarationValue::Kind::Invalid;
+            break;
+        case PropertyId::Padding:
+        case PropertyId::BorderWidth:
+        case PropertyId::BorderRadius: {
+            const std::vector<ParsedLength> list = LengthList(declaration.value);
+            if (list.empty()) {
+                parsed.kind = DeclarationValue::Kind::Invalid;
+                break;
+            }
+            // Past four, only the first four count, as BoxFromLengths and AssignRadius read them.
+            parsed.kind = DeclarationValue::Kind::Lengths;
+            parsed.lengthCount = static_cast<int>(std::min<std::size_t>(list.size(), 4));
+            for (int i = 0; i < parsed.lengthCount; ++i) {
+                parsed.lengths[i].pixels = list[static_cast<std::size_t>(i)].px;
+                parsed.lengths[i].percent = list[static_cast<std::size_t>(i)].percent;
+                parsed.lengths[i].em = list[static_cast<std::size_t>(i)].em;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+bool ColorOf(const Declaration& declaration, const std::string& value, Color& color) {
+    switch (declaration.parsed.kind) {
+        case DeclarationValue::Kind::Color:
+            color = declaration.parsed.color;
+            return true;
+        case DeclarationValue::Kind::Invalid:
+            return false;
+        default: {
+            bool ok = false;
+            color = Color::parse(value, &ok);
+            return ok;
+        }
+    }
+}
+
+bool SizeOf(const Declaration& declaration, const std::string& value, SizeSpec& size) {
+    switch (declaration.parsed.kind) {
+        case DeclarationValue::Kind::Size:
+            size = declaration.parsed.size;
+            return true;
+        case DeclarationValue::Kind::Invalid:
+            return false;
+        default:
+            size = LengthToSpec(value);
+            return size.set();
+    }
+}
+
+// Up to four lengths into out. Returns how many, or 0 when the value does not parse.
+std::size_t LengthsOf(const Declaration& declaration, const std::string& value, ParsedLength (&out)[4]) {
+    if (declaration.parsed.kind == DeclarationValue::Kind::Lengths) {
+        const std::size_t count = static_cast<std::size_t>(declaration.parsed.lengthCount);
+        for (std::size_t i = 0; i < count; ++i) {
+            const SizeSpec& length = declaration.parsed.lengths[i];
+            out[i] = ParsedLength{true, length.pixels, length.percent, length.em};
+        }
+        return count;
+    }
+    if (declaration.parsed.kind == DeclarationValue::Kind::Invalid) {
+        return 0;
+    }
+    const std::vector<ParsedLength> list = LengthList(value);
+    const std::size_t count = std::min<std::size_t>(list.size(), 4);
+    std::copy_n(list.begin(), count, out);
+    return count;
+}
 
 // A selector, by its rule and its place in that rule.
 struct IndexEntry {
@@ -1121,6 +1269,19 @@ void Stylesheet::collectMatching(Node& node, std::vector<MatchedDeclaration>& ou
             out.push_back({&declaration, specificity});
         }
     }
+}
+
+PropertyId propertyIdOf(std::string_view property) {
+    if (property.rfind("--", 0) == 0 || property == "accent-color" || property == "caret-color" ||
+        property == "outline-color") {
+        return PropertyId::Custom;
+    }
+    for (const PropertyName& entry : kPropertyNames) {
+        if (entry.name == property) {
+            return entry.id;
+        }
+    }
+    return PropertyId::Unknown;
 }
 
 std::string resolveCssVariables(std::string_view value, const CssVariables* variables) {
@@ -1264,11 +1425,7 @@ std::vector<Declaration> parseInlineDeclarations(const std::string& css) { retur
 void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration*>& declarations, StylePass pass,
                        float inheritedFontSize, float emFontSize) {
     // The web's accent-color, caret-color, and outline-color are read by
-    // controls as custom properties, so they inherit like one.
-    auto isCustom = [](const std::string& property) {
-        return property.rfind("--", 0) == 0 || property == "accent-color" || property == "caret-color" ||
-               property == "outline-color";
-    };
+    // controls as custom properties (PropertyId::Custom), so they inherit like one.
     if (pass == StylePass::Variables) {
         // The inherited set is shared; this node copies it once, if it declares any.
         std::shared_ptr<CssVariables> own;
@@ -1276,7 +1433,7 @@ void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration
         for (const Declaration* each : declarations) {
             const Declaration& declaration = *each;
             const std::string& property = declaration.property;
-            if (!isCustom(property)) {
+            if (declaration.id != PropertyId::Custom) {
                 continue;
             }
             if (!own) {
@@ -1304,239 +1461,281 @@ void applyDeclarations(ComputedStyle& style, const std::vector<const Declaration
     }
     for (const Declaration* each : declarations) {
         const Declaration& declaration = *each;
-        const std::string& property = declaration.property;
-        if (isCustom(property)) {
+        const PropertyId id = declaration.id;
+        if (id == PropertyId::Custom) {
+            continue;
+        }
+        const bool fontProperty = id == PropertyId::FontSize || id == PropertyId::FontFamily;
+        if ((pass == StylePass::Fonts) != fontProperty) {
             continue;
         }
         // A var() is resolved now, against the custom properties this node has.
         std::string resolvedValue;
-        if (declaration.value.find("var(") != std::string::npos) {
+        if (declaration.hasVar) {
             resolvedValue = resolveCssVariables(declaration.value, style.variables.get());
             if (resolvedValue.empty()) {
                 continue;
             }
         }
-        const std::string& value = resolvedValue.empty() ? declaration.value : resolvedValue;
-        const bool fontProperty = property == "font-size" || property == "font-family";
-        if (pass == StylePass::Fonts && !fontProperty) {
-            continue;
-        }
-        if (pass == StylePass::Rest && fontProperty) {
-            continue;
-        }
-        if (property == "font-size") {
-            const ParsedLength length = ParseLength(value);
-            if (length.ok) {
-                style.fontSize = static_cast<float>(length.px + (length.em + length.percent) * inheritedFontSize);
+        const std::string& value = declaration.hasVar ? resolvedValue : declaration.value;
+        switch (id) {
+            case PropertyId::FontSize: {
+                const ParsedLength length = ParseLength(value);
+                if (length.ok) {
+                    style.fontSize = static_cast<float>(length.px + (length.em + length.percent) * inheritedFontSize);
+                }
+                break;
             }
-        } else if (property == "font-family") {
-            std::string family = value;
-            const std::size_t comma = family.find(',');
-            if (comma != std::string::npos) {
-                family = family.substr(0, comma);
+            case PropertyId::FontFamily: {
+                std::string family = value;
+                const std::size_t comma = family.find(',');
+                if (comma != std::string::npos) {
+                    family = family.substr(0, comma);
+                }
+                family = trimCopy(family);
+                if (family.size() >= 2 && ((family.front() == '"' && family.back() == '"') ||
+                                           (family.front() == '\'' && family.back() == '\''))) {
+                    family = family.substr(1, family.size() - 2);
+                }
+                if (!family.empty()) {
+                    style.fontFamily = family;
+                }
+                break;
             }
-            family = trimCopy(family);
-            if (family.size() >= 2 && ((family.front() == '"' && family.back() == '"') ||
-                                       (family.front() == '\'' && family.back() == '\''))) {
-                family = family.substr(1, family.size() - 2);
+            case PropertyId::BackgroundColor: {
+                Color color;
+                if (!ColorOf(declaration, value, color)) {
+                    break;
+                }
+                style.background.color = color;
+                style.background.hasColor = true;
+                style.background.visible = true;
+                break;
             }
-            if (!family.empty()) {
-                style.fontFamily = family;
-            }
-        } else if (property == "background-color") {
-            bool ok = false;
-            const Color color = Color::parse(value, &ok);
-            if (!ok) {
-                continue;
-            }
-            style.background.color = color;
-            style.background.hasColor = true;
-            style.background.visible = true;
-        } else if (property == "background") {
-            if (lowerCopy(value).find("gradient") != std::string::npos) {
-                style.background.hasColor = false;
-                style.background.color = Color::transparent();
-                ApplyBackgroundImage(style, value);
-                continue;
-            }
-            bool ok = false;
-            const Color color = Color::parse(value, &ok);
-            if (!ok) {
-                continue;
-            }
-            style.background.color = color;
-            style.background.hasColor = true;
-            style.background.gradient = false;
-            style.background.stopCount = 0;
-            style.background.visible = color.a > 0.f || style.background.gradient;
-        } else if (property == "background-image") {
-            if (lowerCopy(trimCopy(value)) == "none") {
+            case PropertyId::Background: {
+                Color color;
+                if (declaration.parsed.kind == DeclarationValue::Kind::Raw &&
+                    lowerCopy(value).find("gradient") != std::string::npos) {
+                    style.background.hasColor = false;
+                    style.background.color = Color::transparent();
+                    ApplyBackgroundImage(style, value);
+                    break;
+                }
+                if (!ColorOf(declaration, value, color)) {
+                    break;
+                }
+                style.background.color = color;
+                style.background.hasColor = true;
                 style.background.gradient = false;
                 style.background.stopCount = 0;
-                style.background.visible = style.background.hasColor && style.background.color.a > 0.f;
-                continue;
+                style.background.visible = color.a > 0.f || style.background.gradient;
+                break;
             }
-            ApplyBackgroundImage(style, value);
-        } else if (property == "font-smoothing") {
-            // subpixel-antialiased keeps stripe coverage. antialiased, none, and grayscale do not.
-            // auto is the platform's own choice.
-            const std::string mode = lowerCopy(trimCopy(value));
-            if (mode == "auto") {
-                style.subpixel = kSubpixelByDefault;
-            } else if (mode == "subpixel-antialiased") {
-                style.subpixel = true;
-            } else if (mode == "antialiased" || mode == "none" || mode == "grayscale") {
-                style.subpixel = false;
+            case PropertyId::BackgroundImage:
+                if (lowerCopy(trimCopy(value)) == "none") {
+                    style.background.gradient = false;
+                    style.background.stopCount = 0;
+                    style.background.visible = style.background.hasColor && style.background.color.a > 0.f;
+                    break;
+                }
+                ApplyBackgroundImage(style, value);
+                break;
+            case PropertyId::FontSmoothing: {
+                // subpixel-antialiased keeps stripe coverage. antialiased, none, and grayscale do not.
+                // auto is the platform's own choice.
+                const std::string mode = lowerCopy(trimCopy(value));
+                if (mode == "auto") {
+                    style.subpixel = kSubpixelByDefault;
+                } else if (mode == "subpixel-antialiased") {
+                    style.subpixel = true;
+                } else if (mode == "antialiased" || mode == "none" || mode == "grayscale") {
+                    style.subpixel = false;
+                }
+                break;
             }
-        } else if (property == "color") {
-            bool ok = false;
-            const Color color = Color::parse(value, &ok);
-            if (ok) {
-                style.color = color;
+            case PropertyId::Color: {
+                Color color;
+                if (ColorOf(declaration, value, color)) {
+                    style.color = color;
+                }
+                break;
             }
-        } else if (property == "image-color") {
-            const std::string mode = lowerCopy(trimCopy(value));
-            if (mode == "none") {
-                style.imageColorSet = false;
-                style.imageColorCurrent = false;
-            } else if (mode == "currentcolor") {
-                style.imageColorSet = true;
-                style.imageColorCurrent = true;
-            } else {
-                bool ok = false;
-                const Color color = Color::parse(value, &ok);
-                if (ok) {
-                    style.imageColorSet = true;
+            case PropertyId::ImageColor: {
+                const std::string mode = lowerCopy(trimCopy(value));
+                if (mode == "none") {
+                    style.imageColorSet = false;
                     style.imageColorCurrent = false;
-                    style.imageColor = color;
-                }
-            }
-        } else if (property == "width") {
-            SetSize(style.width, value);
-        } else if (property == "height") {
-            SetSize(style.height, value);
-        } else if (property == "min-width") {
-            SetSize(style.minWidth, value);
-        } else if (property == "min-height") {
-            SetSize(style.minHeight, value);
-        } else if (property == "max-width") {
-            SetSize(style.maxWidth, value);
-        } else if (property == "max-height") {
-            SetSize(style.maxHeight, value);
-        } else if (property == "border-radius") {
-            const std::vector<ParsedLength> values = LengthList(value);
-            if (LengthsOk(values)) {
-                AssignRadius(style, values);
-            }
-        } else if (property == "border-width") {
-            const std::vector<ParsedLength> values = LengthList(value);
-            if (LengthsOk(values)) {
-                style.border = BoxFromLengths(values, emFontSize);
-            }
-        } else if (property == "border-color") {
-            bool ok = false;
-            const Color color = Color::parse(value, &ok);
-            if (ok) {
-                style.borderColor = color;
-            }
-        } else if (property == "border-style") {
-            const std::string kind = lowerCopy(trimCopy(value));
-            style.borderStyle = kind == "solid" ? BorderStyle::Solid : BorderStyle::None;
-        } else if (property == "box-shadow") {
-            style.shadows.clear();
-            if (lowerCopy(trimCopy(value)) == "none") {
-                continue;
-            }
-            for (const std::string& part : SplitDepth(value, ',')) {
-                if (!trimCopy(part).empty()) {
-                    style.shadows.push_back(ParseShadow(part, emFontSize));
-                }
-            }
-        } else if (property == "padding") {
-            const std::vector<ParsedLength> values = LengthList(value);
-            if (LengthsOk(values)) {
-                style.padding = BoxFromLengths(values, emFontSize);
-            }
-        } else if (property == "spacing") {
-            const ParsedLength length = ParseLength(value);
-            if (length.ok && length.percent == 0.0) {
-                style.spacing = static_cast<float>(ResolveLength(length, emFontSize));
-            }
-        } else if (property == "gap" || property == "row-gap" || property == "column-gap") {
-            // As in CSS: gap is row-gap then column-gap, and one value sets both.
-            // A box's spacing follows gap too.
-            std::vector<float> lengths;
-            for (const std::string& part : SplitDepth(value, ' ')) {
-                const ParsedLength length = ParseLength(trimCopy(part));
-                if (length.ok && length.percent == 0.0) {
-                    lengths.push_back(static_cast<float>(ResolveLength(length, emFontSize)));
-                }
-            }
-            if (lengths.empty()) {
-                continue;
-            }
-            if (property == "row-gap") {
-                style.rowGap = lengths.front();
-            } else if (property == "column-gap") {
-                style.columnGap = lengths.front();
-            } else {
-                style.rowGap = lengths.front();
-                style.columnGap = lengths.size() > 1 ? lengths[1] : lengths.front();
-                style.spacing = lengths.front();
-            }
-        } else if (property == "alignment") {
-            style.alignment = ParseAlignment(value);
-            style.alignmentFromCss = true;
-        } else if (property == "orientation") {
-            const std::string kind = lowerCopy(trimCopy(value));
-            if (kind == "horizontal" || kind == "vertical") {
-                style.orientationFromCss = true;
-                style.orientation = kind == "vertical" ? Orientation::Vertical : Orientation::Horizontal;
-            }
-        } else if (property == "opacity") {
-            double opacity = 1;
-            std::size_t consumed = 0;
-            if (ParseNumber(value, opacity, consumed)) {
-                if (opacity < 0) {
-                    opacity = 0;
-                }
-                if (opacity > 1) {
-                    opacity = 1;
-                }
-                style.opacity = static_cast<float>(opacity);
-            }
-        } else if (property == "indeterminate-bar-length") {
-            const ParsedLength length = ParseLength(value);
-            if (length.ok && length.percent == 0.0) {
-                style.indeterminateBarLengthSet = true;
-                style.indeterminateBarLength = SizeSpec::px(ResolveLength(length, emFontSize));
-            }
-        } else if (property == "indeterminate-bar-escape" || property == "indeterminate-bar-flip") {
-            const std::string kind = lowerCopy(trimCopy(value));
-            if (kind == "true" || kind == "false") {
-                const bool enabled = kind == "true";
-                if (property == "indeterminate-bar-escape") {
-                    style.indeterminateBarEscapeSet = true;
-                    style.indeterminateBarEscape = enabled;
+                } else if (mode == "currentcolor") {
+                    style.imageColorSet = true;
+                    style.imageColorCurrent = true;
                 } else {
-                    style.indeterminateBarFlipSet = true;
-                    style.indeterminateBarFlip = enabled;
+                    bool ok = false;
+                    const Color color = Color::parse(value, &ok);
+                    if (ok) {
+                        style.imageColorSet = true;
+                        style.imageColorCurrent = false;
+                        style.imageColor = color;
+                    }
                 }
+                break;
             }
-        } else if (property == "indeterminate-bar-animation-time") {
-            double seconds = 0;
-            std::size_t consumed = 0;
-            if (ParseNumber(value, seconds, consumed) && consumed == trimCopy(value).size()) {
-                if (seconds < 0) {
-                    seconds = 0;
+            case PropertyId::Width:
+            case PropertyId::Height:
+            case PropertyId::MinWidth:
+            case PropertyId::MinHeight:
+            case PropertyId::MaxWidth:
+            case PropertyId::MaxHeight: {
+                SizeSpec size;
+                if (!SizeOf(declaration, value, size)) {
+                    break;
                 }
-                style.indeterminateBarAnimationTimeSet = true;
-                style.indeterminateBarAnimationTime = seconds;
+                SizeSpec* slot = id == PropertyId::Width       ? &style.width
+                                 : id == PropertyId::Height    ? &style.height
+                                 : id == PropertyId::MinWidth  ? &style.minWidth
+                                 : id == PropertyId::MinHeight ? &style.minHeight
+                                 : id == PropertyId::MaxWidth  ? &style.maxWidth
+                                                               : &style.maxHeight;
+                *slot = size;
+                break;
             }
-        } else if (property == "transition") {
-            ApplyTransition(style, value);
+            case PropertyId::BorderRadius: {
+                ParsedLength lengths[4];
+                const std::size_t count = LengthsOf(declaration, value, lengths);
+                if (count > 0) {
+                    AssignRadius(style, lengths, count);
+                }
+                break;
+            }
+            case PropertyId::BorderWidth: {
+                ParsedLength lengths[4];
+                const std::size_t count = LengthsOf(declaration, value, lengths);
+                if (count > 0) {
+                    style.border = BoxFromLengths(lengths, count, emFontSize);
+                }
+                break;
+            }
+            case PropertyId::BorderColor: {
+                Color color;
+                if (ColorOf(declaration, value, color)) {
+                    style.borderColor = color;
+                }
+                break;
+            }
+            case PropertyId::BorderStyle: {
+                const std::string kind = lowerCopy(trimCopy(value));
+                style.borderStyle = kind == "solid" ? BorderStyle::Solid : BorderStyle::None;
+                break;
+            }
+            case PropertyId::BoxShadow:
+                style.shadows.clear();
+                if (lowerCopy(trimCopy(value)) == "none") {
+                    break;
+                }
+                for (const std::string& part : SplitDepth(value, ',')) {
+                    if (!trimCopy(part).empty()) {
+                        style.shadows.push_back(ParseShadow(part, emFontSize));
+                    }
+                }
+                break;
+            case PropertyId::Padding: {
+                ParsedLength lengths[4];
+                const std::size_t count = LengthsOf(declaration, value, lengths);
+                if (count > 0) {
+                    style.padding = BoxFromLengths(lengths, count, emFontSize);
+                }
+                break;
+            }
+            case PropertyId::Spacing: {
+                const ParsedLength length = ParseLength(value);
+                if (length.ok && length.percent == 0.0) {
+                    style.spacing = static_cast<float>(ResolveLength(length, emFontSize));
+                }
+                break;
+            }
+            case PropertyId::Gap:
+            case PropertyId::RowGap:
+            case PropertyId::ColumnGap: {
+                // As in CSS: gap is row-gap then column-gap, and one value sets both.
+                // A box's spacing follows gap too.
+                std::vector<float> lengths;
+                for (const std::string& part : SplitDepth(value, ' ')) {
+                    const ParsedLength length = ParseLength(trimCopy(part));
+                    if (length.ok && length.percent == 0.0) {
+                        lengths.push_back(static_cast<float>(ResolveLength(length, emFontSize)));
+                    }
+                }
+                if (lengths.empty()) {
+                    break;
+                }
+                if (id == PropertyId::RowGap) {
+                    style.rowGap = lengths.front();
+                } else if (id == PropertyId::ColumnGap) {
+                    style.columnGap = lengths.front();
+                } else {
+                    style.rowGap = lengths.front();
+                    style.columnGap = lengths.size() > 1 ? lengths[1] : lengths.front();
+                    style.spacing = lengths.front();
+                }
+                break;
+            }
+            case PropertyId::Alignment:
+                style.alignment = ParseAlignment(value);
+                style.alignmentFromCss = true;
+                break;
+            case PropertyId::Orientation: {
+                const std::string kind = lowerCopy(trimCopy(value));
+                if (kind == "horizontal" || kind == "vertical") {
+                    style.orientationFromCss = true;
+                    style.orientation = kind == "vertical" ? Orientation::Vertical : Orientation::Horizontal;
+                }
+                break;
+            }
+            case PropertyId::Opacity: {
+                double opacity = 1;
+                std::size_t consumed = 0;
+                if (ParseNumber(value, opacity, consumed)) {
+                    style.opacity = static_cast<float>(std::clamp(opacity, 0.0, 1.0));
+                }
+                break;
+            }
+            case PropertyId::IndeterminateBarLength: {
+                const ParsedLength length = ParseLength(value);
+                if (length.ok && length.percent == 0.0) {
+                    style.indeterminateBarLengthSet = true;
+                    style.indeterminateBarLength = SizeSpec::px(ResolveLength(length, emFontSize));
+                }
+                break;
+            }
+            case PropertyId::IndeterminateBarEscape:
+            case PropertyId::IndeterminateBarFlip: {
+                const std::string kind = lowerCopy(trimCopy(value));
+                if (kind == "true" || kind == "false") {
+                    const bool enabled = kind == "true";
+                    if (id == PropertyId::IndeterminateBarEscape) {
+                        style.indeterminateBarEscapeSet = true;
+                        style.indeterminateBarEscape = enabled;
+                    } else {
+                        style.indeterminateBarFlipSet = true;
+                        style.indeterminateBarFlip = enabled;
+                    }
+                }
+                break;
+            }
+            case PropertyId::IndeterminateBarAnimationTime: {
+                double seconds = 0;
+                std::size_t consumed = 0;
+                if (ParseNumber(value, seconds, consumed) && consumed == trimCopy(value).size()) {
+                    style.indeterminateBarAnimationTimeSet = true;
+                    style.indeterminateBarAnimationTime = std::max(0.0, seconds);
+                }
+                break;
+            }
+            case PropertyId::Transition:
+                ApplyTransition(style, value);
+                break;
+            default:
+                break;
         }
     }
 }
-
 }  // namespace jadefx

@@ -96,11 +96,60 @@ void TestIndexedSelectorsMatch() {
     Expect(Is(plain->computedStyle().borderColor, 1, 2, 3), "the universal selector matches every node");
 }
 
+void TestPropertyIds() {
+    Expect(jadefx::propertyIdOf("background-color") == jadefx::PropertyId::BackgroundColor, "background-color has its id");
+    Expect(jadefx::propertyIdOf("--panel-bg") == jadefx::PropertyId::Custom, "a custom property is custom");
+    Expect(jadefx::propertyIdOf("accent-color") == jadefx::PropertyId::Custom, "accent-color is stored as a custom property");
+    Expect(jadefx::propertyIdOf("all") == jadefx::PropertyId::All, "all has its id, for transitions");
+    Expect(jadefx::propertyIdOf("not-a-property") == jadefx::PropertyId::Unknown, "an unknown property is unknown");
+}
+
+void TestDeclarationsParsedOnce() {
+    using Kind = jadefx::DeclarationValue::Kind;
+    const std::vector<jadefx::Declaration> parsed = jadefx::parseInlineDeclarations(
+        "color: #ff0000; width: 50%; padding: 1em 2px; border-color: var(--x); background-color: nonsense");
+    Expect(parsed.size() == 5, "five declarations parse");
+    if (parsed.size() != 5) {
+        return;
+    }
+    Expect(parsed[0].parsed.kind == Kind::Color && Is(parsed[0].parsed.color, 255, 0, 0), "a color is parsed at load");
+    Expect(parsed[1].parsed.kind == Kind::Size && parsed[1].parsed.size.kind == jadefx::SizeKind::Percent &&
+               parsed[1].parsed.size.percent == 0.5,
+           "a length is parsed at load");
+    Expect(parsed[2].parsed.kind == Kind::Lengths && parsed[2].parsed.lengthCount == 2 &&
+               parsed[2].parsed.lengths[0].em == 1 && parsed[2].parsed.lengths[1].pixels == 2,
+           "a length list keeps em for the node's font size");
+    Expect(parsed[3].hasVar && parsed[3].parsed.kind == Kind::Raw, "a value with var() stays raw");
+    Expect(parsed[4].parsed.kind == Kind::Invalid, "a value that does not parse is marked invalid");
+}
+
+void TestVarResolvedPerNode() {
+    auto root = jadefx::make<jadefx::VBox>();
+    auto first = jadefx::make<jadefx::StackPane>();
+    auto second = jadefx::make<jadefx::StackPane>();
+    first->getClassList().add("t");
+    second->getClassList().add("t");
+    first->setStyle("--tone: #ff0000;");
+    second->setStyle("--tone: #00ff00;");
+    root->getChildren().add(first);
+    root->getChildren().add(second);
+    auto scene = jadefx::make<jadefx::Scene>(root, 200, 200);
+    scene->setStylesheet(".t { font-size: 20px; padding: 1em; background-color: var(--tone); }"
+                         ".t { background-color: nonsense; }");
+    scene->layout(200, 200, 0);
+    Expect(Is(first->computedStyle().background.color, 255, 0, 0), "var() resolves against the first node's value");
+    Expect(Is(second->computedStyle().background.color, 0, 255, 0), "var() resolves against the second node's value");
+    Expect(first->computedStyle().padding.left == 20, "an em length uses the node's own font size");
+}
+
 }  // namespace
 
 int RunStylePerfTests() {
     TestScenePassesReported();
     TestStageForwardsPasses();
     TestIndexedSelectorsMatch();
+    TestPropertyIds();
+    TestDeclarationsParsedOnce();
+    TestVarResolvedPerNode();
     return gFailures;
 }
