@@ -254,6 +254,26 @@ public:
     std::vector<Node*> getElementsByClassName(const std::string& className);
 
     const ComputedStyle& computedStyle() const { return computed_; }
+    // How far a style change reaches. Self restyles this node, and its children too
+    // when what they inherit changes. Subtree restyles every node under it as well,
+    // for a change a descendant selector can see, such as a class or :hover.
+    enum class StyleDirt { Self, Subtree };
+    // Size: this node's preferred size may change, so its ancestors lay out again.
+    // Arrange: its size stays the same, and only its children are placed again.
+    enum class LayoutDirt { Size, Arrange };
+    // Restyles this node at the next layout. A control calls this when it changes
+    // something its style depends on.
+    void markStyleDirty(StyleDirt dirt = StyleDirt::Self);
+    // Lays this node out again at the next layout. A control calls this when it
+    // changes something its layoutChildren or preferred size depends on. Size is
+    // always correct; Arrange is cheaper when the preferred size cannot change.
+    void markLayoutDirty(LayoutDirt dirt = LayoutDirt::Size);
+    bool isStyleDirty() const { return styleDirty_; }
+    bool isLayoutDirty() const { return layoutDirty_; }
+    // How many times an incremental pass restyled this node and ran its
+    // layoutChildren. For tests.
+    std::uint32_t debugRestyleCount() const { return restyleCount_; }
+    std::uint32_t debugLayoutCount() const { return layoutCount_; }
     // A theme color as this node's style sets it, through the custom property
     // Theme::variableName names, or the light theme's value when nothing sets it.
     // currentColor is the node's text color, as in CSS.
@@ -324,7 +344,22 @@ protected:
     friend class SplitPane;
 
 private:
-    void applyStyles(const ComputedStyle& inherited, double timeSeconds);
+    // None styles this node only if it is dirty. Self restyles it. Subtree restyles
+    // it and every node under it.
+    enum class StyleForce { None, Self, Subtree };
+    void applyStyles(const ComputedStyle& inherited, double timeSeconds, StyleForce force = StyleForce::None);
+    // Resolves this node's own style. Returns true when what its children inherit changed.
+    bool resolveStyle(const ComputedStyle& inherited, double timeSeconds);
+    // True when this node's scene skips clean nodes and no full pass is running.
+    bool incrementalActive() const;
+    // Lays out this node and every node under it again, as a subtree that moved needs.
+    void markSubtreeLayoutDirty();
+    // Runs layoutChildren, then forgets the measures it may have changed.
+    void layoutChildrenAndForgetMeasures();
+    // The child list changed: :nth-child may match differently and the layout moves.
+    void childrenChanged();
+    // While set, every pass ignores dirty flags, as with incremental passes off.
+    static void setFullPass(bool full);
     // What a child inherits from this node's style: text color, font, and cursor.
     ComputedStyle inheritableStyle() const;
     // What the top of a cascade inherits: a scene, or a SubScene's root.
@@ -472,6 +507,16 @@ private:
     // Unset means a SplitPane may resize this item with the pane.
     std::optional<bool> resizableWithParent_;
     bool tearingDown_ = false;
+    // Dirty flags. A new node starts dirty. An ancestor of a dirty node has its
+    // child flag set, so a pass can walk down to it and skip clean branches.
+    bool styleDirty_ = true;
+    bool styleSubtreeDirty_ = false;
+    bool childStyleDirty_ = false;
+    bool layoutDirty_ = true;
+    bool childLayoutDirty_ = false;
+    bool hasBounds_ = false;
+    std::uint32_t restyleCount_ = 0;
+    std::uint32_t layoutCount_ = 0;
     std::optional<HoverPopup> hoverPopup_;
 
     MouseHandler onPressed_;

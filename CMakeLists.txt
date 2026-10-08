@@ -383,6 +383,7 @@ if(NOT JADEFX_GLFM)
         tests/occluder_tests.cpp
         tests/frame_phase_tests.cpp
         tests/style_perf_tests.cpp
+        tests/incremental_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

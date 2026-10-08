@@ -1967,6 +1967,7 @@ int RunImageTests();
 int RunRunLaterTests();
 int RunFramePhaseTests();
 int RunStylePerfTests();
+int RunIncrementalTests();
 int RunTreeViewTests();
 int RunScrollPaneTests();
 int RunListViewTests();
@@ -2006,6 +2007,7 @@ int main() {
     gFailures += RunRunLaterTests();
     gFailures += RunFramePhaseTests();
     gFailures += RunStylePerfTests();
+    gFailures += RunIncrementalTests();
     gFailures += RunButtonTests();
     gFailures += RunCursorTests();
     gFailures += RunPointerLockTests();

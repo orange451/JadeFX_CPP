@@ -128,6 +128,15 @@ void Scene::setRoot(std::shared_ptr<Node> root) {
     }
 }
 
+void Scene::setIncrementalUpdates(bool enabled) {
+    if (incremental_ == enabled) {
+        return;
+    }
+    incremental_ = enabled;
+    markStyleDirty(StyleDirt::Subtree);
+    markSubtreeLayoutDirty();
+}
+
 void Scene::layout(double width, double height) {
     using Clock = std::chrono::steady_clock;
     static const auto start = Clock::now();
@@ -163,6 +172,8 @@ void Scene::layout(double width, double height, double timeSeconds) {
         const double y = safe_.top + contentTop();
         const double innerWidth = std::max(0.0, width_ - safe_.left - safe_.right - contentLeft() - right);
         const double innerHeight = std::max(0.0, height_ - safe_.top - safe_.bottom - contentTop() - bottom);
+        layoutDirty_ = false;
+        childLayoutDirty_ = false;
         internal_->performLayout(x, y, innerWidth, innerHeight);
     }
     {

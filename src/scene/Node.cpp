@@ -111,6 +111,25 @@ private:
 
 thread_local int gLayoutPassDepth = 0;
 thread_local std::uint64_t gLayoutPassEpoch = 0;
+thread_local bool gFullPass = false;
+
+bool SameColor(const Color& a, const Color& b) { return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a; }
+
+bool SameVariables(const std::shared_ptr<const CssVariables>& a, const std::shared_ptr<const CssVariables>& b) {
+    if (a == b) {
+        return true;
+    }
+    if (!a || !b) {
+        return (!a || a->empty()) && (!b || b->empty());
+    }
+    return *a == *b;
+}
+
+// What inheritableStyle passes down: text color, font, smoothing, cursor, and custom properties.
+bool SameInheritable(const ComputedStyle& a, const ComputedStyle& b) {
+    return SameColor(a.color, b.color) && a.fontSize == b.fontSize && a.fontFamily == b.fontFamily &&
+           a.subpixel == b.subpixel && a.cursor == b.cursor && SameVariables(a.variables, b.variables);
+}
 
 // Theme colors parsed from one set of custom properties. Nodes share sets, so a
 // few entries serve the whole tree. Each holds its set alive, so its address
@@ -351,6 +370,7 @@ const HoverPopup* Node::getHoverPopup() const {
 }
 
 void Node::setParent(Node* parent) {
+    Node* const previousParent = parent_;
     Scene* previousScene = scene_;
     parent_ = parent;
     if (asScene() != nullptr) {
@@ -374,6 +394,18 @@ void Node::setParent(Node* parent) {
         // sceneChanged may see a scene that is tearing down. It must not use
         // that scene's lists; isTearingDown() is still readable.
         sceneChanged(previousScene);
+    }
+    if (previousParent != parent_) {
+        // A node that moves is styled and placed again where it lands, and the lists
+        // it left and joined change order.
+        if (previousParent != nullptr) {
+            previousParent->childrenChanged();
+        }
+        if (parent_ != nullptr) {
+            parent_->childrenChanged();
+        }
+        markStyleDirty(StyleDirt::Subtree);
+        markSubtreeLayoutDirty();
     }
 
     std::vector<Node*> kids;
@@ -526,11 +558,66 @@ bool Node::measureCacheUsable() const {
     if (gLayoutPassDepth == 0) {
         return false;
     }
-    if (measure_.epoch != gLayoutPassEpoch) {
+    // An incremental pass keeps measures until a mark clears them. A full pass
+    // starts each pass fresh, as every node is styled again.
+    if (!incrementalActive() && measure_.epoch != gLayoutPassEpoch) {
         measure_.clear();
         measure_.epoch = gLayoutPassEpoch;
     }
     return true;
+}
+
+void Node::setFullPass(bool full) { gFullPass = full; }
+
+bool Node::incrementalActive() const { return !gFullPass && scene_ != nullptr && scene_->incremental_; }
+
+void Node::markStyleDirty(StyleDirt dirt) {
+    styleDirty_ = true;
+    if (dirt == StyleDirt::Subtree) {
+        styleSubtreeDirty_ = true;
+    }
+    for (Node* node = parent_; node != nullptr && !node->childStyleDirty_; node = node->parent_) {
+        node->childStyleDirty_ = true;
+    }
+}
+
+void Node::markLayoutDirty(LayoutDirt dirt) {
+    layoutDirty_ = true;
+    if (dirt == LayoutDirt::Arrange) {
+        for (Node* node = parent_; node != nullptr && !node->childLayoutDirty_ && !node->layoutDirty_;
+             node = node->parent_) {
+            node->childLayoutDirty_ = true;
+        }
+        return;
+    }
+    // A preferred size feeds every ancestor's, so the whole chain measures and lays
+    // out again. The walk always reaches the root: it is short, and stopping early
+    // could leave an ancestor's measure cached from earlier in this pass.
+    measure_.clear();
+    for (Node* node = parent_; node != nullptr; node = node->parent_) {
+        node->measure_.clear();
+        node->layoutDirty_ = true;
+    }
+}
+
+void Node::markSubtreeLayoutDirty() {
+    std::vector<Node*> stack{this};
+    while (!stack.empty()) {
+        Node* node = stack.back();
+        stack.pop_back();
+        node->layoutDirty_ = true;
+        node->measure_.clear();
+        node->visitChildren([&](Node* child) { stack.push_back(child); });
+    }
+    markLayoutDirty(LayoutDirt::Size);
+}
+
+void Node::childrenChanged() {
+    if (tearingDown_) {
+        return;
+    }
+    visitChildren([](Node* child) { child->markStyleDirty(StyleDirt::Subtree); });
+    markLayoutDirty(LayoutDirt::Size);
 }
 
 double Node::measuredWidth(double available) const {
@@ -589,16 +676,51 @@ double Node::measuredHeight(double width, double availableHeight) const {
     return result;
 }
 
-void Node::performLayout(double x, double y, double width, double height) {
-    x_ = x;
-    y_ = y;
-    width_ = std::max(0.0, width);
-    height_ = std::max(0.0, height);
+void Node::layoutChildrenAndForgetMeasures() {
     layoutChildren();
     // Laying out can change what a node measures, as for a page that learns its
     // height by placing its rows. Its own measures and its ancestors' are fresh after.
     for (const Node* node = this; node != nullptr; node = node->parent_) {
         node->measure_.clear();
+    }
+}
+
+void Node::performLayout(double x, double y, double width, double height) {
+    width = std::max(0.0, width);
+    height = std::max(0.0, height);
+    const bool resized = !hasBounds_ || width != width_ || height != height_;
+    x_ = x;
+    y_ = y;
+    width_ = width;
+    height_ = height;
+    hasBounds_ = true;
+    if (!incrementalActive()) {
+        layoutDirty_ = false;
+        childLayoutDirty_ = false;
+        layoutChildrenAndForgetMeasures();
+        return;
+    }
+    // A clean node keeps its children where they are. Its position is relative to its
+    // parent, so moving it moves them too.
+    if (!resized && !layoutDirty_ && !childLayoutDirty_) {
+        return;
+    }
+    const bool whole = resized || layoutDirty_;
+    layoutDirty_ = false;
+    childLayoutDirty_ = false;
+    if (whole) {
+        ++layoutCount_;
+        layoutChildrenAndForgetMeasures();
+        return;
+    }
+    // Only children below need it: lay each dirty one out again where it is.
+    ScratchLease lease;
+    std::vector<Node*>& kids = (*lease).kids;
+    visitChildren([&](Node* child) { kids.push_back(child); });
+    for (Node* child : kids) {
+        if (child->layoutDirty_ || child->childLayoutDirty_) {
+            child->performLayout(child->x_, child->y_, child->width_, child->height_);
+        }
     }
 }
 
@@ -658,7 +780,7 @@ Insets Node::animateInsets(InsetAnim& anim, const Insets& target, double duratio
     return anim.displayed;
 }
 
-void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
+bool Node::resolveStyle(const ComputedStyle& inherited, double timeSeconds) {
     ScratchLease lease;
     StyleScratch& scratch = *lease;
     ComputedStyle style;
@@ -810,15 +932,45 @@ void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds) {
         }
     }
 
+    const bool inheritChanged = !SameInheritable(computed_, style);
     computed_ = style;
     measure_.clear();
+    if (incrementalActive()) {
+        ++restyleCount_;
+        // Every restyle may move the layout. Only layout-affecting changes will, once
+        // the restyle compares what changed.
+        markLayoutDirty(LayoutDirt::Size);
+    }
     styleDidApply();
+    return inheritChanged;
+}
+
+void Node::applyStyles(const ComputedStyle& inherited, double timeSeconds, StyleForce force) {
+    if (!incrementalActive()) {
+        force = StyleForce::Subtree;
+    }
+    const bool restyle = force != StyleForce::None || styleDirty_;
+    if (!restyle && !childStyleDirty_) {
+        return;
+    }
+    StyleForce childForce =
+        force == StyleForce::Subtree || styleSubtreeDirty_ ? StyleForce::Subtree : StyleForce::None;
+    // Cleared before the work, so a mark made while styling holds for the next frame.
+    styleDirty_ = false;
+    styleSubtreeDirty_ = false;
+    childStyleDirty_ = false;
+    if (restyle && resolveStyle(inherited, timeSeconds) && childForce == StyleForce::None) {
+        childForce = StyleForce::Self;
+    }
     const ComputedStyle pass = asSubScene() != nullptr ? rootInheritance() : inheritableStyle();
-    visitChildren([&](Node* child) { scratch.kids.push_back(child); });
-    for (Node* child : scratch.kids) {
-        child->applyStyles(pass, timeSeconds);
+    ScratchLease lease;
+    std::vector<Node*>& kids = (*lease).kids;
+    visitChildren([&](Node* child) { kids.push_back(child); });
+    for (Node* child : kids) {
+        child->applyStyles(pass, timeSeconds, childForce);
     }
 }
+
 
 Color Node::themeColor(ThemeColor color) const {
     const auto at = static_cast<std::size_t>(color);
@@ -878,7 +1030,7 @@ const Stylesheet* Node::userAgentSheet() const {
 
 void Node::applyCss() {
     const double time = scene_ != nullptr ? scene_->timeSeconds() : 0.0;
-    applyStyles(inheritedFromParent(), time);
+    applyStyles(inheritedFromParent(), time, StyleForce::Subtree);
 }
 
 bool Node::isFocusWithin() {

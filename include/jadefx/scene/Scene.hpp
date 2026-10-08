@@ -59,6 +59,10 @@ public:
     void setSafeInsets(const Insets& insets) { safe_ = insets; }
     // Told when each LayoutPass of layout begins and ends. Stage sets this.
     void setLayoutPassHook(LayoutPassHook hook) { passHook_ = std::move(hook); }
+    // Skip nodes whose style and layout did not change since the last frame. Off
+    // restyles and lays out every node every frame.
+    void setIncrementalUpdates(bool enabled);
+    bool incrementalUpdates() const { return incremental_; }
 
     void noteMove(double x, double y);
     // The pointer left the window. Hover ends and the cursor returns to the arrow.
@@ -267,6 +271,7 @@ private:
     bool pointerValid_ = false;
     std::function<int()> eventPump_;
     LayoutPassHook passHook_;
+    bool incremental_ = false;
 };
 
 }  // namespace jadefx
