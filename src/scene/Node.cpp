@@ -883,6 +883,7 @@ Color Node::animateColor(ColorAnim& anim, const Color& target, double duration, 
         anim.from = target;
         anim.to = target;
         anim.duration = 0;
+        anim.end = 0;
         return target;
     }
     if (!near(anim.to, target)) {
@@ -890,6 +891,7 @@ Color Node::animateColor(ColorAnim& anim, const Color& target, double duration, 
         anim.to = target;
         anim.start = time;
         anim.duration = duration;
+        anim.end = time + delay + duration;
     }
     const double elapsed = time - anim.start - delay;
     if (elapsed <= 0) {
@@ -911,6 +913,7 @@ Insets Node::animateInsets(InsetAnim& anim, const Insets& target, double duratio
         anim.from = target;
         anim.to = target;
         anim.duration = 0;
+        anim.end = 0;
         return target;
     }
     if (!SameInsets(anim.to, target)) {
@@ -918,6 +921,7 @@ Insets Node::animateInsets(InsetAnim& anim, const Insets& target, double duratio
         anim.to = target;
         anim.start = time;
         anim.duration = duration;
+        anim.end = time + delay + duration;
     }
     const double elapsed = time - anim.start - delay;
     if (elapsed <= 0) {
@@ -930,6 +934,19 @@ Insets Node::animateInsets(InsetAnim& anim, const Insets& target, double duratio
     }
     anim.displayed = LerpInsets(anim.from, anim.to, elapsed / anim.duration);
     return anim.displayed;
+}
+
+bool Node::transitionRunning(double time) const {
+    if (backgroundAnim_.end > time || colorAnim_.end > time || borderColorAnim_.end > time ||
+        borderAnim_.end > time || shadowAnim_.end > time) {
+        return true;
+    }
+    for (const ColorAnim& stop : stopAnim_) {
+        if (stop.end > time) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool Node::resolveStyle(const ComputedStyle& inherited, double timeSeconds) {
@@ -1047,6 +1064,7 @@ bool Node::resolveStyle(const ComputedStyle& inherited, double timeSeconds) {
         shadowAnim_.from = target.shadows;
         shadowAnim_.to = target.shadows;
         shadowAnim_.duration = 0;
+        shadowAnim_.end = 0;
     } else {
         bool changed = shadowAnim_.to.size() != target.shadows.size();
         for (std::size_t i = 0; !changed && i < target.shadows.size(); ++i) {
@@ -1060,6 +1078,7 @@ bool Node::resolveStyle(const ComputedStyle& inherited, double timeSeconds) {
             shadowAnim_.to = target.shadows;
             shadowAnim_.start = timeSeconds;
             shadowAnim_.duration = shadowTiming.duration;
+            shadowAnim_.end = timeSeconds + shadowTiming.delay + shadowTiming.duration;
         }
         const double elapsed = timeSeconds - shadowAnim_.start - shadowTiming.delay;
         if (shadowAnim_.from.size() == shadowAnim_.to.size() && elapsed > 0 && shadowAnim_.duration > 0 &&
@@ -1102,6 +1121,9 @@ bool Node::resolveStyle(const ComputedStyle& inherited, double timeSeconds) {
         } else if (layoutChanged) {
             markLayoutDirty(LayoutDirt::Size);
         }
+    }
+    if (incrementalActive() && scene_ != nullptr && transitionRunning(timeSeconds)) {
+        scene_->noteAnimating(this);
     }
     styleDidApply();
     return inheritChanged;

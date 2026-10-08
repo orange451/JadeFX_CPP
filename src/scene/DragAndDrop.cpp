@@ -237,6 +237,7 @@ bool Scene::noteFileDrop(double x, double y, std::vector<std::string> paths) {
 }
 
 void Scene::forgetNode(Node* node) {
+    animating_.erase(std::remove(animating_.begin(), animating_.end(), node), animating_.end());
     if (pressedTarget_ == node) {
         pressedTarget_ = nullptr;
     }

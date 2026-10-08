@@ -355,6 +355,8 @@ private:
     bool incrementalActive() const;
     // Lays out this node and every node under it again, as a subtree that moved needs.
     void markSubtreeLayoutDirty();
+    // True while any of this node's transitions has not reached its target at time.
+    bool transitionRunning(double time) const;
     // Sets focused_ and keeps every ancestor's focus-within count and style in step.
     void setFocusedFlag(bool focused);
     // Adds delta to this node's and each ancestor's count of focused nodes inside it.
@@ -425,6 +427,8 @@ private:
         Color to;
         double start = 0;
         double duration = 0;
+        // When the running transition reaches its target. 0 when none runs.
+        double end = 0;
         bool ready = false;
     };
 
@@ -481,6 +485,8 @@ private:
         Insets to{};
         double start = 0;
         double duration = 0;
+        // When the running transition reaches its target. 0 when none runs.
+        double end = 0;
         bool ready = false;
     };
     struct ShadowAnim {
@@ -489,6 +495,8 @@ private:
         std::vector<BoxShadow> to;
         double start = 0;
         double duration = 0;
+        // When the running transition reaches its target. 0 when none runs.
+        double end = 0;
         bool ready = false;
     };
 

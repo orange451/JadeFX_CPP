@@ -277,6 +277,9 @@ private:
     std::function<int()> eventPump_;
     LayoutPassHook passHook_;
     bool incremental_ = false;
+    // Nodes with a transition still running. Each is restyled again next frame.
+    std::vector<Node*> animating_;
+    void noteAnimating(Node* node);
     std::uint64_t themeGeneration_ = 0;
 };
 

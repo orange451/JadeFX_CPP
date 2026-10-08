@@ -421,6 +421,35 @@ void TestPopupFollowsItsContent() {
     Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "popups match a full pass");
 }
 
+void TestOnlyTheAnimatingNodeRestyles() {
+    Fixture f = MakeFixture();
+    f.target->getClassList().add("fade");
+    f.frame();
+    const Seen sibling = Of(*f.sibling);
+    const Seen panelA = Of(*f.panelA);
+    f.target->getClassList().add("on");
+    f.frame();
+    std::uint32_t restyles = f.target->debugRestyleCount();
+    bool everyFrame = true;
+    for (int i = 0; i < 10; ++i) {
+        f.frame();
+        everyFrame = everyFrame && f.target->debugRestyleCount() == restyles + 1;
+        restyles = f.target->debugRestyleCount();
+    }
+    Expect(everyFrame, "a node in a transition restyles every frame");
+    const float mid = f.target->computedStyle().background.color.r;
+    Expect(mid > 0.05f && mid < 0.95f, "the background is part way through its transition");
+    Expect(!Restyled(*f.sibling, sibling) && !Restyled(*f.panelA, panelA), "only the animating node restyles");
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "a transition matches a full pass");
+    for (int i = 0; i < 40; ++i) {
+        f.frame();
+    }
+    Expect(Is(f.target->computedStyle().background.color, 255, 255, 255), "the transition ends on its target");
+    const Seen settled = Of(*f.target);
+    f.frame();
+    Expect(!Restyled(*f.target, settled), "a finished transition stops restyling");
+}
+
 }  // namespace
 
 int RunIncrementalTests() {
@@ -446,5 +475,6 @@ int RunIncrementalTests() {
     TestAlignmentReachesDescendants();
     TestVisibilityLaysOut();
     TestPopupFollowsItsContent();
+    TestOnlyTheAnimatingNodeRestyles();
     return gFailures;
 }

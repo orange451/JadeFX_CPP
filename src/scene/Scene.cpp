@@ -120,6 +120,7 @@ Scene::~Scene() {
     hover_ = {};
     std::fill(std::begin(heldButtonTargets_), std::end(heldButtonTargets_), nullptr);
     popups_.clear();
+    animating_.clear();
     children().clear();
 }
 
@@ -140,6 +141,12 @@ void Scene::setIncrementalUpdates(bool enabled) {
     incremental_ = enabled;
     markStyleDirty(StyleDirt::Subtree);
     markSubtreeLayoutDirty();
+}
+
+void Scene::noteAnimating(Node* node) {
+    if (std::find(animating_.begin(), animating_.end(), node) == animating_.end()) {
+        animating_.push_back(node);
+    }
 }
 
 void Scene::layout(double width, double height) {
@@ -184,6 +191,14 @@ void Scene::layout(double width, double height, double timeSeconds) {
         themeGeneration_ = Theme::generation();
         if (userAgentSource_.empty()) {
             markStyleDirty(StyleDirt::Subtree);
+        }
+    }
+    // A node still in a transition registers again when it restyles.
+    if (!animating_.empty()) {
+        std::vector<Node*> nodes;
+        nodes.swap(animating_);
+        for (Node* node : nodes) {
+            node->markStyleDirty();
         }
     }
     stylePass(timeSeconds);
