@@ -69,8 +69,10 @@ void Stage::setScene(std::shared_ptr<Scene> scene) {
     if (scene_ && scene_ != scene) {
         scene_->setPointerLocked(false);
         scene_->setPointerLockBridge(nullptr);
+        scene_->setLayoutPassHook(nullptr);
     }
     scene_ = std::move(scene);
+    scene_->setLayoutPassHook(passHook_);
     if (eventPump_) {
         scene_->setEventPump(eventPump_);
     }
@@ -112,6 +114,19 @@ void Stage::setFrameTail(std::function<void()> tail) { frameTail_ = std::move(ta
 void Stage::notePhase(FramePhase phase, bool begin) const {
     if (phaseHook_) {
         phaseHook_(phase, begin);
+    }
+}
+
+void Stage::setLayoutPassHook(LayoutPassHook hook) {
+    passHook_ = std::move(hook);
+    if (scene_) {
+        scene_->setLayoutPassHook(passHook_);
+    }
+}
+
+void Stage::noteLayoutPass(LayoutPass pass, bool begin) const {
+    if (passHook_) {
+        passHook_(pass, begin);
     }
 }
 

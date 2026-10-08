@@ -382,6 +382,7 @@ if(NOT JADEFX_GLFM)
         tests/glyph_atlas_tests.cpp
         tests/occluder_tests.cpp
         tests/frame_phase_tests.cpp
+        tests/style_perf_tests.cpp
     )
     target_include_directories(jadefx-tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(jadefx-tests PRIVATE jadefx)

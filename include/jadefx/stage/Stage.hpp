@@ -134,6 +134,11 @@ public:
     void setFramePhaseHook(FramePhaseHook hook) { phaseHook_ = std::move(hook); }
     // The window loop's way to report a phase. Does nothing without a hook.
     void notePhase(FramePhase phase, bool begin) const;
+    // Told when each LayoutPass begins and ends, inside FramePhase::Layout. Given to
+    // the current scene and to a scene installed later with setScene.
+    void setLayoutPassHook(LayoutPassHook hook);
+    // Reports a layout pass to the hook. Does nothing without one.
+    void noteLayoutPass(LayoutPass pass, bool begin) const;
 
 private:
     struct Event;
@@ -164,6 +169,7 @@ private:
     std::function<int()> eventPump_;
     std::function<void()> frameTail_;
     FramePhaseHook phaseHook_;
+    LayoutPassHook passHook_;
     std::string clipboard_;
     int pointWidth_ = 0;
     int pointHeight_ = 0;

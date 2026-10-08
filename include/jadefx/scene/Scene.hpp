@@ -25,6 +25,11 @@ struct PopupOptions {
 };
 
 // The root of one window. Layout is in CSS pixels (window points), origin top left.
+// The parts of Scene::layout, for a host that times them inside FramePhase::Layout.
+// Styles resolves the cascade, Layout places the root, and Popups places each popup.
+enum class LayoutPass { Styles, Layout, Popups };
+using LayoutPassHook = std::function<void(LayoutPass pass, bool begin)>;
+
 class Scene : public Node {
 public:
     explicit Scene(std::shared_ptr<Node> root = nullptr);
@@ -52,6 +57,8 @@ public:
     void layout(double width, double height, double timeSeconds);
 
     void setSafeInsets(const Insets& insets) { safe_ = insets; }
+    // Told when each LayoutPass of layout begins and ends. Stage sets this.
+    void setLayoutPassHook(LayoutPassHook hook) { passHook_ = std::move(hook); }
 
     void noteMove(double x, double y);
     // The pointer left the window. Hover ends and the cursor returns to the arrow.
@@ -258,6 +265,7 @@ private:
     double pointerY_ = 0;
     bool pointerValid_ = false;
     std::function<int()> eventPump_;
+    LayoutPassHook passHook_;
 };
 
 }  // namespace jadefx

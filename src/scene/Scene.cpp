@@ -58,6 +58,27 @@ bool Related(Node* a, Node* b) {
     return false;
 }
 
+// Reports a layout pass from construction to destruction.
+class PassScope {
+public:
+    PassScope(const LayoutPassHook& hook, LayoutPass pass) : hook_(hook), pass_(pass) {
+        if (hook_) {
+            hook_(pass_, true);
+        }
+    }
+    ~PassScope() {
+        if (hook_) {
+            hook_(pass_, false);
+        }
+    }
+    PassScope(const PassScope&) = delete;
+    PassScope& operator=(const PassScope&) = delete;
+
+private:
+    const LayoutPassHook& hook_;
+    LayoutPass pass_;
+};
+
 }  // namespace
 
 Scene::Scene(std::shared_ptr<Node> root) : Scene(std::move(root), 0, 0) {}
@@ -114,7 +135,10 @@ void Scene::layout(double width, double height) {
 }
 
 void Scene::layout(double width, double height, double timeSeconds) {
-    applyStyles(rootInheritance(), timeSeconds);
+    {
+        PassScope pass(passHook_, LayoutPass::Styles);
+        applyStyles(rootInheritance(), timeSeconds);
+    }
 
     x_ = 0;
     y_ = 0;
@@ -128,15 +152,21 @@ void Scene::layout(double width, double height, double timeSeconds) {
     if (!internal_) {
         return;
     }
-    const double right = computed_.padding.right + computed_.border.right;
-    const double bottom = computed_.padding.bottom + computed_.border.bottom;
-    const double x = safe_.left + contentLeft();
-    const double y = safe_.top + contentTop();
-    const double innerWidth = std::max(0.0, width_ - safe_.left - safe_.right - contentLeft() - right);
-    const double innerHeight = std::max(0.0, height_ - safe_.top - safe_.bottom - contentTop() - bottom);
-    internal_->performLayout(x, y, innerWidth, innerHeight);
-    for (std::size_t i = 0; i < popups_.size(); ++i) {
-        layoutPopup(popups_[i]);
+    {
+        PassScope pass(passHook_, LayoutPass::Layout);
+        const double right = computed_.padding.right + computed_.border.right;
+        const double bottom = computed_.padding.bottom + computed_.border.bottom;
+        const double x = safe_.left + contentLeft();
+        const double y = safe_.top + contentTop();
+        const double innerWidth = std::max(0.0, width_ - safe_.left - safe_.right - contentLeft() - right);
+        const double innerHeight = std::max(0.0, height_ - safe_.top - safe_.bottom - contentTop() - bottom);
+        internal_->performLayout(x, y, innerWidth, innerHeight);
+    }
+    {
+        PassScope pass(passHook_, LayoutPass::Popups);
+        for (std::size_t i = 0; i < popups_.size(); ++i) {
+            layoutPopup(popups_[i]);
+        }
     }
     if (pointerValid_) {
         updateHoverPopup(pick(pointerX_, pointerY_));
