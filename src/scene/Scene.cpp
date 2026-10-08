@@ -1,4 +1,5 @@
 #include "jadefx/scene/Scene.hpp"
+#include "scene/IncrementalCheck.hpp"
 
 #include "jadefx/scene/layout/StackPane.hpp"
 #include "jadefx/style/Theme.hpp"
@@ -7,6 +8,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <iterator>
 
 namespace jadefx {
@@ -144,24 +147,13 @@ void Scene::layout(double width, double height) {
     layout(width, height, time);
 }
 
-void Scene::layout(double width, double height, double timeSeconds) {
-    beginLayoutPass();
-    {
-        PassScope pass(passHook_, LayoutPass::Styles);
-        applyStyles(rootInheritance(), timeSeconds);
-    }
+void Scene::stylePass(double timeSeconds) {
+    PassScope pass(passHook_, LayoutPass::Styles);
+    applyStyles(rootInheritance(), timeSeconds);
+}
 
-    x_ = 0;
-    y_ = 0;
-    width_ = std::max(0.0, width);
-    height_ = std::max(0.0, height);
-    lastWidth_ = width_;
-    lastHeight_ = height_;
-    lastTime_ = timeSeconds;
-    laidOut_ = true;
-
+void Scene::placePass() {
     if (!internal_) {
-        endLayoutPass();
         return;
     }
     {
@@ -172,17 +164,37 @@ void Scene::layout(double width, double height, double timeSeconds) {
         const double y = safe_.top + contentTop();
         const double innerWidth = std::max(0.0, width_ - safe_.left - safe_.right - contentLeft() - right);
         const double innerHeight = std::max(0.0, height_ - safe_.top - safe_.bottom - contentTop() - bottom);
+        // The scene places its root itself every frame.
         layoutDirty_ = false;
         childLayoutDirty_ = false;
         internal_->performLayout(x, y, innerWidth, innerHeight);
     }
-    {
-        PassScope pass(passHook_, LayoutPass::Popups);
-        for (std::size_t i = 0; i < popups_.size(); ++i) {
-            layoutPopup(popups_[i], false);
+    PassScope pass(passHook_, LayoutPass::Popups);
+    for (std::size_t i = 0; i < popups_.size(); ++i) {
+        layoutPopup(popups_[i], false);
+    }
+}
+
+void Scene::layout(double width, double height, double timeSeconds) {
+    beginLayoutPass();
+    stylePass(timeSeconds);
+    x_ = 0;
+    y_ = 0;
+    width_ = std::max(0.0, width);
+    height_ = std::max(0.0, height);
+    lastWidth_ = width_;
+    lastHeight_ = height_;
+    lastTime_ = timeSeconds;
+    laidOut_ = true;
+    placePass();
+    endLayoutPass();
+    if (incremental_ && IncrementalCheck::requested()) {
+        const std::string difference = IncrementalCheck::verify(*this);
+        if (!difference.empty()) {
+            std::fprintf(stderr, "JADEFX_VERIFY_INCREMENTAL: %s\n", difference.c_str());
+            std::abort();
         }
     }
-    endLayoutPass();
     if (pointerValid_) {
         updateHoverPopup(pick(pointerX_, pointerY_));
     }

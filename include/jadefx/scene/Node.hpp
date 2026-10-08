@@ -341,6 +341,7 @@ protected:
     void setDefaultCursor(Cursor cursor) { defaultCursor_ = cursor; }
 
     friend class Scene;
+    friend class IncrementalCheck;
     friend class SplitPane;
 
 private:

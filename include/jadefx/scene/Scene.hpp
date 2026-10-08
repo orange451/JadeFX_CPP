@@ -152,6 +152,11 @@ protected:
 
 private:
     friend class Node;
+    friend class IncrementalCheck;
+    // Styles the scene, inside the Styles pass report.
+    void stylePass(double timeSeconds);
+    // Places the root and the popups, inside the Layout and Popups pass reports.
+    void placePass();
 
     // A drag under way: its data and the nodes it has met.
     struct DragState {

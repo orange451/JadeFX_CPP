@@ -1,4 +1,5 @@
 #include "jadefx/jadefx.hpp"
+#include "scene/IncrementalCheck.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -164,6 +165,34 @@ void TestFullPassWhenIncrementalOff() {
     Expect(f.target->computedStyle().width.pixels == 150, "with incremental passes off every node restyles each frame");
 }
 
+void TestVerifyAgreesOnCleanScene() {
+    Fixture f = MakeFixture();
+    f.frame();
+    Expect(jadefx::IncrementalCheck::verify(*f.scene).empty(), "a full pass agrees with an incremental one");
+}
+
+void TestCompareNamesPathAndField() {
+    Fixture f = MakeFixture();
+    const std::vector<jadefx::NodeSnapshot> shots = jadefx::IncrementalCheck::snapshot(*f.scene);
+    std::vector<jadefx::NodeSnapshot> changed = shots;
+    for (jadefx::NodeSnapshot& shot : changed) {
+        if (shot.node == f.targetLabel.get()) {
+            shot.style.padding.left += 3;
+        }
+    }
+    const std::string padding = jadefx::IncrementalCheck::compare(shots, changed);
+    Expect(padding.find("padding") != std::string::npos, "a style difference names the field");
+    Expect(padding.find("label.inner") != std::string::npos, "a style difference names the node's path");
+    changed = shots;
+    for (jadefx::NodeSnapshot& shot : changed) {
+        if (shot.node == f.target.get()) {
+            shot.width += 1;
+        }
+    }
+    Expect(jadefx::IncrementalCheck::compare(shots, changed).find("bounds") != std::string::npos,
+           "a bounds difference says so");
+}
+
 }  // namespace
 
 int RunIncrementalTests() {
@@ -172,5 +201,7 @@ int RunIncrementalTests() {
     TestChildAddTouchesOnlyItsParent();
     TestChildRemoveTouchesOnlyItsParent();
     TestFullPassWhenIncrementalOff();
+    TestVerifyAgreesOnCleanScene();
+    TestCompareNamesPathAndField();
     return gFailures;
 }
