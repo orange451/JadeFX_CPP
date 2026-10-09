@@ -138,6 +138,10 @@ public:
     // The returned id is passed to removeKeyHook.
     int addKeyHook(std::function<void(KeyEvent&)> hook);
     void removeKeyHook(int id);
+    // Runs after the focused node and its ancestors left the key unconsumed,
+    // for app-wide keys that any focused control may claim first.
+    int addFallbackKeyHook(std::function<void(KeyEvent&)> hook);
+    void removeFallbackKeyHook(int id);
 
     // Runs after every layout, popups included, as JavaFX's post-layout pulse
     // listeners do. A listener may move, show, or hide popups, and add or remove
@@ -273,6 +277,7 @@ private:
 
     std::vector<PopupRecord> popups_;
     std::vector<HookRecord> keyHooks_;
+    std::vector<HookRecord> fallbackKeyHooks_;
     std::vector<std::pair<int, std::function<void()>>> pulseListeners_;
     int nextHookId_ = 1;
     HoverState hover_;

@@ -129,6 +129,7 @@ Scene::~Scene() {
     // caller kept then see a null scene instead of a freed one.
     tearingDown_ = true;
     keyHooks_.clear();
+    fallbackKeyHooks_.clear();
     hover_ = {};
     std::fill(std::begin(heldButtonTargets_), std::end(heldButtonTargets_), nullptr);
     popups_.clear();
@@ -595,6 +596,15 @@ bool Scene::noteKey(int key, bool pressed, bool repeat, int mods) {
     }
     for (Node* node = resume; node != nullptr; node = node->getParent()) {
         node->handleKey(event);
+        if (event.consumed) {
+            return true;
+        }
+    }
+    const std::vector<HookRecord> fallbacks = fallbackKeyHooks_;
+    for (const HookRecord& hook : fallbacks) {
+        if (hook.hook) {
+            hook.hook(event);
+        }
         if (event.consumed) {
             return true;
         }
@@ -1072,6 +1082,18 @@ void Scene::removeKeyHook(int id) {
     keyHooks_.erase(std::remove_if(keyHooks_.begin(), keyHooks_.end(),
                                    [id](const HookRecord& hook) { return hook.id == id; }),
                     keyHooks_.end());
+}
+
+int Scene::addFallbackKeyHook(std::function<void(KeyEvent&)> hook) {
+    const int id = nextHookId_++;
+    fallbackKeyHooks_.push_back({id, std::move(hook)});
+    return id;
+}
+
+void Scene::removeFallbackKeyHook(int id) {
+    fallbackKeyHooks_.erase(std::remove_if(fallbackKeyHooks_.begin(), fallbackKeyHooks_.end(),
+                                           [id](const HookRecord& hook) { return hook.id == id; }),
+                            fallbackKeyHooks_.end());
 }
 
 int Scene::addPostLayoutPulseListener(std::function<void()> listener) {
