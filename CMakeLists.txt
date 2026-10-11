@@ -382,6 +382,7 @@ if(NOT JADEFX_GLFM)
         tests/uniform_cache_tests.cpp
         tests/glyph_atlas_tests.cpp
         tests/occluder_tests.cpp
+        tests/texture_draw_tests.cpp
         tests/frame_phase_tests.cpp
         tests/style_perf_tests.cpp
         tests/incremental_tests.cpp

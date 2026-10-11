@@ -44,6 +44,12 @@ public:
     // A tint draws only the image's alpha, filled with that color.
     void drawImage(const std::shared_ptr<ImageData>& image, float x, float y, float width, float height, float opacity,
                    const Color* tint = nullptr);
+    // An app's own GL 2D texture, as drawImage draws an image's: x and y are
+    // the top left in window points. premultiplied scales color by opacity as
+    // well as alpha and blends ONE, ONE_MINUS_SRC_ALPHA; flipV samples row 0 at
+    // the bottom. The blend function is SRC_ALPHA, ONE_MINUS_SRC_ALPHA after.
+    void drawTexture(unsigned texture, float x, float y, float width, float height, float opacity,
+                     bool premultiplied, bool flipV);
     // Clip later draws to this rectangle in window points, origin top left.
     // Clips nest by intersection. popClip restores the previous one.
     void pushClip(float x, float y, float width, float height);
@@ -145,6 +151,7 @@ private:
         int sampler = -1;
         int tint = -1;
         int tinted = -1;
+        int premultiplied = -1;
         OccluderSlots occluder;
     };
     void locateBox(BoxProgram& program);

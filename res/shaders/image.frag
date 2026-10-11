@@ -1,4 +1,5 @@
-// Straight-alpha bitmap. v is top to bottom, matching the decoded rows.
+// Straight-alpha bitmap, or premultiplied when uPremultiplied is set, for an
+// app's own texture. v is top to bottom, matching the decoded rows.
 // When uTinted is set, the bitmap is only a mask: its alpha is filled with uTint.
 in vec2 vUv;
 
@@ -6,6 +7,7 @@ uniform sampler2D uTex;
 uniform float uOpacity;
 uniform vec4 uTint;
 uniform float uTinted;
+uniform float uPremultiplied;
 
 #ifdef JADEFX_OCCLUDER
 // Compiled in only for the program UiRenderer uses while an occluder is set.
@@ -38,7 +40,12 @@ void main() {
     if (uTinted > 0.5) {
         color = vec4(uTint.rgb, color.a * uTint.a);
     }
-    color.a *= uOpacity;
+    // A premultiplied texture fades by scaling every channel; a straight one by its alpha.
+    if (uPremultiplied > 0.5) {
+        color *= uOpacity;
+    } else {
+        color.a *= uOpacity;
+    }
     if (color.a <= 0.001) {
         discard;
     }

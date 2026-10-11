@@ -23,6 +23,11 @@ void Painter::setOccluder(unsigned depthTexture, int x, int y, int width, int he
 
 void Painter::clearOccluder() { renderer_.clearOccluder(); }
 
+void Painter::drawTexture(unsigned texture, float x, float y, float width, float height, float opacity,
+                          TextureAlpha alpha, bool flipV) {
+    renderer_.drawTexture(texture, x, y, width, height, opacity, alpha == TextureAlpha::Premultiplied, flipV);
+}
+
 float Painter::pixelsPerPoint() const { return renderer_.pixelsPerPoint(); }
 
 void Painter::strokeRounded(float x, float y, float width, float height, const float radius[4], const float sides[4],

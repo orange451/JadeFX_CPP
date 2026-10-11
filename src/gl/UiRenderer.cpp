@@ -229,6 +229,7 @@ void UiRenderer::locateImage(ImageProgram& program) {
     program.sampler = Location(id, "uTex");
     program.tint = Location(id, "uTint");
     program.tinted = Location(id, "uTinted");
+    program.premultiplied = Location(id, "uPremultiplied");
     locateOccluder(id, program.occluder);
 }
 
@@ -857,11 +858,51 @@ void UiRenderer::drawImage(const std::shared_ptr<ImageData>& image, float x, flo
         glUniform4f(program.tint, tint->r, tint->g, tint->b, tint->a);
     }
     glUniform1f(program.tinted, tint != nullptr ? 1.f : 0.f);
+    glUniform1f(program.premultiplied, 0.f);
     glBindTexture(GL_TEXTURE_2D, texture);
     glBindVertexArray(textVao_);
     glBindBuffer(GL_ARRAY_BUFFER, textVbo_);
     glBufferData(GL_ARRAY_BUFFER, sizeof quad, quad, GL_DYNAMIC_DRAW);
     glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+void UiRenderer::drawTexture(unsigned texture, float x, float y, float width, float height, float opacity,
+                             bool premultiplied, bool flipV) {
+    if (!ready_ || image_.id == 0 || texture == 0 || opacity <= 0.f || width <= 0.f || height <= 0.f ||
+        viewportW_ <= 0 || viewportH_ <= 0) {
+        return;
+    }
+    const float scale = scale_;
+    const float left = x * scale;
+    const float top = y * scale;
+    const float right = (x + width) * scale;
+    const float bottom = (y + height) * scale;
+    // v 0 is the quad's top; a framebuffer's row 0 is its bottom, so flipV swaps them.
+    const float vTop = flipV ? 1.f : 0.f;
+    const float vBottom = flipV ? 0.f : 1.f;
+    const float quad[] = {
+        left, top, 0.f, vTop, right, top,    1.f, vTop,    right, bottom, 1.f, vBottom,
+        left, top, 0.f, vTop, right, bottom, 1.f, vBottom, left,  bottom, 0.f, vBottom,
+    };
+    if (premultiplied) {
+        glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    } else {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    ImageProgram& program = pick(image_, imageOccluded_);
+    glUseProgram(program.id);
+    sendOccluder(program.occluder);
+    glUniform2f(program.viewport, static_cast<float>(viewportW_), static_cast<float>(viewportH_));
+    glUniform1f(program.opacity, opacity);
+    glUniform1i(program.sampler, 0);
+    glUniform1f(program.tinted, 0.f);
+    glUniform1f(program.premultiplied, premultiplied ? 1.f : 0.f);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glBindVertexArray(textVao_);
+    glBindBuffer(GL_ARRAY_BUFFER, textVbo_);
+    glBufferData(GL_ARRAY_BUFFER, sizeof quad, quad, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 bool UiRenderer::writePpm(const char* path) const {

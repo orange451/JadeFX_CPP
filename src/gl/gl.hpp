@@ -116,6 +116,9 @@ using GLsizeiptr = std::ptrdiff_t;
 #ifdef GL_SRC_ALPHA
 #undef GL_SRC_ALPHA
 #endif
+#ifdef GL_ONE
+#undef GL_ONE
+#endif
 #ifdef GL_ONE_MINUS_SRC_ALPHA
 #undef GL_ONE_MINUS_SRC_ALPHA
 #endif
@@ -167,6 +170,7 @@ constexpr GLenum GL_TEXTURE_WRAP_S = 0x2802;
 constexpr GLenum GL_TEXTURE_WRAP_T = 0x2803;
 constexpr GLenum GL_CLAMP_TO_EDGE = 0x812F;
 constexpr GLenum GL_BLEND = 0x0BE2;
+constexpr GLenum GL_ONE = 1;
 constexpr GLenum GL_SRC_ALPHA = 0x0302;
 constexpr GLenum GL_ONE_MINUS_SRC_ALPHA = 0x0303;
 constexpr GLenum GL_UNPACK_ALIGNMENT = 0x0CF5;

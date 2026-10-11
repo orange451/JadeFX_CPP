@@ -8,6 +8,9 @@ namespace jadefx {
 
 class UiRenderer;
 
+// How a texture's color relates to its alpha: as drawn, or already multiplied by it.
+enum class TextureAlpha { Straight, Premultiplied };
+
 // Draws for a node that paints its own content from renderContent, as a
 // terminal grid or a chart does. Coordinates are window points, the same as
 // getAbsoluteX and getAbsoluteY. The renderer itself stays private.
@@ -45,6 +48,12 @@ public:
     // unit 7 is the app's again.
     void setOccluder(unsigned depthTexture, int x, int y, int width, int height, float depth);
     void clearOccluder();
+    // Draws an app-owned GL 2D texture over x, y, width, height (window
+    // points), clipped and occluded as any image. flipV is for a texture whose
+    // row 0 is its bottom, as a framebuffer's is. Premultiplied scales color
+    // and alpha by opacity alike. A texture of 0 draws nothing.
+    void drawTexture(unsigned texture, float x, float y, float width, float height, float opacity,
+                     TextureAlpha alpha, bool flipV);
     // Device pixels in one point, for drawing that lands on whole pixels.
     float pixelsPerPoint() const;
 

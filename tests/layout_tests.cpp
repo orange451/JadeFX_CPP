@@ -1969,6 +1969,7 @@ int RunRichTextTests();
 int RunUniformCacheTests();
 int RunGlyphAtlasTests();
 int RunOccluderTests();
+int RunTextureDrawTests();
 int RunButtonTests();
 int RunCursorTests();
 int RunPointerLockTests();
@@ -2026,6 +2027,7 @@ int main() {
     gFailures += RunUniformCacheTests();
     gFailures += RunGlyphAtlasTests();
     gFailures += RunOccluderTests();
+    gFailures += RunTextureDrawTests();
     gFailures += RunRunLaterTests();
     gFailures += RunFramePhaseTests();
     gFailures += RunStylePerfTests();
