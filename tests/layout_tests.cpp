@@ -1782,6 +1782,28 @@ void TestTreeView() {
                        "the plus moves onto Carol");
             }
         }
+        tree->setHoverAccessoryAfterLabel(true);
+        salesCell = CellNamed(*scene, "Sales");
+        if (salesCell != nullptr) {
+            scene->noteMove(salesCell->getAbsoluteX() + 12, salesCell->getAbsoluteY() + salesCell->getHeight() * 0.5);
+            scene->layout(240, 200, 0);
+            salesCell = CellNamed(*scene, "Sales");
+        }
+        if (salesCell != nullptr) {
+            jadefx::Node* salesLabel = nullptr;
+            for (jadefx::Node* node : salesCell->getElementsByClassName("tree-cell-label")) {
+                salesLabel = node;
+            }
+            Expect(plus->isVisible() && tree->getHoveredItem() == sales.get(), "the plus shows after the label");
+            Expect(plus->getAbsoluteX() < salesCell->getAbsoluteX() + salesCell->getWidth() * 0.5,
+                   "a short name brings the plus in from the row's right edge");
+            if (salesLabel != nullptr) {
+                const double textEnd = salesLabel->getAbsoluteX() + salesLabel->measuredWidth(salesLabel->getWidth());
+                Expect(plus->getAbsoluteX() >= textEnd - 0.5 && plus->getAbsoluteX() <= textEnd + 6,
+                       "the plus sits just past the end of the name");
+            }
+        }
+        tree->setHoverAccessoryAfterLabel(false);
     }
     scene->notePointerExit();
     scene->layout(240, 200, 0);

@@ -28,6 +28,8 @@ constexpr double kRightPad = 10;
 // pointer does not have to land on the glyph itself.
 constexpr double kHoverSlot = 24;
 constexpr double kHoverButton = kHoverSlot;
+// Between a label's text and an accessory drawn after it.
+constexpr double kAccessoryGap = 2;
 constexpr double kDefaultRow = 32;
 constexpr double kDefaultIndent = 10;
 constexpr double kMinRow = 8;
@@ -263,6 +265,8 @@ public:
     const char* getElementType() const override { return "tree-cell"; }
 
     TreeItem* item() const { return item_; }
+    // Where the label's text ends, from the cell's left edge, as of the last layout.
+    double labelEnd() const { return labelEnd_; }
 
     void handleMouseDragged(const MouseEvent& event) override {
         if (view_ != nullptr && item_ != nullptr) {
@@ -428,8 +432,11 @@ protected:
         } else if (graphic_) {
             graphic_->performLayout(0, 0, 0, 0);
         }
+        labelEnd_ = x;
         if (label_) {
-            label_->performLayout(x, 0, std::max(0.0, limit - x), height);
+            const double labelW = std::max(0.0, limit - x);
+            label_->performLayout(x, 0, labelW, height);
+            labelEnd_ = x + std::min(labelW, std::max(0.0, label_->measuredWidth(labelW)));
         }
     }
 
@@ -580,6 +587,7 @@ private:
     int level_ = 0;
     double indent_ = kDefaultIndent;
     double trail_ = 0;
+    double labelEnd_ = 0;
     bool arrowClick_ = false;
     bool dragged_ = false;
     double lastClick_ = 0;
@@ -637,6 +645,7 @@ struct TreeView::Impl {
     // Set by setSelectionBarColor. Unset follows the theme's accent color.
     std::optional<Color> barColor;
     std::shared_ptr<Node> accessory;
+    bool accessoryAfterLabel = false;
     TreeItem* hoverItem = nullptr;
     std::shared_ptr<ScrollBar> vbar;
     double scroll = 0;
@@ -1100,6 +1109,14 @@ void TreeView::setHoverAccessory(std::shared_ptr<Node> node) {
     // mark this view on its own.
     markLayoutDirty();
     markStyleDirty(StyleDirt::Subtree);
+}
+
+void TreeView::setHoverAccessoryAfterLabel(bool afterLabel) {
+    if (!impl_ || !impl_->alive || impl_->accessoryAfterLabel == afterLabel) {
+        return;
+    }
+    impl_->accessoryAfterLabel = afterLabel;
+    markLayoutDirty(LayoutDirt::Arrange);
 }
 
 TreeItem* TreeView::getHoveredItem() const {
@@ -1581,6 +1598,7 @@ void TreeView::layoutChildren() {
         }
     }
     double hoverTop = 0;
+    double hoverLabelEnd = 0;
     bool hoverShown = false;
     constexpr double kAppearSeconds = 0.18;
     const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -1609,9 +1627,11 @@ void TreeView::layoutChildren() {
             continue;
         }
         cell->setVisible(true);
-        cell->performLayout(left - (1.0 - eased) * 8.0, y, rowWidth, row);
+        const double cellX = left - (1.0 - eased) * 8.0;
+        cell->performLayout(cellX, y, rowWidth, row);
         if (trail > 0) {
             hoverTop = y;
+            hoverLabelEnd = cellX + cell->labelEnd();
             hoverShown = true;
         }
     }
@@ -1625,7 +1645,8 @@ void TreeView::layoutChildren() {
             impl_->accessory->performLayout(0, 0, 0, 0);
         } else {
             const double size = std::min(kHoverButton, row - 4);
-            const double x = left + rowWidth - kHoverSlot + (kHoverSlot - size) * 0.5;
+            const double rowEnd = left + rowWidth - kHoverSlot + (kHoverSlot - size) * 0.5;
+            const double x = impl_->accessoryAfterLabel ? std::min(rowEnd, hoverLabelEnd + kAccessoryGap) : rowEnd;
             const double y = hoverTop + (row - size) * 0.5;
             impl_->accessory->setVisible(true);
             impl_->accessory->performLayout(x, y, size, size);

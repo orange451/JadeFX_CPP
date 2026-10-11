@@ -102,6 +102,10 @@ public:
     // hovered. The pointer can rest on the node without that row losing it.
     // Null clears it. A click belongs to the node, not the row.
     void setHoverAccessory(std::shared_ptr<Node> node);
+    // True draws the accessory just past the end of the row's label instead of
+    // at the row's right edge. A label too long to fit still leaves the button
+    // at the right edge. False by default.
+    void setHoverAccessoryAfterLabel(bool afterLabel);
     // The row the accessory is standing on, or null.
     TreeItem* getHoveredItem() const;
     // The row calls these. contextMenuRequested selects the item first.
